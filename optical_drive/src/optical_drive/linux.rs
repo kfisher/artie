@@ -54,7 +54,7 @@ impl BlockDevice {
     }
 
     /// Returns `true` if the block device has serial number `serial_number`.
-    fn has_serial_number(&self, serial_number: &String) -> bool {
+    fn has_serial_number(&self, serial_number: &str) -> bool {
         if let Some(ref sn) = self.serial_number {
             sn.eq_ignore_ascii_case(serial_number)
         } else {
@@ -62,11 +62,11 @@ impl BlockDevice {
         }
     }
 
-    /// Converts the block device to an `OpticalDrive` instance.
+    /// Converts the block device to an [`OpticalDrive`] instance.
     ///
     /// Panics if called on a block device that is not a valid optical drive
-    /// block device. Use `is_optical_drive()` to check if the device is a valid
-    /// optical drive.
+    /// block device. Use [`BlockDevice::is_optical_drive`] to check if the
+    /// device is a valid optical drive.
     fn to_optical_drive(&self) -> OpticalDrive {
         let Some(sn) = &self.serial_number else {
             panic!("Block device is not a valid optical drive.");
@@ -108,15 +108,8 @@ struct BlockDeviceData {
     block_devices: Vec<BlockDevice>,
 }
 
-/// Function signature for running the `lsblk` command.
-///
-/// Upon successfully running the command, the function should return a JSON
-/// formatted string that can be deserialized into a `BlockDeviceData` instance.
-/// If the command fails, it should return the appropriate error result.
-//type ListBlockDevicesCommand = fn() -> Result<String, Error>;
-
 /// Runs the `lsblk` command and return the output which is a JSON string that
-/// can be deserialized into a `BlockDeviceData` instance. Returns an error if
+/// can be deserialized into a [`BlockDeviceData`] instance. Returns an error if
 /// the command fails to run or exits with an error status code.
 fn run_lsblk_command() -> Result<String, Error> {
     let mut command = Command::new("lsblk");
@@ -146,14 +139,14 @@ fn run_lsblk_command() -> Result<String, Error> {
 // NOTE: The internal implementation allows for the bulk of the function to be
 //       tested without having to make an actual call to the OS.
 
-/// Internal implementation of `get_optical_drive()`.
+/// Internal implementation of [`get_optical_drive`].
 ///
 /// This method gets the optional drive information from the operating system
 /// for a drive with serial number `serial_number`. Returns `None` if an optical
 /// drive cannot be found or an error if the command fails or its results cannot
 /// be processed.
 fn get_optical_drive_impl<F: Fn() -> Result<String, Error>>(
-    serial_number: &String,
+    serial_number: &str,
     run_cmd: F,
 ) -> Result<Option<OpticalDrive>, Error> {
     let json = run_cmd()?;
@@ -183,7 +176,7 @@ fn get_optical_drive_impl<F: Fn() -> Result<String, Error>>(
 /// system.
 ///
 /// This is the Linux specific implementation.
-pub fn get_optical_drive(serial_number: &String) -> Result<Option<OpticalDrive>, Error> {
+pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>, Error> {
     get_optical_drive_impl(serial_number, run_lsblk_command)
 }
 

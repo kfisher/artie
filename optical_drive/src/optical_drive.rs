@@ -41,7 +41,7 @@ pub enum DiscState {
 
 /// Represents an optical drive.
 pub struct OpticalDrive {
-    /// The device path of the drive, such as `/dev/sr0`.
+    /// The device path of the drive, such as "/dev/sr0".
     pub path: String,
 
     /// The serial number of the optical drive.
@@ -60,6 +60,6 @@ pub struct OpticalDrive {
 /// Returns `None` if an optical drive cannot be found with the provided serial
 /// number. Returns an error if something goes wrong when querying the operating
 /// system.
-pub fn get_optical_drive(serial_number: &String) -> Result<Option<OpticalDrive>, Error> {
+pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>, Error> {
     platform::get_optical_drive(serial_number)
 }
