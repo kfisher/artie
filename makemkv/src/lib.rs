@@ -3,10 +3,9 @@
 
 //! Crate responsible for running the MakeMKV command.
 
+mod error;
+mod data;
 mod messages;
 
-/// Error type for the MakeMKV crate.
-pub enum Error {
-    /// Error when a message from MakeMKV cannot be parsed.
-    ParseError(messages::Error),
-}
+pub use crate::error::{Error, Result};
+
