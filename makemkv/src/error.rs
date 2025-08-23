@@ -3,10 +3,13 @@
 
 //! Defines the result and error types used by the `makemkv` crate.
 
+use crate::data::Attribute;
+
 /// Result type for `makemkv` crate functions.
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Error type for `makemkv` crate functions.
+#[derive(Debug, PartialEq)]
 pub enum Error {
     /// Error raised when parsing a message from MakeMKV when the data within the message cannot be
     /// parsed because the data is malformed or missing.
@@ -18,14 +21,14 @@ pub enum Error {
         data: String,
 
         /// Error is a brief description of the error.
-        error: String
+        error: String,
     },
 
     /// Error raised when parsing a message and the message cannot be parsed into its key/value
     /// components.
     InvalidMessageFormat {
         /// The raw message text that could not be parsed.
-        msg: String 
+        msg: String,
     },
 
     /// Error raised when parsing a message and the message type is unknown to the parser and
@@ -35,7 +38,27 @@ pub enum Error {
         key: String,
 
         /// Data component of the message.
-        data: String
+        data: String,
+    },
+
+    /// Error raised when parsing a message and more than one instance of a disc attribute was
+    /// reported by MakeMKV.
+    DuplicateDiscAttribute {
+        /// The duplicate attribute id.
+        attr: Attribute,
+    },
+
+    /// Error raised when parsing a message and more than one instance of a title attribute was
+    /// reported by MakeMKV for the same title.
+    DuplicateTitleAttribute {
+        /// The duplicate attribute id.
+        attr: Attribute,
+    },
+
+    /// Error raised when parsing a message and more than one instance of a stream attribute was
+    /// reported by MakeMKV for the same stream.
+    DuplicateStreamAttribute {
+        /// The duplicate attribute id.
+        attr: Attribute,
     },
 }
-
