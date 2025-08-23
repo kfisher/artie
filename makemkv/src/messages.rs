@@ -8,166 +8,15 @@
 //! utilities for parsing those messages.
 //!
 //! The message structure was constructed using the documentation provided in
-//! <https://gist.github.com/csandman/ad221b9014cf88c29ccfa604d8507790> as well
-//! as data found in the source code (header files) provided in the open source
-//! parts of MakeMKV (version 1.7.17).
+//! <https://www.makemkv.com/developers/usage.txt> as well as data found in the
+//! source code (header files) provided in the open source parts of MakeMKV
+//! (version 1.7.17).
 
-// TODO: Revisit this once the MakeMKV crate has been completed as well as the
-//       crate(s) that will use it. There are a lot of warnings and I don't want
-//       to remove the code until I'm sure it won't be needed.
-#![allow(dead_code)]
+use crate::data::Attribute;
+use crate::error::{Error, Result};
 
-/// Specifies the information attribute types that can be extracted by MakeMKV
-/// by running the 'info' command.
-///
-/// These attributes can apply to either the disc, titles within the disc, or
-/// streams (audio, subtitle, or video). The following MakeMKV messages contain
-/// these attributes:
-///
-/// - [`Message::Cinfo`] Disc Info
-/// - [`Message::Tinfo`] Title Info
-/// - [`Message::Sinfo`] Stream Info
-#[derive(Debug, PartialEq)]
-pub enum Attribute {
-    Unknown,
-    Type,
-    Name,
-    LangCode,
-    LangName,
-    CodecId,
-    CodecShort,
-    CodecLong,
-    ChapterCount,
-    Duration,
-    DiskSize,
-    DiskSizeBytes,
-    StreamTypeExtension,
-    Bitrate,
-    AudioChannelsCount,
-    AngleInfo,
-    SourceFileName,
-    AudioSampleRate,
-    AudioSampleSize,
-    VideoSize,
-    VideoAspectRatio,
-    VideoFrameRate,
-    StreamFlags,
-    DateTime,
-    OriginalTitleId,
-    SegmentsCount,
-    SegmentsMap,
-    OutputFileName,
-    MetadataLanguageCode,
-    MetadataLanguageName,
-    TreeInfo,
-    PanelTitle,
-    VolumeName,
-    OrderWeight,
-    OutputFormat,
-    OutputFormatDescription,
-    SeamlessInfo,
-    PanelText,
-    MkvFlags,
-    MkvFlagsText,
-    AudioChannelLayoutName,
-    OutputCodecShort,
-    OutputConversionType,
-    OutputAudioSampleRate,
-    OutputAudioSampleSize,
-    OutputAudioChannelsCount,
-    OutputAudioChannelLayoutName,
-    OutputAudioChannelLayout,
-    OutputAudioMixDescription,
-    Comment,
-    OffsetSequenceId,
-}
-
-impl Attribute {
-    /// Converts the numberic value used to represent these attributes in
-    /// MakeMKV to its corresponding `Attribute` value.
-    ///
-    /// Returns [`Error::AttributeConversion`] if the value could not be
-    /// converted.
-    pub fn from_i32(n: i32) -> Result<Self, Error> {
-        match n {
-            0 => Ok(Self::Unknown),
-            1 => Ok(Self::Type),
-            2 => Ok(Self::Name),
-            3 => Ok(Self::LangCode),
-            4 => Ok(Self::LangName),
-            5 => Ok(Self::CodecId),
-            6 => Ok(Self::CodecShort),
-            7 => Ok(Self::CodecLong),
-            8 => Ok(Self::ChapterCount),
-            9 => Ok(Self::Duration),
-            10 => Ok(Self::DiskSize),
-            11 => Ok(Self::DiskSizeBytes),
-            12 => Ok(Self::StreamTypeExtension),
-            13 => Ok(Self::Bitrate),
-            14 => Ok(Self::AudioChannelsCount),
-            15 => Ok(Self::AngleInfo),
-            16 => Ok(Self::SourceFileName),
-            17 => Ok(Self::AudioSampleRate),
-            18 => Ok(Self::AudioSampleSize),
-            19 => Ok(Self::VideoSize),
-            20 => Ok(Self::VideoAspectRatio),
-            21 => Ok(Self::VideoFrameRate),
-            22 => Ok(Self::StreamFlags),
-            23 => Ok(Self::DateTime),
-            24 => Ok(Self::OriginalTitleId),
-            25 => Ok(Self::SegmentsCount),
-            26 => Ok(Self::SegmentsMap),
-            27 => Ok(Self::OutputFileName),
-            28 => Ok(Self::MetadataLanguageCode),
-            29 => Ok(Self::MetadataLanguageName),
-            30 => Ok(Self::TreeInfo),
-            31 => Ok(Self::PanelTitle),
-            32 => Ok(Self::VolumeName),
-            33 => Ok(Self::OrderWeight),
-            34 => Ok(Self::OutputFormat),
-            35 => Ok(Self::OutputFormatDescription),
-            36 => Ok(Self::SeamlessInfo),
-            37 => Ok(Self::PanelText),
-            38 => Ok(Self::MkvFlags),
-            39 => Ok(Self::MkvFlagsText),
-            40 => Ok(Self::AudioChannelLayoutName),
-            41 => Ok(Self::OutputCodecShort),
-            42 => Ok(Self::OutputConversionType),
-            43 => Ok(Self::OutputAudioSampleRate),
-            44 => Ok(Self::OutputAudioSampleSize),
-            45 => Ok(Self::OutputAudioChannelsCount),
-            46 => Ok(Self::OutputAudioChannelLayoutName),
-            47 => Ok(Self::OutputAudioChannelLayout),
-            48 => Ok(Self::OutputAudioMixDescription),
-            49 => Ok(Self::Comment),
-            50 => Ok(Self::OffsetSequenceId),
-            _ => Err(Error::AttributeConversion),
-        }
-    }
-}
-
-/// Errors that can occur while parsing MakeMKV messages.
-pub enum Error {
-    /// The message could not be split into its key and data components.
-    InvalidMessageFormat,
-
-    /// The data component of the message is missing data or was not able to be
-    /// parsed into its data elements.
-    InvalidDataFormat,
-
-    /// Support for the message type has not be added yet.
-    UnknownMessageType(String),
-
-    /// Failed to convert a data element to an integer.
-    IntConversion,
-
-    /// Failed to convert a data element to an attribute.
-    AttributeConversion,
-}
-
-/// Represents the messages that are outputted by MakeMKV when running its
-/// various commands.
-pub enum Message {
+/// Represents the messages that are outputted by MakeMKV when running its various commands.
+pub(crate) enum Message {
     /// CINFO messages contain information about a disc inserted into a drive.
     /// Each message is a key/value pair representing a single attribute of a
     /// disc.
@@ -348,13 +197,12 @@ pub enum Message {
 
 /// Parses a message from MakeMKV.
 ///
-/// Each message is expected to follow the pattern `KEY:DATA`. Key identifies
-/// the type of message and data is a comma separated list of data which varies
-/// based on the message type. See [`Message`] for the set of known message
-/// types.
-pub fn parse_message(raw_message: &str) -> Result<Message, Error> {
+/// Each message is expected to follow the pattern `KEY:DATA`. Key identifies the type of message
+/// and data is a comma separated list of data which varies based on the message type. See
+/// [`Message`] for the set of known message types.
+pub(crate) fn parse_message(raw_message: &str) -> Result<Message> {
     let Some((key, data)) = raw_message.split_once(':') else {
-        return Err(Error::InvalidMessageFormat);
+        return Err(Error::InvalidMessageFormat { msg: raw_message.to_owned() });
     };
     match key {
         "CINFO" => parse_cinfo_message(data),
@@ -366,39 +214,49 @@ pub fn parse_message(raw_message: &str) -> Result<Message, Error> {
         "SINFO" => parse_sinfo_message(data),
         "TCOUNT" => parse_tcount_message(data),
         "TINFO" => parse_tinfo_message(data),
-        _ => Err(Error::UnknownMessageType(String::from(key))),
+        _ => Err(Error::UnknownMessageType { key: key.to_owned(), data: data.to_owned() }),
     }
 }
 
-/// Parses the data component of a CINFO MakeMKV message.
+/// Creates an [`Error::InvalidMessageData`] `Err` result.
 ///
-/// Returns a [`Message::Cinfo`] message or an error if the provided data could
-/// not be parsed.
-fn parse_cinfo_message(data: &str) -> Result<Message, Error> {
-    // Message: "CINFO:<id>,<code>,<value>"
-    //          | Key | Data              |
+/// This macro takes in three arguments: `key`, `data`, and `error`. `key` and `data` are the key
+/// and data components of the message respectively. `err` is a brief error message.
+macro_rules! invalid_message_data {
+    ($k:expr, $d:expr, $e:expr) => {
+        Err(Error::InvalidMessageData { key: $k.to_owned(), data: $d.to_owned(), error: $e.to_owned() })
+    };
+}
+
+/// Parses the data component of a CINFO MakeMKV message returning a [`Message::Cinfo`] message or
+/// an error if the provided data could not be parsed.
+fn parse_cinfo_message(data: &str) -> Result<Message> {
+    // | KEY |        DATA       |
+    // "CINFO:<id>,<code>,<value>"
     let mut parts = data.split(',');
 
     let Some(id) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("CINFO", data, "missing 'id' field");
     };
 
     let Ok(id) = id.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("CINFO", data, "failed to convert 'id' to int");
     };
 
-    let id = Attribute::from_i32(id)?;
+    let Some(id) = get_attribute(id) else {
+        return invalid_message_data!("CINFO", data, "failed to convert 'id' to int");
+    };
 
     let Some(code) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("CINFO", data, "missing 'code' field");
     };
 
     let Ok(code) = code.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("CINFO", data, "failed to convert 'code' to int");
     };
 
     let Some(value) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("CINFO", data, "missing 'value' field");
     };
 
     let value = String::from(value.trim_matches('"'));
@@ -406,60 +264,59 @@ fn parse_cinfo_message(data: &str) -> Result<Message, Error> {
     Ok(Message::Cinfo { id, code, value })
 }
 
-/// Parses the data component of a DRV MakeMKV message.
-///
-/// Returns a [`Message::Drv`] message or an error if the provided data could
-/// not be parsed.
-fn parse_drv_message(data: &str) -> Result<Message, Error> {
-    // Message: "DRV:<index>,<state>,<unknown>,<media_flags>,<drive_name>,<disc_name>,<device_path>"
+/// Parses the data component of a DRV MakeMKV message returning a [`Message::Drv`] message or an
+/// error if the provided data could not be parsed.
+fn parse_drv_message(data: &str) -> Result<Message> {
+    // |KEY|                                     DATA                                     |
+    // "DRV:<index>,<state>,<unknown>,<media_flags>,<drive_name>,<disc_name>,<device_path>"
     let mut parts = data.split(',');
 
     let Some(index) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("DRV", data, "missing 'index' field");
     };
 
     let Ok(index) = index.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("DRV", data, "failed to convert 'index' to int");
     };
 
     let Some(state) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("DRV", data, "missing 'state' field");
     };
 
     let Ok(state) = state.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("DRV", data, "failed to convert 'state' to int");
     };
 
     let Some(unknown) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("DRV", data, "missing 'unknown' field");
     };
 
     let Ok(unknown) = unknown.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("DRV", data, "failed to convert 'unknown' to int");
     };
 
     let Some(media_flags) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("DRV", data, "missing 'media_flags' field");
     };
 
     let Ok(media_flags) = media_flags.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("DRV", data, "failed to convert 'media_flags' to int");
     };
 
     let Some(drive_name) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("DRV", data, "missing 'drive_name' field");
     };
 
     let drive_name = String::from(drive_name.trim_matches('"'));
 
     let Some(disc_name) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("DRV", data, "missing 'drive_name' field");
     };
 
     let disc_name = String::from(disc_name.trim_matches('"'));
 
     let Some(device_path) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("DRV", data, "missing 'disc_name' field");
     };
 
     let device_path = String::from(device_path.trim_matches('"'));
@@ -475,47 +332,45 @@ fn parse_drv_message(data: &str) -> Result<Message, Error> {
     })
 }
 
-/// Parses the data component of a MSG MakeMKV message.
-///
-/// Returns a [`Message::Msg`] message or an error if the provided data could
-/// not be parsed.
-fn parse_msg_message(data: &str) -> Result<Message, Error> {
-    // Message: "MSG:<code>,<flags>,<count>,<message>,<format>,<args..>"
-    //          | Key | Data                                           |
+/// Parses the data component of a MSG MakeMKV message returning a [`Message::Msg`] message or an
+/// error if the provided data could not be parsed.
+fn parse_msg_message(data: &str) -> Result<Message> {
+    // |KEY|                       DATA                       |
+    // "MSG:<code>,<flags>,<count>,<message>,<format>,<args..>"
     let mut parts = data.split(',');
 
     let Some(code) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("MSG", data, "missing 'code' field");
     };
 
     let Ok(code) = code.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("MSG", data, "failed to convert 'code' to int");
     };
 
     let Some(flags) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("MSG", data, "missing 'flags' field");
     };
 
     let Ok(flags) = flags.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("MSG", data, "failed to convert 'flags' to int");
     };
 
     let Some(count) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("MSG", data, "missing 'count' field");
     };
 
     let Ok(count) = count.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("MSG", data, "failed to convert 'count' to int");
     };
 
     let Some(message) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("MSG", data, "missing 'message' field");
     };
 
     let message = String::from(message.trim_matches('"'));
 
     let Some(format) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("MSG", data, "missing 'format' field");
     };
 
     let format = String::from(format.trim_matches('"'));
@@ -532,33 +387,31 @@ fn parse_msg_message(data: &str) -> Result<Message, Error> {
     })
 }
 
-/// Parses the data component of a PRGC MakeMKV message.
-///
-/// Returns a [`Message::Prgc`] message or an error if the provided data could
-/// not be parsed.
-fn parse_prgc_message(data: &str) -> Result<Message, Error> {
-    // Message: "PRGC:<code>,<id>,<name>"
-    //          | Key | Data            |
+/// Parses the data component of a PRGC MakeMKV message returning a [`Message::Prgc`] message or an
+/// error if the provided data could not be parsed.
+fn parse_prgc_message(data: &str) -> Result<Message> {
+    // |KEY |       DATA       |
+    // "PRGC:<code>,<id>,<name>"
     let mut parts = data.split(',');
 
     let Some(code) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("PRGC", data, "missing 'code' field");
     };
 
     let Ok(code) = code.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("PRGC", data, "failed to convert 'code' to int");
     };
 
     let Some(id) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("PRGC", data, "missing 'id' field");
     };
 
     let Ok(id) = id.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("PRGC", data, "failed to convert 'id' to int");
     };
 
     let Some(name) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("PRGC", data, "missing 'name' field");
     };
 
     let name = String::from(name.trim_matches('"'));
@@ -566,33 +419,31 @@ fn parse_prgc_message(data: &str) -> Result<Message, Error> {
     Ok(Message::Prgc { code, id, name })
 }
 
-/// Parses the data component of a PRGT MakeMKV message.
-///
-/// Returns a [`Message::Prgt`] message or an error if the provided data could
-/// not be parsed.
-fn parse_prgt_message(data: &str) -> Result<Message, Error> {
-    // Message: "PRGT:<code>,<id>,<name>"
-    //          | Key | Data            |
+/// Parses the data component of a PRGT MakeMKV message returning a [`Message::Prgt`] message or an
+/// error if the provided data could not be parsed.
+fn parse_prgt_message(data: &str) -> Result<Message> {
+    // |KEY |       DATA       |
+    // "PRGT:<code>,<id>,<name>"
     let mut parts = data.split(',');
 
     let Some(code) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("PRGT", data, "missing 'code' field");
     };
 
     let Ok(code) = code.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("PRGT", data, "failed to convert 'code' to int");
     };
 
     let Some(id) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("PRGT", data, "missing 'id' field");
     };
 
     let Ok(id) = id.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("PRGT", data, "failed to convert 'id' to int");
     };
 
     let Some(name) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("PRGT", data, "missing 'name' field");
     };
 
     let name = String::from(name.trim_matches('"'));
@@ -600,37 +451,35 @@ fn parse_prgt_message(data: &str) -> Result<Message, Error> {
     Ok(Message::Prgt { code, id, name })
 }
 
-/// Parses the data component of a PRGV MakeMKV message.
-///
-/// Returns a [`Message::Prgv`] message or an error if the provided data could
-/// not be parsed.
-fn parse_prgv_message(data: &str) -> Result<Message, Error> {
-    // Message: "PRGV:<suboperation>,<operation>,<max>"
-    //          | Key | Data                          |
+/// Parses the data component of a PRGV MakeMKV message returning a [`Message::Prgv`] message or an
+/// error if the provided data could not be parsed.
+fn parse_prgv_message(data: &str) -> Result<Message> {
+    // |KEY |              DATA              |
+    // "PRGV:<suboperation>,<operation>,<max>"
     let mut parts = data.split(',');
 
     let Some(suboperation) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("PRGV", data, "missing 'suboperation' field");
     };
 
     let Ok(suboperation) = suboperation.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("PRGV", data, "failed to convert 'suboperation' to int");
     };
 
     let Some(operation) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("PRGV", data, "missing 'operation' field");
     };
 
     let Ok(operation) = operation.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("PRGV", data, "failed to convert 'operation' to int");
     };
 
     let Some(max) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("PRGV", data, "missing 'max' field");
     };
 
     let Ok(max) = max.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("PRGV", data, "failed to convert 'max' to int");
     };
 
     Ok(Message::Prgv {
@@ -640,51 +489,51 @@ fn parse_prgv_message(data: &str) -> Result<Message, Error> {
     })
 }
 
-/// Parses the data component of a SINFO MakeMKV message.
-///
-/// Returns a [`Message::Sinfo`] message or an error if the provided data could
-/// not be parsed.
-fn parse_sinfo_message(data: &str) -> Result<Message, Error> {
-    // Message: "SINFO:<title_index>,<stream_index>,<id>,<code>,<value>"
-    //          | Key | Data                                           |
+/// Parses the data component of a SINFO MakeMKV message returning a [`Message::Sinfo`] message or
+/// an error if the provided data could not be parsed.
+fn parse_sinfo_message(data: &str) -> Result<Message> {
+    // | KEY |                      DATA                      |
+    // "SINFO:<title_index>,<stream_index>,<id>,<code>,<value>"
     let mut parts = data.split(',');
 
     let Some(title_index) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("SINFO", data, "missing 'title_index' field");
     };
 
     let Ok(title_index) = title_index.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("SINFO", data, "failed to convert 'title_index' to int");
     };
 
     let Some(stream_index) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("SINFO", data, "missing 'stream_index' field");
     };
 
     let Ok(stream_index) = stream_index.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("SINFO", data, "failed to convert 'stream_index' to int");
     };
 
     let Some(id) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("SINFO", data, "missing 'id' field");
     };
 
     let Ok(id) = id.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("SINFO", data, "failed to convert 'id' to int");
     };
 
-    let id = Attribute::from_i32(id)?;
+    let Some(id) = get_attribute(id) else {
+        return invalid_message_data!("SINFO", data, "failed to convert 'id' to int");
+    };
 
     let Some(code) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("SINFO", data, "missing 'code' field");
     };
 
     let Ok(code) = code.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("SINFO", data, "failed to convert 'code' to int");
     };
 
     let Some(value) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("SINFO", data, "missing 'value' field");
     };
 
     let value = String::from(value.trim_matches('"'));
@@ -698,56 +547,54 @@ fn parse_sinfo_message(data: &str) -> Result<Message, Error> {
     })
 }
 
-/// Parses the data component of a TCOUNT MakeMKV message.
-///
-/// Returns a [`Message::Tcount`] message or an error if the provided data could
-/// not be parsed.
-fn parse_tcount_message(data: &str) -> Result<Message, Error> {
-    // Message: "TCOUNT:<count>"
-    //          | Key | Data   |
+/// Parses the data component of a TCOUNT MakeMKV message returning a [`Message::Tcount`] message
+/// or an error if the provided data could not be parsed.
+fn parse_tcount_message(data: &str) -> Result<Message> {
+    // | Key  | DATA  |
+    // "TCOUNT:<count>"
     match data.parse::<i32>() {
         Ok(count) => Ok(Message::Tcount { count }),
-        Err(_) => Err(Error::IntConversion),
+        Err(_) => invalid_message_data!("TCOUNT", data, "failed to convert data to int"),
     }
 }
 
-/// Parses the data component of a TINFO MakeMKV message.
-///
-/// Returns a [`Message::Tinfo`] message or an error if the provided data could
-/// not be parsed.
-fn parse_tinfo_message(data: &str) -> Result<Message, Error> {
-    // Message: "TINFO:<title_index>,<id>,<code>,<value>"
-    //          | Key | Data                            |
+/// Parses the data component of a TINFO MakeMKV message returning a [`Message::Tinfo`] message or
+/// an error if the provided data could not be parsed.
+fn parse_tinfo_message(data: &str) -> Result<Message> {
+    // | KEY |              DATA               |
+    // "TINFO:<title_index>,<id>,<code>,<value>"
     let mut parts = data.split(',');
 
     let Some(title_index) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("TINFO", data, "missing 'title_index' field");
     };
 
     let Ok(title_index) = title_index.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("TINFO", data, "failed to convert 'title_index' to int");
     };
 
     let Some(id) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("TINFO", data, "missing 'id' field");
     };
 
     let Ok(id) = id.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("TINFO", data, "failed to convert 'id' to int");
     };
 
-    let id = Attribute::from_i32(id)?;
+    let Some(id) = get_attribute(id) else {
+        return invalid_message_data!("TINFO", data, "failed to convert 'id' to int");
+    };
 
     let Some(code) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("TINFO", data, "missing 'code' field");
     };
 
     let Ok(code) = code.parse::<i32>() else {
-        return Err(Error::IntConversion);
+        return invalid_message_data!("TINFO", data, "failed to convert 'code' to int");
     };
 
     let Some(value) = parts.next() else {
-        return Err(Error::InvalidDataFormat);
+        return invalid_message_data!("TINFO", data, "missing 'value' field");
     };
 
     let value = String::from(value.trim_matches('"'));
@@ -758,6 +605,66 @@ fn parse_tinfo_message(data: &str) -> Result<Message, Error> {
         code,
         value,
     })
+}
+
+/// Converts the numberic value used to represent these attributes in MakeMKV to its corresponding
+/// `Attribute` value or None if `n` isn't a valid attribute value.
+fn get_attribute(n: i32) -> Option<Attribute> {
+    use Attribute::*;
+    match n {
+        0 => Some(Unknown),
+        1 => Some(Type),
+        2 => Some(Name),
+        3 => Some(LangCode),
+        4 => Some(LangName),
+        5 => Some(CodecId),
+        6 => Some(CodecShort),
+        7 => Some(CodecLong),
+        8 => Some(ChapterCount),
+        9 => Some(Duration),
+        10 => Some(DiskSize),
+        11 => Some(DiskSizeBytes),
+        12 => Some(StreamTypeExtension),
+        13 => Some(Bitrate),
+        14 => Some(AudioChannelsCount),
+        15 => Some(AngleInfo),
+        16 => Some(SourceFileName),
+        17 => Some(AudioSampleRate),
+        18 => Some(AudioSampleSize),
+        19 => Some(VideoSize),
+        20 => Some(VideoAspectRatio),
+        21 => Some(VideoFrameRate),
+        22 => Some(StreamFlags),
+        23 => Some(DateTime),
+        24 => Some(OriginalTitleId),
+        25 => Some(SegmentsCount),
+        26 => Some(SegmentsMap),
+        27 => Some(OutputFileName),
+        28 => Some(MetadataLanguageCode),
+        29 => Some(MetadataLanguageName),
+        30 => Some(TreeInfo),
+        31 => Some(PanelTitle),
+        32 => Some(VolumeName),
+        33 => Some(OrderWeight),
+        34 => Some(OutputFormat),
+        35 => Some(OutputFormatDescription),
+        36 => Some(SeamlessInfo),
+        37 => Some(PanelText),
+        38 => Some(MkvFlags),
+        39 => Some(MkvFlagsText),
+        40 => Some(AudioChannelLayoutName),
+        41 => Some(OutputCodecShort),
+        42 => Some(OutputConversionType),
+        43 => Some(OutputAudioSampleRate),
+        44 => Some(OutputAudioSampleSize),
+        45 => Some(OutputAudioChannelsCount),
+        46 => Some(OutputAudioChannelLayoutName),
+        47 => Some(OutputAudioChannelLayout),
+        48 => Some(OutputAudioMixDescription),
+        49 => Some(Comment),
+        50 => Some(OffsetSequenceId),
+        _ => None
+    }
 }
 
 #[cfg(test)]
@@ -1008,3 +915,4 @@ mod tests {
         }
     }
 }
+
