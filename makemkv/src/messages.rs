@@ -202,7 +202,9 @@ pub(crate) enum Message {
 /// [`Message`] for the set of known message types.
 pub(crate) fn parse_message(raw_message: &str) -> Result<Message> {
     let Some((key, data)) = raw_message.split_once(':') else {
-        return Err(Error::InvalidMessageFormat { msg: raw_message.to_owned() });
+        return Err(Error::InvalidMessageFormat {
+            msg: raw_message.to_owned(),
+        });
     };
     match key {
         "CINFO" => parse_cinfo_message(data),
@@ -214,7 +216,10 @@ pub(crate) fn parse_message(raw_message: &str) -> Result<Message> {
         "SINFO" => parse_sinfo_message(data),
         "TCOUNT" => parse_tcount_message(data),
         "TINFO" => parse_tinfo_message(data),
-        _ => Err(Error::UnknownMessageType { key: key.to_owned(), data: data.to_owned() }),
+        _ => Err(Error::UnknownMessageType {
+            key: key.to_owned(),
+            data: data.to_owned(),
+        }),
     }
 }
 
@@ -224,7 +229,11 @@ pub(crate) fn parse_message(raw_message: &str) -> Result<Message> {
 /// and data components of the message respectively. `err` is a brief error message.
 macro_rules! invalid_message_data {
     ($k:expr, $d:expr, $e:expr) => {
-        Err(Error::InvalidMessageData { key: $k.to_owned(), data: $d.to_owned(), error: $e.to_owned() })
+        Err(Error::InvalidMessageData {
+            key: $k.to_owned(),
+            data: $d.to_owned(),
+            error: $e.to_owned(),
+        })
     };
 }
 
@@ -663,7 +672,7 @@ fn get_attribute(n: i32) -> Option<Attribute> {
         48 => Some(OutputAudioMixDescription),
         49 => Some(Comment),
         50 => Some(OffsetSequenceId),
-        _ => None
+        _ => None,
     }
 }
 
@@ -915,4 +924,3 @@ mod tests {
         }
     }
 }
-

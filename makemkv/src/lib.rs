@@ -3,9 +3,9 @@
 
 //! Crate responsible for running the MakeMKV command.
 
-mod error;
 mod data;
+mod error;
 mod messages;
 
+pub use crate::data::{Attribute, DiscInfo, StreamInfo, TitleInfo};
 pub use crate::error::{Error, Result};
-
