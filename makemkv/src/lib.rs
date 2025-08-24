@@ -3,6 +3,7 @@
 
 //! Crate responsible for running the MakeMKV command.
 
+mod commands;
 mod data;
 mod error;
 mod messages;

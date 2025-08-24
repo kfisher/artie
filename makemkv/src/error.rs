@@ -9,7 +9,7 @@ use crate::data::Attribute;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Error type for `makemkv` crate functions.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum Error {
     /// Error raised when parsing a message from MakeMKV when the data within the message cannot be
     /// parsed because the data is malformed or missing.
@@ -24,6 +24,8 @@ pub enum Error {
         error: String,
     },
 
+    // NOTE: Even though `InvalidMessageFormat` has a single value, use a structured variant to
+    //       avoid ambiguity (might be easy to mistake for an error message).
     /// Error raised when parsing a message and the message cannot be parsed into its key/value
     /// components.
     InvalidMessageFormat {
@@ -43,22 +45,43 @@ pub enum Error {
 
     /// Error raised when parsing a message and more than one instance of a disc attribute was
     /// reported by MakeMKV.
-    DuplicateDiscAttribute {
-        /// The duplicate attribute id.
-        attr: Attribute,
-    },
+    DuplicateDiscAttribute(Attribute),
 
     /// Error raised when parsing a message and more than one instance of a title attribute was
     /// reported by MakeMKV for the same title.
-    DuplicateTitleAttribute {
-        /// The duplicate attribute id.
-        attr: Attribute,
-    },
+    DuplicateTitleAttribute(Attribute),
 
     /// Error raised when parsing a message and more than one instance of a stream attribute was
     /// reported by MakeMKV for the same stream.
-    DuplicateStreamAttribute {
-        /// The duplicate attribute id.
-        attr: Attribute,
-    },
+    DuplicateStreamAttribute(Attribute),
+
+    /// Error raised within the thread processing the output from a running MakeMKV command failed
+    /// to read the of output due to an I/O error.
+    CommandOutThreadIoError(std::io::Error),
+
+    /// Error raised within the thread processing the output from a running MakeMKV command failed
+    /// to send data on its out channel.
+    ///
+    /// This should only be possible if the receiving end of the channel was closed. Refer to the
+    /// documentation for `std::sync::mpsc::SendError` for more information.
+    CommandOutThreadSendError,
+
+    /// Error raised within the thread processing the output from a running MakeMKV command
+    /// panicked.
+    CommandOutThreadPanicked,
+
+    /// Error raised within the thread processing the error output from a running MakeMKV command
+    /// failed to read the of output due to an I/O error.
+    CommandErrThreadIoError(std::io::Error),
+
+    /// Error raised within the thread processing the error output from a running MakeMKV command
+    /// failed to send data on its out channel.
+    ///
+    /// This should only be possible if the receiving end of the channel was closed. Refer to the
+    /// documentation for `std::sync::mpsc::SendError` for more information.
+    CommandErrThreadSendError,
+
+    /// Error raised within the thread processing the error output from a running MakeMKV command
+    /// panicked.
+    CommandErrThreadPanicked,
 }
