@@ -125,7 +125,7 @@ impl DiscInfo {
             let _ = entry.insert(value.to_owned());
             Ok(())
         } else {
-            Err(Error::DuplicateDiscAttribute { attr })
+            Err(Error::DuplicateDiscAttribute(attr))
         }
     }
 
@@ -218,7 +218,7 @@ impl TitleInfo {
             let _ = entry.insert(value.to_owned());
             Ok(())
         } else {
-            Err(Error::DuplicateTitleAttribute { attr })
+            Err(Error::DuplicateTitleAttribute(attr))
         }
     }
 
@@ -274,7 +274,7 @@ impl StreamInfo {
             let _ = entry.insert(value.to_owned());
             Ok(())
         } else {
-            Err(Error::DuplicateStreamAttribute { attr })
+            Err(Error::DuplicateStreamAttribute(attr))
         }
     }
 }
@@ -289,25 +289,40 @@ impl Default for StreamInfo {
 mod tests {
     use super::*;
 
+    fn is_same_error(a: Error, b: Error) -> bool {
+        use Error::*;
+        match (a, b) {
+            (Error::DuplicateDiscAttribute(aa), Error::DuplicateDiscAttribute(ab)) => aa == ab,
+            (Error::DuplicateTitleAttribute(aa), Error::DuplicateTitleAttribute(ab)) => aa == ab,
+            (Error::DuplicateStreamAttribute(aa), Error::DuplicateStreamAttribute(ab)) => aa == ab,
+            _ => false,
+        }
+    }
+
     #[test]
     fn disc_info_add_attribute() {
         let mut di = DiscInfo::new();
-        assert_eq!(di.add_attribute(Attribute::Name, "Name"), Ok(()));
+        assert_eq!(di.add_attribute(Attribute::Name, "Name").is_ok(), true);
         assert_eq!(di.attributes.is_empty(), false);
         assert_eq!(di.attributes.get(&Attribute::Name), Some(&"Name".into()));
         assert_eq!(
-            di.add_attribute(Attribute::Name, "Name"),
-            Err(Error::DuplicateDiscAttribute {
-                attr: Attribute::Name
-            })
+            di.add_attribute(Attribute::Name, "Name")
+                .is_err_and(|e| is_same_error(e, Error::DuplicateDiscAttribute(Attribute::Name))),
+            true
         );
     }
 
     #[test]
     fn disc_info_add_title_attribute() {
         let mut di = DiscInfo::new();
-        assert_eq!(di.add_title_attribute(0, Attribute::Name, "Name"), Ok(()));
-        assert_eq!(di.add_title_attribute(3, Attribute::Name, "Name"), Ok(()));
+        assert_eq!(
+            di.add_title_attribute(0, Attribute::Name, "Name").is_ok(),
+            true
+        );
+        assert_eq!(
+            di.add_title_attribute(3, Attribute::Name, "Name").is_ok(),
+            true
+        );
         assert_eq!(di.titles.len(), 4);
         assert_eq!(di.titles[0].is_some(), true);
         assert_eq!(
@@ -335,8 +350,9 @@ mod tests {
     fn disc_info_add_stream_attribute() {
         let mut di = DiscInfo::new();
         assert_eq!(
-            di.add_stream_attribute(0, 0, Attribute::Name, "Name"),
-            Ok(())
+            di.add_stream_attribute(0, 0, Attribute::Name, "Name")
+                .is_ok(),
+            true
         );
         assert_eq!(di.titles.len(), 1);
         assert_eq!(di.titles[0].is_some(), true);
@@ -357,22 +373,27 @@ mod tests {
     #[test]
     fn title_info_add_attribute() {
         let mut ti = TitleInfo::new();
-        assert_eq!(ti.add_attribute(Attribute::Name, "Name"), Ok(()));
+        assert_eq!(ti.add_attribute(Attribute::Name, "Name").is_ok(), true);
         assert_eq!(ti.attributes.is_empty(), false);
         assert_eq!(ti.attributes.get(&Attribute::Name), Some(&"Name".into()));
         assert_eq!(
-            ti.add_attribute(Attribute::Name, "Name"),
-            Err(Error::DuplicateTitleAttribute {
-                attr: Attribute::Name
-            })
+            ti.add_attribute(Attribute::Name, "Name")
+                .is_err_and(|e| is_same_error(e, Error::DuplicateTitleAttribute(Attribute::Name))),
+            true
         );
     }
 
     #[test]
     fn title_info_add_stream_attribute() {
         let mut ti = TitleInfo::new();
-        assert_eq!(ti.add_stream_attribute(0, Attribute::Name, "Name"), Ok(()));
-        assert_eq!(ti.add_stream_attribute(3, Attribute::Name, "Name"), Ok(()));
+        assert_eq!(
+            ti.add_stream_attribute(0, Attribute::Name, "Name").is_ok(),
+            true
+        );
+        assert_eq!(
+            ti.add_stream_attribute(3, Attribute::Name, "Name").is_ok(),
+            true
+        );
         assert_eq!(ti.streams.len(), 4);
         assert_eq!(ti.streams[0].is_some(), true);
         assert_eq!(
@@ -399,14 +420,13 @@ mod tests {
     #[test]
     fn stream_info_add_attribute() {
         let mut si = StreamInfo::new();
-        assert_eq!(si.add_attribute(Attribute::Name, "Name"), Ok(()));
+        assert_eq!(si.add_attribute(Attribute::Name, "Name").is_ok(), true);
         assert_eq!(si.attributes.is_empty(), false);
         assert_eq!(si.attributes.get(&Attribute::Name), Some(&"Name".into()));
         assert_eq!(
-            si.add_attribute(Attribute::Name, "Name"),
-            Err(Error::DuplicateStreamAttribute {
-                attr: Attribute::Name
-            })
+            si.add_attribute(Attribute::Name, "Name")
+                .is_err_and(|e| is_same_error(e, Error::DuplicateStreamAttribute(Attribute::Name))),
+            true
         );
     }
 }
