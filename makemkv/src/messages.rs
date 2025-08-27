@@ -16,6 +16,7 @@ use crate::data::Attribute;
 use crate::error::{Error, Result};
 
 /// Represents the messages that are outputted by MakeMKV when running its various commands.
+#[derive(Debug)]
 pub(crate) enum Message {
     /// CINFO messages contain information about a disc inserted into a drive.
     /// Each message is a key/value pair representing a single attribute of a
@@ -917,6 +918,8 @@ mod tests {
             "TINFO:3",
         ];
 
+        // TODO: Should verify the specific error data returned is correct since its been updated
+        //       to include additional diagnostic information.
         for item in invalid_data.iter() {
             let Err(_) = parse_message(item) else {
                 panic!("Expected an error when parsing '{}'", item);

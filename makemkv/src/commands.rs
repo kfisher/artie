@@ -13,10 +13,10 @@ use crate::{Error, Result};
 /// Trait for processing output from running MakeMKV commands.
 pub(crate) trait ProcessOutput {
     /// Process a message from MakeMKV.
-    fn process_message(&self, msg: Message) -> Result<()>;
+    fn process_message(&mut self, msg: Message) -> Result<()>;
 
     /// Process a line of error output text from MakeMKV.
-    fn process_error_output(&self, line: &str) -> Result<()>;
+    fn process_error_output(&mut self, line: &str) -> Result<()>;
 }
 
 /// Trait for running MakeMKV commands.
@@ -73,7 +73,7 @@ pub(crate) struct CommandOutput {
 /// output processing threads.
 ///
 /// Panics when waiting for the subprocess to exit fails.
-pub(crate) fn run_command(cmd: &mut impl RunCommand, proc: &impl ProcessOutput) -> Result<()> {
+pub(crate) fn run_command(cmd: &mut impl RunCommand, proc: &mut impl ProcessOutput) -> Result<()> {
     let streams = cmd.run()?;
 
     let (tx, rx) = mpsc::channel::<ChannelData>();
@@ -111,18 +111,14 @@ pub(crate) fn run_command(cmd: &mut impl RunCommand, proc: &impl ProcessOutput) 
     while let Ok(data) = rx.recv() {
         let result = match data {
             ChannelData::OutTxt(text) => {
-                messages::parse_message(&text).map(|m| proc.process_message(m))?
+                messages::parse_message(&text).and_then(|m| proc.process_message(m))
             }
             ChannelData::ErrTxt(text) => proc.process_error_output(&text),
         };
         if let Err(error) = result {
-            // The following really should never fail since the process should be running or have
-            // been run. Both cases should almost always succeed. If it does fail, panic since has
-            // gone very wrong.
-            //
-            // Additionally, calling kill() will also wait for the command to exit to ensure that
-            // the system resources are released.
-            cmd.kill().expect("Failed to kill subprocess");
+            // Calling kill() will also wait for the command to exit to ensure that the system
+            // resources are released.
+            cmd.kill()?;
 
             // If either thread panicked, its error will be returned instead of the error received
             // from the channel. This should be fine since the panic would have a higher severity
@@ -140,11 +136,7 @@ pub(crate) fn run_command(cmd: &mut impl RunCommand, proc: &impl ProcessOutput) 
 
     // Ignore the exit code since MakeMKV will sometimes return non-zero values even though it was
     // able to complete the requested task.
-    //
-    // Panicking here because this really should not be possible to fail if the command was started
-    // successfully (even if the command already exited when this is called). So if the wait fail,
-    // there is either a coding error or the program is in a state not accounted for.
-    let _ = cmd.wait().expect("Waiting for process to exit failed");
+    let _ = cmd.wait()?;
 
     let _ = out_thread
         .join()
@@ -164,4 +156,232 @@ enum ChannelData {
 
     /// Line of text received from the error output stream.
     ErrTxt(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+    use std::mem;
+
+    #[test]
+    fn run_command() {
+        let mut cmd = TestRunCommand::new();
+        cmd.set_stdout(&["TCOUNT:53"]);
+        cmd.set_stderr(&["I cast fireball"]);
+
+        let mut proc = TestProcessOutput::new();
+
+        let result = super::run_command(&mut cmd, &mut proc);
+
+        assert_eq!(result.is_ok(), true);
+
+        assert_eq!(proc.messages.len(), 1);
+        assert_eq!(proc.messages[0], Message::Tcount { count: 53 });
+
+        assert_eq!(proc.errors.len(), 1);
+        assert_eq!(proc.errors[0], "I cast fireball");
+
+        assert_eq!(cmd.waited, true);
+        assert_eq!(cmd.killed, false);
+    }
+
+    #[test]
+    fn run_command_invalid_message() {
+        let mut cmd = TestRunCommand::new();
+        cmd.set_stdout(&["TCOUNT:INVALID"]);
+        cmd.set_stderr(&[]);
+
+        let mut proc = TestProcessOutput::new();
+
+        let result = super::run_command(&mut cmd, &mut proc);
+
+        if let Err(Error::InvalidMessageData { key, data, error }) = &result {
+            assert_eq!(key, "TCOUNT");
+            assert_eq!(data, "INVALID");
+            assert!(error.contains("failed to convert data to int"));
+        } else {
+            panic!("Expected InvalidMessageData error");
+        }
+
+        assert_eq!(cmd.waited, false);
+        assert_eq!(cmd.killed, true);
+    }
+
+    #[test]
+    fn run_command_run_error() {
+        let mut cmd = TestRunCommand::new();
+        cmd.run_fail = true;
+        let mut proc = TestProcessOutput::new();
+        let result = super::run_command(&mut cmd, &mut proc);
+        assert_eq!(result.is_ok(), false);
+    }
+
+    #[test]
+    fn run_command_wait_error() {
+        let mut cmd = TestRunCommand::new();
+        cmd.wait_fail = true;
+        let mut proc = TestProcessOutput::new();
+        let result = super::run_command(&mut cmd, &mut proc);
+        assert_eq!(result.is_ok(), false);
+    }
+
+    #[test]
+    fn run_command_kill_error() {
+        let mut cmd = TestRunCommand::new();
+        cmd.set_stdout(&["TCOUNT:INVALID"]);
+        cmd.kill_fail = true;
+        let mut proc = TestProcessOutput::new();
+        let result = super::run_command(&mut cmd, &mut proc);
+        assert_eq!(result.is_ok(), false);
+    }
+
+    #[test]
+    fn run_command_process_message_error() {
+        let mut cmd = TestRunCommand::new();
+        cmd.set_stdout(&["TCOUNT:53"]);
+        cmd.set_stderr(&["I cast fireball"]);
+
+        let mut proc = TestProcessOutput::new();
+        proc.process_message_fail = true;
+
+        let result = super::run_command(&mut cmd, &mut proc);
+        assert_eq!(result.is_ok(), false);
+    }
+
+    #[test]
+    fn run_command_process_error_output_error() {
+        let mut cmd = TestRunCommand::new();
+        cmd.set_stdout(&["TCOUNT:53"]);
+        cmd.set_stderr(&["I cast fireball"]);
+
+        let mut proc = TestProcessOutput::new();
+        proc.process_error_fail = true;
+
+        let result = super::run_command(&mut cmd, &mut proc);
+        assert_eq!(result.is_ok(), false);
+    }
+
+    struct BadRead {}
+
+    impl Read for BadRead {
+        fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
+            Err(std::io::ErrorKind::Other.into())
+        }
+    }
+
+    struct TestProcessOutput {
+        messages: Vec<Message>,
+        errors: Vec<String>,
+        process_message_fail: bool,
+        process_error_fail: bool,
+    }
+
+    impl TestProcessOutput {
+        fn new() -> Self {
+            TestProcessOutput {
+                messages: Vec::new(),
+                errors: Vec::new(),
+                process_message_fail: false,
+                process_error_fail: false,
+            }
+        }
+    }
+
+    impl ProcessOutput for TestProcessOutput {
+        fn process_message(&mut self, msg: Message) -> Result<()> {
+            self.messages.push(msg);
+            if !self.process_message_fail {
+                Ok(())
+            } else {
+                Err(Error::ProcessMessageError)
+            }
+        }
+        fn process_error_output(&mut self, line: &str) -> Result<()> {
+            self.errors.push(line.to_string());
+            if !self.process_error_fail {
+                Ok(())
+            } else {
+                Err(Error::ProcessErrorOutputError)
+            }
+        }
+    }
+
+    struct TestRunCommand {
+        stdout: Cursor<Vec<u8>>,
+        stderr: Cursor<Vec<u8>>,
+        waited: bool,
+        killed: bool,
+        run_fail: bool,
+        wait_fail: bool,
+        kill_fail: bool,
+    }
+
+    impl TestRunCommand {
+        fn set_stdout(&mut self, lines: &[&str]) {
+            let data = lines.join("\n");
+            self.stdout = Cursor::new(data.into_bytes());
+        }
+
+        fn set_stderr(&mut self, lines: &[&str]) {
+            let data = lines.join("\n");
+            self.stderr = Cursor::new(data.into_bytes());
+        }
+    }
+
+    impl RunCommand for TestRunCommand {
+        fn new() -> Self {
+            TestRunCommand {
+                stdout: Cursor::default(),
+                stderr: Cursor::default(),
+                waited: false,
+                killed: false,
+                run_fail: false,
+                wait_fail: false,
+                kill_fail: false,
+            }
+        }
+
+        fn add_arg<T: AsRef<OsStr>>(&mut self, _arg: T) {}
+
+        fn run(&mut self) -> Result<CommandOutput> {
+            if !self.run_fail {
+                Ok(CommandOutput {
+                    out: Box::new(mem::take(&mut self.stdout)),
+                    err: Box::new(mem::take(&mut self.stderr)),
+                })
+            } else {
+                Err(Error::CommandStartError)
+            }
+        }
+
+        fn wait(&mut self) -> Result<ExitStatus> {
+            self.waited = true;
+            if !self.wait_fail {
+                Ok(ExitStatus::default())
+            } else {
+                Err(Error::CommandKillError)
+            }
+        }
+
+        fn kill(&mut self) -> Result<()> {
+            self.killed = true;
+            if !self.kill_fail {
+                Ok(())
+            } else {
+                Err(Error::CommandKillError)
+            }
+        }
+    }
+
+    // Implement PartialEq for Message to allow comparison in tests. Defining it here since its
+    // only needed for tests. Also, it only implements whats needed for the tests below.
+    impl PartialEq for Message {
+        fn eq(&self, other: &Self) -> bool {
+            match (self, other) {
+                (Message::Tcount { count: c1 }, Message::Tcount { count: c2 }) => c1 == c2,
+                _ => false,
+            }
+        }
+    }
 }

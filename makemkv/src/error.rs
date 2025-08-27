@@ -84,4 +84,19 @@ pub enum Error {
     /// Error raised within the thread processing the error output from a running MakeMKV command
     /// panicked.
     CommandErrThreadPanicked,
+
+    /// Error raised when the MakeMKV failed to start.
+    CommandStartError,
+
+    /// Error raised when the request to wait for the MakeMKV command to complete fails.
+    CommandWaitError,
+
+    /// Error raised when the request to stop the MakeMKV command fails.
+    CommandKillError,
+
+    /// Error raised by the output processor when its unable to process a message.
+    ProcessMessageError,
+
+    /// Error raised by the output processor when its unable to process error output.
+    ProcessErrorOutputError,
 }
