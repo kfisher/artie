@@ -10,6 +10,9 @@ use std::thread;
 use crate::messages::{self, Message};
 use crate::{Error, Result};
 
+mod info;
+mod mkv;
+
 /// Trait for processing output from running MakeMKV commands.
 pub(crate) trait ProcessOutput {
     /// Process a message from MakeMKV.
