@@ -3,19 +3,17 @@
 
 //! Handles parsing messages from MakeMKV.
 //!
-//! When running MakeMKV from the command-line, MakeMKV will output messages to
-//! the console where each line is a separate message. This module provides the
-//! utilities for parsing those messages.
+//! When running MakeMKV from the command-line, MakeMKV will output messages to the console where
+//! each line is a separate message. This module provides the utilities for parsing those messages.
 //!
 //! The message structure was constructed using the documentation provided in
-//! <https://www.makemkv.com/developers/usage.txt> as well as data found in the
-//! source code (header files) provided in the open source parts of MakeMKV
-//! (version 1.7.17).
+//! <https://www.makemkv.com/developers/usage.txt> as well as data found in the source code
+//! provided in the open source parts of MakeMKV ! (version 1.7.17).
 
 use crate::data::Attribute;
 use crate::error::{Error, Result};
 
-/// Represents the messages that are outputted by MakeMKV when running its various commands.
+/// Represents the messages that are outputted by MakeMKV.
 #[derive(Debug)]
 pub(crate) enum Message {
     /// CINFO messages contain information about a disc inserted into a drive.
@@ -238,8 +236,7 @@ macro_rules! invalid_message_data {
     };
 }
 
-/// Parses the data component of a CINFO MakeMKV message returning a [`Message::Cinfo`] message or
-/// an error if the provided data could not be parsed.
+/// Parses the data component of a CINFO message.
 fn parse_cinfo_message(data: &str) -> Result<Message> {
     // | KEY |        DATA       |
     // "CINFO:<id>,<code>,<value>"
@@ -274,8 +271,7 @@ fn parse_cinfo_message(data: &str) -> Result<Message> {
     Ok(Message::Cinfo { id, code, value })
 }
 
-/// Parses the data component of a DRV MakeMKV message returning a [`Message::Drv`] message or an
-/// error if the provided data could not be parsed.
+/// Parses the data component of a DRV message.
 fn parse_drv_message(data: &str) -> Result<Message> {
     // |KEY|                                     DATA                                     |
     // "DRV:<index>,<state>,<unknown>,<media_flags>,<drive_name>,<disc_name>,<device_path>"
@@ -342,8 +338,7 @@ fn parse_drv_message(data: &str) -> Result<Message> {
     })
 }
 
-/// Parses the data component of a MSG MakeMKV message returning a [`Message::Msg`] message or an
-/// error if the provided data could not be parsed.
+/// Parses the data component of a MSG message.
 fn parse_msg_message(data: &str) -> Result<Message> {
     // |KEY|                       DATA                       |
     // "MSG:<code>,<flags>,<count>,<message>,<format>,<args..>"
@@ -397,8 +392,7 @@ fn parse_msg_message(data: &str) -> Result<Message> {
     })
 }
 
-/// Parses the data component of a PRGC MakeMKV message returning a [`Message::Prgc`] message or an
-/// error if the provided data could not be parsed.
+/// Parses the data component of a PRGC message.
 fn parse_prgc_message(data: &str) -> Result<Message> {
     // |KEY |       DATA       |
     // "PRGC:<code>,<id>,<name>"
@@ -429,8 +423,7 @@ fn parse_prgc_message(data: &str) -> Result<Message> {
     Ok(Message::Prgc { code, id, name })
 }
 
-/// Parses the data component of a PRGT MakeMKV message returning a [`Message::Prgt`] message or an
-/// error if the provided data could not be parsed.
+/// Parses the data component of a PRGT message.
 fn parse_prgt_message(data: &str) -> Result<Message> {
     // |KEY |       DATA       |
     // "PRGT:<code>,<id>,<name>"
@@ -461,8 +454,7 @@ fn parse_prgt_message(data: &str) -> Result<Message> {
     Ok(Message::Prgt { code, id, name })
 }
 
-/// Parses the data component of a PRGV MakeMKV message returning a [`Message::Prgv`] message or an
-/// error if the provided data could not be parsed.
+/// Parses the data component of a PRGV message.
 fn parse_prgv_message(data: &str) -> Result<Message> {
     // |KEY |              DATA              |
     // "PRGV:<suboperation>,<operation>,<max>"
@@ -499,8 +491,7 @@ fn parse_prgv_message(data: &str) -> Result<Message> {
     })
 }
 
-/// Parses the data component of a SINFO MakeMKV message returning a [`Message::Sinfo`] message or
-/// an error if the provided data could not be parsed.
+/// Parses the data component of a SINFO message.
 fn parse_sinfo_message(data: &str) -> Result<Message> {
     // | KEY |                      DATA                      |
     // "SINFO:<title_index>,<stream_index>,<id>,<code>,<value>"
@@ -557,8 +548,7 @@ fn parse_sinfo_message(data: &str) -> Result<Message> {
     })
 }
 
-/// Parses the data component of a TCOUNT MakeMKV message returning a [`Message::Tcount`] message
-/// or an error if the provided data could not be parsed.
+/// Parses the data component of a TCOUNT message.
 fn parse_tcount_message(data: &str) -> Result<Message> {
     // | Key  | DATA  |
     // "TCOUNT:<count>"
@@ -568,8 +558,7 @@ fn parse_tcount_message(data: &str) -> Result<Message> {
     }
 }
 
-/// Parses the data component of a TINFO MakeMKV message returning a [`Message::Tinfo`] message or
-/// an error if the provided data could not be parsed.
+/// Parses the data component of a TINFO message.
 fn parse_tinfo_message(data: &str) -> Result<Message> {
     // | KEY |              DATA               |
     // "TINFO:<title_index>,<id>,<code>,<value>"

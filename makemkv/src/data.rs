@@ -1,8 +1,10 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
-//! Defines the data types used to represent the information about the DVD or Blu-ray and its
-//! contents extracted by MakeMKV.
+//! Data representing information about a disc's content.
+//!
+//! Defines the data types used to represent the information about the content on a DVD or Blu-ray
+//! disc that is extracted by MakeMKV with the "info" command.
 
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;

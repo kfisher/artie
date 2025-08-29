@@ -1,7 +1,9 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
-//! Defines the result and error types used by the `makemkv` crate.
+//! Result and error types.
+
+use std::path::PathBuf;
 
 use crate::data::Attribute;
 
@@ -85,18 +87,49 @@ pub enum Error {
     /// panicked.
     CommandErrThreadPanicked,
 
-    /// Error raised when the MakeMKV failed to start.
-    CommandStartError,
+    /// Error raised when the MakeMKV failed to start because it was already running.
+    CommandAlreadyRunning,
 
-    /// Error raised when the request to wait for the MakeMKV command to complete fails.
-    CommandWaitError,
+    /// Error raised when the MakeMKV failed to start due to an I/O error.
+    CommandStartIoError(std::io::Error),
 
-    /// Error raised when the request to stop the MakeMKV command fails.
-    CommandKillError,
+    /// Error raised when the request to wait for the MakeMKV command to complete fails because the
+    /// command is not in a state where it can be waited on.
+    CommandWaitInvalidStateError,
+
+    /// Error raised when the request to wait for the MakeMKV command to complete fails due to an
+    /// I/O error.
+    CommandWaitIoError(std::io::Error),
+
+    /// Error raised when the request to stop the MakeMKV command fails because the command is not
+    /// in a state where it can be stopped.
+    CommandKillInvalidStateError,
+
+    /// Error raised when the request to stop the MakeMKV command fails due to an I/O error.
+    CommandKillIoError(std::io::Error),
 
     /// Error raised by the output processor when its unable to process a message.
     ProcessMessageError,
 
     /// Error raised by the output processor when its unable to process error output.
     ProcessErrorOutputError,
+
+    /// Error raised when the output directory does not exist or is not a directory.
+    OutputDirDoesNotExist(PathBuf),
+
+    /// Error raised when a log file for a command already exists.
+    LogFileExists(PathBuf),
+
+    /// Error raised when the JSON file the disc information will be written to already exists.
+    DiscInfoFileExists(PathBuf),
+
+    /// Error raised when checking for existing MKV files.
+    ExistingMkvFilesCheckIoError(std::io::Error),
+
+    /// Error raised when one or more MKV files already exist in the provided output directory.
+    FoundExistingMkvFiles(PathBuf),
+
+    /// Error raised when the info command completed successfully, but failed to read any disc
+    /// disc information.
+    MissingDiscInfo,
 }
