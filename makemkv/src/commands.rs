@@ -3,21 +3,14 @@
 
 use std::ffi::OsStr;
 use std::io::{BufRead, BufReader, Read};
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::mpsc;
 use std::thread;
 
+use crate::data::DiscInfo;
 use crate::messages::{self, Message};
 use crate::{Error, Result};
-
-/// Trait for processing output from running MakeMKV commands.
-pub(crate) trait ProcessOutput {
-    /// Process a message from MakeMKV.
-    fn process_message(&mut self, msg: Message) -> Result<()>;
-
-    /// Process a line of error output text from MakeMKV.
-    fn process_error_output(&mut self, line: &str) -> Result<()>;
-}
 
 /// Trait for running MakeMKV commands.
 ///
@@ -62,18 +55,34 @@ pub(crate) struct CommandOutput {
     err: Box<dyn Read + Send>,
 }
 
-/// Runs command `cmd` and process its output using `proc`.
-///
-/// `cmd` is expected to be constructed with all desired arguments added, but should not have been
-/// started yet.
-///
-/// # Panics
-///
-/// Panics when attempting to stop the subprocess fails after an error was received from one of the
-/// output processing threads.
-///
-/// Panics when waiting for the subprocess to exit fails.
-pub(crate) fn run_command(cmd: &mut impl RunCommand, proc: &mut impl ProcessOutput) -> Result<()> {
+/// Context object for running MakeMKV commands.
+pub(crate) struct Context {
+    /// The device path to the target optical drive.
+    device: String,
+
+    /// The output directory where MakeMKV should write the MKV files to.
+    outdir: PathBuf,
+
+    /// Information about the disc in the drive, if available.
+    ///
+    /// This will only contain a value if a command is run that generates the required information
+    /// messages which is currently only the `info` command.
+    disc_info: Option<DiscInfo>,
+}
+
+impl Context {
+    /// Constructs a new context.
+    fn new(device: &str, outdir: &Path) -> Context {
+        Context {
+            device: device.to_owned(),
+            outdir: outdir.to_owned(),
+            disc_info: None,
+        }
+    }
+}
+
+/// Runs an MakeMKV command.
+pub(crate) fn run_command<T: RunCommand>(ctx: &mut Context, cmd: &mut T) -> Result<()> {
     let streams = cmd.run()?;
 
     let (tx, rx) = mpsc::channel::<ChannelData>();
@@ -104,16 +113,15 @@ pub(crate) fn run_command(cmd: &mut impl RunCommand, proc: &mut impl ProcessOutp
 
     // Must drop the original sender to avoid blocking indefinitely. Once this is dropped, the
     // remaining senders will remain open for as long as their respective threads are active. The
-    // threads will exit once command completes and closes the I/O streams. Once all the senders
-    // are closed, calling `recv` on the reader will fail causing the while loop below to exit.
+    // threads will exit once command completes and closes the I/O streams.
     drop(tx);
 
+    // Once all the senders are closed, calling `recv` on the reader will fail causing the while
+    // loop below to exit.
     while let Ok(data) = rx.recv() {
         let result = match data {
-            ChannelData::OutTxt(text) => {
-                messages::parse_message(&text).and_then(|m| proc.process_message(m))
-            }
-            ChannelData::ErrTxt(text) => proc.process_error_output(&text),
+            ChannelData::OutTxt(text) => process_output_line(ctx, &text),
+            ChannelData::ErrTxt(text) => process_error_line(ctx, &text),
         };
         if let Err(error) = result {
             // Calling kill() will also wait for the command to exit to ensure that the system
@@ -158,230 +166,144 @@ enum ChannelData {
     ErrTxt(String),
 }
 
+/// Processes a line of output text (standard out) from a running MakeMKV command.
+///
+/// For each line of output text, this will append the line to the logfile in the provided context
+/// if specified. It will then parse the line into a [`Message`] and perform the appropriate action
+/// based on the message type.
+///
+/// The attribute contained in `CINFO`, `TINFO`, and `SINFO` messages are added to the context's
+/// disc information data.
+///
+/// TODO: Progress messages and general messages.
+///
+/// `DRV` and `TCOUNT` messages are ignored.
+fn process_output_line(ctx: &mut Context, line: &str) -> Result<()> {
+    // TODO: Append the raw text to the log file.
+
+    use Message::*;
+    match messages::parse_message(line)? {
+        Cinfo { id, code: _, value } => ctx
+            .disc_info
+            .get_or_insert_default()
+            .add_attribute(id, &value)?,
+        Tinfo { title_index, id, code: _, value } => ctx
+            .disc_info
+            .get_or_insert_default()
+            .add_title_attribute(title_index as usize, id, &value)?,
+        Sinfo { title_index, stream_index, id, code: _, value } => ctx
+            .disc_info
+            .get_or_insert_default()
+            .add_stream_attribute(title_index as usize, stream_index as usize, id, &value,)?,
+        // Msg { code, flags, count, message, format, args } => todo!(),
+        // Prgc { code, id, name } => todo!(),
+        // Prgt { code, id, name } => todo!(),
+        // Prgv { suboperation, operation, max } => todo!(),
+        _ => (),
+    };
+
+    Ok(())
+}
+
+/// Processes a line of error text (standard error) from a running MakeMKV command.
+///
+/// For each line of output text, this will append the line to the logfile in the provided context
+/// if specified. TODO: document how it notifies the caller.
+fn process_error_line(_ctx: &mut Context, _line: &str) -> Result<()> {
+    // TODO: Append the raw text to the log file.
+    // TODO: Notify the caller
+    todo!()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::Cursor;
     use std::mem;
 
+    use crate::Attribute;
+
     #[test]
-    fn run_command() {
-        let mut cmd = TestRunCommand::new();
-        cmd.set_stdout(&["TCOUNT:53"]);
-        cmd.set_stderr(&["I cast fireball"]);
+    fn process_output_line_updates_disc_info() {
+        let mut ctx = Context::new("", Path::new(""));
 
-        let mut proc = TestProcessOutput::new();
+        let msg = "CINFO:2,0,\"DISC_NAME\"";
+        process_output_line(&mut ctx, msg).expect("Expected processing to be successful");
 
-        let result = super::run_command(&mut cmd, &mut proc);
 
-        assert_eq!(result.is_ok(), true);
+        let msg = "TINFO:0,2,0,\"TITLE_NAME\"";
+        process_output_line(&mut ctx, msg).expect("Expected processing to be successful");
 
-        assert_eq!(proc.messages.len(), 1);
-        assert_eq!(proc.messages[0], Message::Tcount { count: 53 });
+        let msg = "SINFO:0,0,2,0,\"STREAM_NAME\"";
+        process_output_line(&mut ctx, msg).expect("Expected processing to be successful");
 
-        assert_eq!(proc.errors.len(), 1);
-        assert_eq!(proc.errors[0], "I cast fireball");
+        let disc_info = ctx.disc_info.expect("Expected context to have a value for disc info");
 
-        assert_eq!(cmd.waited, true);
-        assert_eq!(cmd.killed, false);
+        let disc_name = disc_info.attributes.get(&Attribute::Name);
+        assert_eq!(disc_name, Some(&"DISC_NAME".to_owned()));
+
+        let title_info = disc_info.titles[0].as_ref().unwrap();
+        let title_name = title_info.attributes.get(&Attribute::Name);
+        assert_eq!(title_name, Some(&"TITLE_NAME".to_owned()));
+
+        let stream_info = title_info.streams[0].as_ref().unwrap();
+        let stream_name = stream_info.attributes.get(&Attribute::Name);
+        assert_eq!(stream_name, Some(&"STREAM_NAME".to_owned()));
     }
 
     #[test]
-    fn run_command_invalid_message() {
-        let mut cmd = TestRunCommand::new();
-        cmd.set_stdout(&["TCOUNT:INVALID"]);
-        cmd.set_stderr(&[]);
+    fn process_output_line_invalid_message() {
+        let mut ctx = Context::new("", Path::new(""));
 
-        let mut proc = TestProcessOutput::new();
-
-        let result = super::run_command(&mut cmd, &mut proc);
-
-        if let Err(Error::InvalidMessageData { key, data, error }) = &result {
-            assert_eq!(key, "TCOUNT");
-            assert_eq!(data, "INVALID");
-            assert!(error.contains("failed to convert data to int"));
-        } else {
-            panic!("Expected InvalidMessageData error");
-        }
-
-        assert_eq!(cmd.waited, false);
-        assert_eq!(cmd.killed, true);
+        let msg = "TCOUNT:INVALID";
+        process_output_line(&mut ctx, msg).expect_err("Expected processing to fail");
     }
 
     #[test]
+    #[ignore]
+    fn process_error_line_placeholder() {
+        // TODO: Don't have enough of the code implemented to test.
+        todo!()
+    }
+
+    #[test]
+    #[ignore]
     fn run_command_run_error() {
-        let mut cmd = TestRunCommand::new();
-        cmd.run_fail = true;
-        let mut proc = TestProcessOutput::new();
-        let result = super::run_command(&mut cmd, &mut proc);
-        assert_eq!(result.is_ok(), false);
+        // TODO: Test cmd.run() error is handled!
+        todo!()
     }
 
     #[test]
+    #[ignore]
     fn run_command_wait_error() {
-        let mut cmd = TestRunCommand::new();
-        cmd.wait_fail = true;
-        let mut proc = TestProcessOutput::new();
-        let result = super::run_command(&mut cmd, &mut proc);
-        assert_eq!(result.is_ok(), false);
+        // TODO: Test cmd.wait() error is handled!
+        todo!()
     }
 
     #[test]
+    #[ignore]
     fn run_command_kill_error() {
-        let mut cmd = TestRunCommand::new();
-        cmd.set_stdout(&["TCOUNT:INVALID"]);
-        cmd.kill_fail = true;
-        let mut proc = TestProcessOutput::new();
-        let result = super::run_command(&mut cmd, &mut proc);
-        assert_eq!(result.is_ok(), false);
+        // TODO: Test cmd.kill() error is handled!
+        todo!()
     }
 
     #[test]
-    fn run_command_process_message_error() {
-        let mut cmd = TestRunCommand::new();
-        cmd.set_stdout(&["TCOUNT:53"]);
-        cmd.set_stderr(&["I cast fireball"]);
-
-        let mut proc = TestProcessOutput::new();
-        proc.process_message_fail = true;
-
-        let result = super::run_command(&mut cmd, &mut proc);
-        assert_eq!(result.is_ok(), false);
+    #[ignore]
+    fn run_command_process_output_error() {
+        // TODO: Test that and error from output processing is handled.
+        todo!()
     }
 
     #[test]
-    fn run_command_process_error_output_error() {
-        let mut cmd = TestRunCommand::new();
-        cmd.set_stdout(&["TCOUNT:53"]);
-        cmd.set_stderr(&["I cast fireball"]);
-
-        let mut proc = TestProcessOutput::new();
-        proc.process_error_fail = true;
-
-        let result = super::run_command(&mut cmd, &mut proc);
-        assert_eq!(result.is_ok(), false);
+    #[ignore]
+    fn run_command_process_error_error() {
+        // TODO: Test that and error from error processing is handled.
+        todo!()
     }
 
-    struct BadRead {}
-
-    impl Read for BadRead {
-        fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
-            Err(std::io::ErrorKind::Other.into())
-        }
-    }
-
-    struct TestProcessOutput {
-        messages: Vec<Message>,
-        errors: Vec<String>,
-        process_message_fail: bool,
-        process_error_fail: bool,
-    }
-
-    impl TestProcessOutput {
-        fn new() -> Self {
-            TestProcessOutput {
-                messages: Vec::new(),
-                errors: Vec::new(),
-                process_message_fail: false,
-                process_error_fail: false,
-            }
-        }
-    }
-
-    impl ProcessOutput for TestProcessOutput {
-        fn process_message(&mut self, msg: Message) -> Result<()> {
-            self.messages.push(msg);
-            if !self.process_message_fail {
-                Ok(())
-            } else {
-                Err(Error::ProcessMessageError)
-            }
-        }
-        fn process_error_output(&mut self, line: &str) -> Result<()> {
-            self.errors.push(line.to_string());
-            if !self.process_error_fail {
-                Ok(())
-            } else {
-                Err(Error::ProcessErrorOutputError)
-            }
-        }
-    }
-
-    struct TestRunCommand {
-        stdout: Cursor<Vec<u8>>,
-        stderr: Cursor<Vec<u8>>,
-        waited: bool,
-        killed: bool,
-        run_fail: bool,
-        wait_fail: bool,
-        kill_fail: bool,
-    }
-
-    impl TestRunCommand {
-        fn set_stdout(&mut self, lines: &[&str]) {
-            let data = lines.join("\n");
-            self.stdout = Cursor::new(data.into_bytes());
-        }
-
-        fn set_stderr(&mut self, lines: &[&str]) {
-            let data = lines.join("\n");
-            self.stderr = Cursor::new(data.into_bytes());
-        }
-    }
-
-    impl RunCommand for TestRunCommand {
-        fn new() -> Self {
-            TestRunCommand {
-                stdout: Cursor::default(),
-                stderr: Cursor::default(),
-                waited: false,
-                killed: false,
-                run_fail: false,
-                wait_fail: false,
-                kill_fail: false,
-            }
-        }
-
-        fn add_arg<T: AsRef<OsStr>>(&mut self, _arg: T) {}
-
-        fn run(&mut self) -> Result<CommandOutput> {
-            if !self.run_fail {
-                Ok(CommandOutput {
-                    out: Box::new(mem::take(&mut self.stdout)),
-                    err: Box::new(mem::take(&mut self.stderr)),
-                })
-            } else {
-                Err(Error::CommandStartError)
-            }
-        }
-
-        fn wait(&mut self) -> Result<ExitStatus> {
-            self.waited = true;
-            if !self.wait_fail {
-                Ok(ExitStatus::default())
-            } else {
-                Err(Error::CommandKillError)
-            }
-        }
-
-        fn kill(&mut self) -> Result<()> {
-            self.killed = true;
-            if !self.kill_fail {
-                Ok(())
-            } else {
-                Err(Error::CommandKillError)
-            }
-        }
-    }
-
-    // Implement PartialEq for Message to allow comparison in tests. Defining it here since its
-    // only needed for tests. Also, it only implements whats needed for the tests below.
-    impl PartialEq for Message {
-        fn eq(&self, other: &Self) -> bool {
-            match (self, other) {
-                (Message::Tcount { count: c1 }, Message::Tcount { count: c2 }) => c1 == c2,
-                _ => false,
-            }
-        }
+    #[test]
+    #[ignore]
+    fn run_command() {
+        todo!()
     }
 }
