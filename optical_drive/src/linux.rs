@@ -7,7 +7,7 @@ use std::process::Command;
 
 use serde::Deserialize;
 
-use super::{DiscState, Error, OpticalDrive};
+use crate::{DiscState, Error, OpticalDrive, Result};
 
 /// Represents the information returned by the `lsblk` command for an individual
 /// block device.
@@ -109,7 +109,7 @@ struct BlockDeviceData {
 /// Runs the `lsblk` command and return the output which is a JSON string that
 /// can be deserialized into a [`BlockDeviceData`] instance. Returns an error if
 /// the command fails to run or exits with an error status code.
-fn run_lsblk_command() -> Result<String, Error> {
+fn run_lsblk_command() -> Result<String> {
     let mut command = Command::new("lsblk");
     command.arg("--json");
     command.arg("--list");
@@ -117,21 +117,17 @@ fn run_lsblk_command() -> Result<String, Error> {
     command.arg("--output");
     command.arg("NAME,SERIAL,LABEL,TYPE,UUID");
 
-    let output = match command.output() {
-        Ok(output) => output,
-        Err(error) => return Err(Error::CommandFailed(error)),
-    };
+    let output = command.output().map_err(|e| Error::CommandIoError { error: e })?;
 
     if !output.status.success() {
-        return Err(Error::CommandReturnedErrorCode(
-            output.status.code().unwrap_or_default(),
-        ));
+        return Err(Error::CommandReturnedErrorCode {
+            code: output.status.code(),
+            stdout: String::from_utf8_lossy(output.stdout.as_slice()).into_owned(),
+            stderr: String::from_utf8_lossy(output.stderr.as_slice()).into_owned(),
+        });
     }
 
-    match String::from_utf8(output.stdout) {
-        Ok(json) => Ok(json),
-        Err(error) => Err(Error::ConversionError(error)),
-    }
+    String::from_utf8(output.stdout).map_err(|e| Error::ConversionError { error: e })
 }
 
 // NOTE: The internal implementation allows for the bulk of the function to be
@@ -143,16 +139,14 @@ fn run_lsblk_command() -> Result<String, Error> {
 /// for a drive with serial number `serial_number`. Returns `None` if an optical
 /// drive cannot be found or an error if the command fails or its results cannot
 /// be processed.
-fn get_optical_drive_impl<F: Fn() -> Result<String, Error>>(
+fn get_optical_drive_impl<F: Fn() -> Result<String>>(
     serial_number: &str,
     run_cmd: F,
-) -> Result<Option<OpticalDrive>, Error> {
+) -> Result<Option<OpticalDrive>> {
     let json = run_cmd()?;
 
-    let block_device_data = match serde_json::from_str::<BlockDeviceData>(&json) {
-        Ok(data) => data,
-        Err(error) => return Err(Error::JsonError(error)),
-    };
+    let block_device_data = serde_json::from_str::<BlockDeviceData>(&json)
+        .map_err(|e| Error::JsonError { error: e, text: json })?;
 
     for bd in block_device_data.block_devices {
         if !bd.is_optical_drive() {
@@ -174,7 +168,7 @@ fn get_optical_drive_impl<F: Fn() -> Result<String, Error>>(
 /// system.
 ///
 /// This is the Linux specific implementation.
-pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>, Error> {
+pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
     get_optical_drive_impl(serial_number, run_lsblk_command)
 }
 
@@ -362,7 +356,7 @@ mod tests {
             ]
         }"###;
 
-        let cmd = || -> Result<String, Error> { Ok(json.to_string()) };
+        let cmd = || -> Result<String> { Ok(json.to_string()) };
 
         let optical_drive = match get_optical_drive_impl(&String::from("SN0001"), cmd) {
             Ok(result) => match result {
@@ -416,11 +410,21 @@ mod tests {
 
     #[test]
     fn get_optical_drive_command_error() {
-        let cmd = || -> Result<String, Error> { Err(Error::CommandReturnedErrorCode(47)) };
+        let cmd = || -> Result<String> { 
+            Err(Error::CommandReturnedErrorCode {
+                code: Some(47), 
+                stdout: String::from("stdout text"),
+                stderr: String::from("stderr text") 
+            })
+        };
         match get_optical_drive_impl(&String::from("SN0001"), cmd) {
             Ok(_) => panic!("Expected an error when the command returns an error"),
             Err(err) => match err {
-                Error::CommandReturnedErrorCode(code) => assert_eq!(code, 47),
+                Error::CommandReturnedErrorCode { code, stdout, stderr } => {
+                    assert_eq!(code.unwrap(), 47);
+                    assert_eq!(stdout, "stdout text");
+                    assert_eq!(stderr, "stderr text");
+                },
                 _ => panic!("Expected the returned error to match the command error"),
             },
         }
@@ -440,12 +444,12 @@ mod tests {
                 }
         }"###;
 
-        let cmd = || -> Result<String, Error> { Ok(json.to_string()) };
+        let cmd = || -> Result<String> { Ok(json.to_string()) };
 
         match get_optical_drive_impl(&String::from("SN0001"), cmd) {
             Ok(_) => panic!("Expected an error when the command returns an error"),
             Err(err) => match err {
-                Error::JsonError(_) => (),
+                Error::JsonError { error: _, text: _} => (),
                 _ => panic!("Expected an error with invalid JSON"),
             },
         }

@@ -23,6 +23,21 @@ pub enum Error {
         error: std::io::Error,
     },
 
+    /// Error raised from the standard error processing thread.
+    ErrThreadIoError {
+        error: std::io::Error,
+    },
+
+    /// Error raised when the standard error thread panics.
+    ErrThreadPanicked {
+        error: String,
+    },
+
+    /// Error raised when the standard error processing thread fails to send on its data channel.
+    ErrThreadSendError {
+        error: std::sync::mpsc::SendError<crate::command::ChannelData>,
+    },
+
     /// Error raised when attempting to run handbrake with invalid options.
     InvalidOption {
         option: String,
@@ -57,21 +72,6 @@ pub enum Error {
     LogStdErrError {
         path: PathBuf,
         error: std::io::Error,
-    },
-
-    /// Error raised from the standard error processing thread.
-    ErrThreadIoError {
-        error: std::io::Error,
-    },
-
-    /// Error raised when the standard error thread panics.
-    ErrThreadPanicked {
-        error: String,
-    },
-
-    /// Error raised when the standard error processing thread fails to send on its data channel.
-    ErrThreadSendError {
-        error: std::sync::mpsc::SendError<crate::command::ChannelData>,
     },
 
     /// Error raised from the standard output processing thread.

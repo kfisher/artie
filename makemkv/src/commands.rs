@@ -24,52 +24,20 @@ use crate::data::DiscInfo;
 use crate::messages::{self, Message};
 use crate::{Error, Observe, Progress, Result};
 
-use crate::{COPY_CMD_LOG_FILENAME, DISC_INFO_FILENAME, INFO_CMD_LOG_FILENAME};
+/// Represents the data sent through the channel used to relay output from a running command for
+/// processing.
+pub enum ChannelData {
+    /// Line of text received from the output stream.
+    OutTxt(String),
 
-/// Runs the "info" MakeMKV command.
-///
-/// The "info" command extracts information about the contents of a DVD or Blu-ray. This
-/// information is written to the [`DiscInfo`] field in `ctx`.
-pub fn run_info_command<T>(ctx: &mut Context) -> Result<()>
-where
-    T: RunCommand,
-{
-    let mut cmd = T::new();
-    cmd.add_arg("--cache=1");
-    cmd.add_arg("--noscan");
-    cmd.add_arg("--progress=-same");
-    cmd.add_arg("info");
-    cmd.add_arg(format!("dev:{0}", ctx.device));
-
-    run_command(ctx, &mut cmd)
-}
-
-/// Runs the "mkv" MakeMKV command.
-///
-/// The "mkv" command copies titles from a DVD or Blu-ray disc and saves them as MKV files.
-pub fn run_mkv_command<T>(ctx: &mut Context) -> Result<()>
-where
-    T: RunCommand,
-{
-    let mut cmd = T::new();
-    cmd.add_arg("--robot");
-    cmd.add_arg("--noscan");
-    cmd.add_arg("--progress=-same");
-    cmd.add_arg("mkv");
-    cmd.add_arg(format!("dev:{0}", ctx.device));
-    cmd.add_arg("all");
-    cmd.add_arg(ctx.outdir.clone());
-
-    run_command(ctx, &mut cmd)
+    /// Line of text received from the error output stream.
+    ErrTxt(String),
 }
 
 /// Context object for running MakeMKV commands.
 pub struct Context<'a> {
     /// The device path to the target optical drive.
     device: String,
-
-    /// The output directory where MakeMKV should write the MKV files to.
-    outdir: PathBuf,
 
     /// Specifies callbacks that should be called when certain messages are received.
     ///
@@ -87,35 +55,52 @@ pub struct Context<'a> {
     disc_info: Option<DiscInfo>,
 
     /// When set, the raw output from MakeMKV will be added to the file as the command is run.
-    cmd_log: Option<File>,
+    command_log: Option<LogFile>,
 }
 
 impl<'a> Context<'a> {
     /// Constructs a new context for the optical drive specified by the provided device path and
     /// output directory.
-    pub fn new<T>(device: &str, outdir: &Path, observer: &'a mut T) -> Context<'a>
+    pub fn new<T>(device: &str, observer: &'a mut T) -> Context<'a>
     where
         T: Observe,
     {
         Context {
             device: device.to_owned(),
-            outdir: outdir.to_owned(),
             disc_info: None,
             observer,
             progress: Progress::new(),
-            cmd_log: None,
+            command_log: None,
         }
     }
 
     /// Enable logging the raw output from the MakeMKV command to the provided filename.
-    pub fn enable_cmd_log(&mut self, filename: &str) -> Result<()> {
-        let path = self.outdir.join(filename);
-        let cmd_log = OpenOptions::new()
+    pub fn log_output(&mut self, path: &Path) -> Result<()> {
+        let exists = match path.try_exists() {
+            Ok(exists) => exists,
+            Err(error) => return Err(Error::LogFileExists { 
+                path: path.to_path_buf(), 
+                error: Some(error) 
+            }),
+        };
+
+        if exists {
+            return Err(Error::LogFileExists { 
+                path: path.to_path_buf(),
+                error: None })
+        }
+
+        let file = OpenOptions::new()
             .create_new(true)
             .write(true)
-            .open(&path)
-            .map_err(|error| Error::FileOpenError { path, error })?;
-        self.cmd_log = Some(cmd_log);
+            .open(path)
+            .map_err(|e| Error::LogFileOpenError {
+                path: path.to_path_buf(),
+                error: e 
+            })?;
+
+        self.command_log = Some(LogFile { path: path.to_path_buf(), file });
+
         Ok(())
     }
 
@@ -141,6 +126,39 @@ impl<'a> Context<'a> {
     }
 }
 
+/// Runs the "info" MakeMKV command.
+///
+/// The "info" command extracts information about the contents of a DVD or Blu-ray. This
+/// information is written to the [`DiscInfo`] field in `ctx`.
+pub fn run_info_command(ctx: &mut Context) -> Result<ExitStatus>
+{
+    let mut cmd = OsRunner::new();
+    cmd.add_arg("--cache=1");
+    cmd.add_arg("--noscan");
+    cmd.add_arg("--progress=-same");
+    cmd.add_arg("info");
+    cmd.add_arg(format!("dev:{0}", ctx.device));
+
+    run_command(ctx, &mut cmd)
+}
+
+/// Runs the "mkv" MakeMKV command.
+///
+/// The "mkv" command copies titles from a DVD or Blu-ray disc and saves them as MKV files.
+pub fn run_mkv_command(ctx: &mut Context, out_dir: &Path) -> Result<ExitStatus>
+{
+    let mut cmd = OsRunner::new();
+    cmd.add_arg("--robot");
+    cmd.add_arg("--noscan");
+    cmd.add_arg("--progress=-same");
+    cmd.add_arg("mkv");
+    cmd.add_arg(format!("dev:{0}", ctx.device));
+    cmd.add_arg("all");
+    cmd.add_arg(out_dir);
+
+    run_command(ctx, &mut cmd)
+}
+
 /// Trait for running MakeMKV commands.
 ///
 /// The expected use of this is to construct using `new`, add arguments using `add_arg`, and then
@@ -150,7 +168,7 @@ impl<'a> Context<'a> {
 /// While the command is running, the output and error output can be processed by using the streams
 /// returned by `run`. Note that if both output and error output need to be processed, they will
 /// need to be handled in separate threads.
-pub trait RunCommand {
+trait RunCommand {
     /// Constructs a new instance.
     fn new() -> Self;
 
@@ -177,7 +195,7 @@ pub trait RunCommand {
 }
 
 /// Container for the output and error streams of a command.
-pub struct CommandOutput {
+struct CommandOutput {
     /// The output stream (e.g. `stdout`).
     out: Box<dyn Read + Send>,
 
@@ -185,189 +203,29 @@ pub struct CommandOutput {
     err: Box<dyn Read + Send>,
 }
 
-/// Runs an MakeMKV command.
-fn run_command<T>(ctx: &mut Context, cmd: &mut T) -> Result<()>
-where
-    T: RunCommand,
-{
-    let streams = cmd.run()?;
-
-    let (tx, rx) = mpsc::channel::<ChannelData>();
-
-    let out_tx = tx.clone();
-    let out_thread = thread::spawn(move || {
-        let reader = BufReader::new(streams.out);
-        for line in reader.lines() {
-            let line = line.map_err(Error::CommandOutThreadIoError)?;
-            if out_tx.send(ChannelData::OutTxt(line)).is_err() {
-                return Err(Error::CommandOutThreadSendError);
-            }
-        }
-        Ok(())
-    });
-
-    let err_tx = tx.clone();
-    let err_thread = thread::spawn(move || {
-        let reader = BufReader::new(streams.err);
-        for line in reader.lines() {
-            let line = line.map_err(Error::CommandErrThreadIoError)?;
-            if err_tx.send(ChannelData::ErrTxt(line)).is_err() {
-                return Err(Error::CommandErrThreadSendError);
-            }
-        }
-        Ok(())
-    });
-
-    // Must drop the original sender to avoid blocking indefinitely. Once this is dropped, the
-    // remaining senders will remain open for as long as their respective threads are active. The
-    // threads will exit once command completes and closes the I/O streams.
-    drop(tx);
-
-    // Once all the senders are closed, calling `recv` on the reader will fail causing the while
-    // loop below to exit.
-    while let Ok(data) = rx.recv() {
-        let result = match data {
-            ChannelData::OutTxt(text) => process_output_line(ctx, &text),
-            ChannelData::ErrTxt(text) => process_error_line(ctx, &text),
-        };
-        if let Err(error) = result {
-            // Calling kill() will also wait for the command to exit to ensure that the system
-            // resources are released.
-            cmd.kill()?;
-
-            // If either thread panicked, its error will be returned instead of the error received
-            // from the channel. This should be fine since the panic would have a higher severity
-            // and should also be rare (if even possible).
-            let _ = out_thread
-                .join()
-                .map_err(|_| Error::CommandOutThreadPanicked)?;
-            let _ = err_thread
-                .join()
-                .map_err(|_| Error::CommandErrThreadPanicked)?;
-
-            return Err(error);
-        }
-    }
-
-    // Ignore the exit code since MakeMKV will sometimes return non-zero values even though it was
-    // able to complete the requested task.
-    let _ = cmd.wait()?;
-
-    let _ = out_thread
-        .join()
-        .map_err(|_| Error::CommandOutThreadPanicked)?;
-    let _ = err_thread
-        .join()
-        .map_err(|_| Error::CommandErrThreadPanicked)?;
-
-    Ok(())
+/// `Path` and `File` object for the command log file.
+struct LogFile {
+    path: PathBuf,
+    file: File,
 }
 
-/// Represents the data sent through the channel used to relay output from a running command for
-/// processing.
-enum ChannelData {
-    /// Line of text received from the output stream.
-    OutTxt(String),
-
-    /// Line of text received from the error output stream.
-    ErrTxt(String),
-}
-
-/// Processes a line of output text (standard out) from a running MakeMKV command.
-///
-/// For each line of output text, this will append the line to the logfile in the provided context
-/// if specified. It will then parse the line into a [`Message`] and perform the appropriate action
-/// based on the message type.
-///
-/// The attribute contained in `CINFO`, `TINFO`, and `SINFO` messages are added to the context's
-/// disc information data.
-///
-/// The general information message `MSG` and progress messages (`PRGC`, `PRGT`, `PTRV`) are
-/// relayed to the initiator of the command via the observer within the provided context.
-///
-/// `DRV` and `TCOUNT` messages are ignored.
-fn process_output_line(ctx: &mut Context, line: &str) -> Result<()> {
-    if let Some(cmd_log) = &mut ctx.cmd_log {
-        writeln!(cmd_log, "{}", line).map_err(Error::CommandLogError)?;
+impl LogFile {
+    /// Returns a [`Error::LogStdOutError`] with the provided I/O error.
+    fn stdout_error(&self, e: std::io::Error) -> Error {
+        Error::LogStdOutError { path: self.path.clone(), error: e }
     }
 
-    use Message::*;
-    match messages::parse_message(line)? {
-        Cinfo { id, code: _, value } => ctx
-            .disc_info
-            .get_or_insert_default()
-            .add_attribute(id, &value)?,
-        Tinfo {
-            title_index,
-            id,
-            code: _,
-            value,
-        } => ctx.disc_info.get_or_insert_default().add_title_attribute(
-            title_index as usize,
-            id,
-            &value,
-        )?,
-        Sinfo {
-            title_index,
-            stream_index,
-            id,
-            code: _,
-            value,
-        } => ctx.disc_info.get_or_insert_default().add_stream_attribute(
-            title_index as usize,
-            stream_index as usize,
-            id,
-            &value,
-        )?,
-        Msg {
-            code: _,
-            flags: _,
-            count: _,
-            message,
-            format: _,
-            args: _,
-        } => ctx.observer.message(&message),
-        Prgt {
-            code: _,
-            id: _,
-            name,
-        } => ctx.set_op_title(&name),
-        Prgc {
-            code: _,
-            id: _,
-            name,
-        } => ctx.set_subop_title(&name),
-        Prgv {
-            suboperation,
-            operation,
-            max,
-        } => ctx.set_progress(operation, suboperation, max),
-        _ => (),
-    };
-
-    Ok(())
-}
-
-/// Processes a line of error text (standard error) from a running MakeMKV command.
-///
-/// For each line of output text, this will append the line to the logfile in the provided context
-/// if specified. It will also used call the appropriate callback in the context to notify the
-/// initiator of the command so they may respond accordingly (e.g. notify the user).
-fn process_error_line(ctx: &mut Context, line: &str) -> Result<()> {
-    if let Some(cmd_log) = &mut ctx.cmd_log {
-        writeln!(cmd_log, "{}", line).map_err(Error::CommandLogError)?;
+    /// Returns a [`Error::LogStdErrError`] with the provided I/O error.
+    fn stderr_error(&self, e: std::io::Error) -> Error {
+        Error::LogStdErrError { path: self.path.clone(), error: e }
     }
-
-    ctx.observer.error(line);
-
-    Ok(())
 }
 
 /// Command runner which makes system calls to run MakeMKV commands.
 ///
 /// This is the default runner used to run commands. Other types of runners exist mainly for
 /// testing and development when you don't want to actually copy a disc.
-pub struct OsRunner {
+struct OsRunner {
     cmd: Command,
     child: Option<Child>,
 }
@@ -404,7 +262,7 @@ impl RunCommand for OsRunner {
         self.cmd.stderr(Stdio::piped());
         self.cmd.stdout(Stdio::piped());
 
-        let mut child = self.cmd.spawn().map_err(Error::CommandStartIoError)?;
+        let mut child = self.cmd.spawn().map_err(|e| Error::CommandIoError { error: e })?;
 
         // Must take the output & error streams to prevent them from being closed when wait is
         // eventually called. Should be safe to unwrap since the streams were configured to be
@@ -422,8 +280,8 @@ impl RunCommand for OsRunner {
     /// Wait for the command to complete returning its exit status.
     fn wait(&mut self) -> Result<ExitStatus> {
         match self.child.as_mut() {
-            Some(child) => child.wait().map_err(Error::CommandWaitIoError),
-            None => Err(Error::CommandWaitInvalidStateError),
+            Some(child) => child.wait().map_err(|e| Error::CommandIoError { error: e }),
+            None => Err(Error::CommandNotStarted),
         }
     }
 
@@ -435,13 +293,181 @@ impl RunCommand for OsRunner {
     fn kill(&mut self) -> Result<()> {
         match self.child.as_mut() {
             Some(child) => {
-                child.kill().map_err(Error::CommandKillIoError)?;
-                child.wait().map_err(Error::CommandWaitIoError)?;
+                child.kill().map_err(|e| Error::CommandIoError { error: e })?;
+                child.wait().map_err(|e| Error::CommandIoError { error: e })?;
                 Ok(())
             }
-            None => Err(Error::CommandKillInvalidStateError),
+            None => Err(Error::CommandNotStarted),
         }
     }
+}
+
+/// Processes a line of output text (standard out) from a running MakeMKV command.
+///
+/// For each line of output text, this will append the line to the logfile in the provided context
+/// if specified. It will then parse the line into a [`Message`] and perform the appropriate action
+/// based on the message type.
+///
+/// The attribute contained in `CINFO`, `TINFO`, and `SINFO` messages are added to the context's
+/// disc information data.
+///
+/// The general information message `MSG` and progress messages (`PRGC`, `PRGT`, `PTRV`) are
+/// relayed to the initiator of the command via the observer within the provided context.
+///
+/// `DRV` and `TCOUNT` messages are ignored.
+fn process_stdout_line(ctx: &mut Context, line: &str) -> Result<()> {
+    if let Some(log) = &mut ctx.command_log {
+        writeln!(log.file, "STDOUT\t{}", line).map_err(|e| log.stdout_error(e))?;
+    }
+
+    use Message::*;
+    match messages::parse_message(line)? {
+        CINFO { id, code: _, value } => ctx
+            .disc_info
+            .get_or_insert_default()
+            .add_attribute(id, &value)?,
+        TINFO {
+            title_index,
+            id,
+            code: _,
+            value,
+        } => ctx.disc_info.get_or_insert_default().add_title_attribute(
+            title_index as usize,
+            id,
+            &value,
+        )?,
+        SINFO {
+            title_index,
+            stream_index,
+            id,
+            code: _,
+            value,
+        } => ctx.disc_info.get_or_insert_default().add_stream_attribute(
+            title_index as usize,
+            stream_index as usize,
+            id,
+            &value,
+        )?,
+        MSG {
+            code: _,
+            flags: _,
+            count: _,
+            message,
+            format: _,
+            args: _,
+        } => ctx.observer.message(&message),
+        PRGT {
+            code: _,
+            id: _,
+            name,
+        } => ctx.set_op_title(&name),
+        PRGC {
+            code: _,
+            id: _,
+            name,
+        } => ctx.set_subop_title(&name),
+        PRGV {
+            suboperation,
+            operation,
+            max,
+        } => ctx.set_progress(operation, suboperation, max),
+        _ => (),
+    };
+
+    Ok(())
+}
+
+/// Processes a line of error text (standard error) from a running MakeMKV command.
+///
+/// For each line of output text, this will append the line to the logfile in the provided context
+/// if specified. It will also used call the appropriate callback in the context to notify the
+/// initiator of the command so they may respond accordingly (e.g. notify the user).
+fn process_stderr_line(ctx: &mut Context, line: &str) -> Result<()> {
+    if let Some(log) = &mut ctx.command_log {
+        writeln!(log.file, "STDERR\t{}", line).map_err(|e| log.stderr_error(e))?;
+    }
+
+    ctx.observer.error(line);
+
+    Ok(())
+}
+
+/// Runs an MakeMKV command.
+fn run_command<T>(ctx: &mut Context, cmd: &mut T) -> Result<ExitStatus>
+where
+    T: RunCommand,
+{
+    let streams = cmd.run()?;
+
+    let (tx, rx) = mpsc::channel::<ChannelData>();
+
+    let out_tx = tx.clone();
+    let out_thread = thread::spawn(move || -> Result<()> {
+        let reader = BufReader::new(streams.out);
+        for line in reader.lines() {
+            let line = line.map_err(|e| Error::OutThreadIoError { error: e })?;
+            out_tx.send(ChannelData::OutTxt(line)).map_err(|e| Error::OutThreadSendError {
+                error: e 
+            })?;
+        }
+        Ok(())
+    });
+
+    let err_tx = tx.clone();
+    let err_thread = thread::spawn(move || -> Result<()> {
+        let reader = BufReader::new(streams.err);
+        for line in reader.lines() {
+            let line = line.map_err(|e| Error::ErrThreadIoError { error: e })?;
+            err_tx.send(ChannelData::ErrTxt(line)).map_err(|e| Error::ErrThreadSendError {
+                error: e 
+            })?;
+        }
+        Ok(())
+    });
+
+    // Must drop the original sender to avoid blocking indefinitely. Once this is dropped, the
+    // remaining senders will remain open for as long as their respective threads are active. The
+    // threads will exit once command completes and closes the I/O streams.
+    drop(tx);
+
+    // Once all the senders are closed, calling `recv` on the reader will fail causing the while
+    // loop below to exit.
+    while let Ok(data) = rx.recv() {
+        let result = match data {
+            ChannelData::OutTxt(text) => process_stdout_line(ctx, &text),
+            ChannelData::ErrTxt(text) => process_stderr_line(ctx, &text),
+        };
+        if let Err(error) = result {
+            // Calling kill() will also wait for the command to exit to ensure that the system
+            // resources are released.
+            cmd.kill()?;
+
+            // If either thread panicked, its error will be returned instead of the error received
+            // from the channel. This should be fine since the panic would have a higher severity
+            // and should also be rare (if even possible).
+            let _ = out_thread
+                .join()
+                .map_err(|e| Error::OutThreadPanicked { error: format!("{:?}", e) })?;
+            let _ = err_thread
+                .join()
+                .map_err(|e| Error::ErrThreadPanicked { error: format!("{:?}", e) })?;
+
+            return Err(error);
+        }
+    }
+
+    // Ignore the exit code since MakeMKV will sometimes return non-zero values even though it was
+    // able to complete the requested task.
+    let exit_status = cmd.wait()?;
+
+    let _ = out_thread
+        .join()
+        .map_err(|e| Error::OutThreadPanicked { error: format!("{:?}", e) })?;
+    let _ = err_thread
+        .join()
+        .map_err(|e| Error::ErrThreadPanicked { error: format!("{:?}", e) })?;
+
+    Ok(exit_status)
 }
 
 #[cfg(test)]
@@ -534,16 +560,16 @@ mod tests {
     #[test]
     fn process_output_line_updates_disc_info() {
         let mut obs = TestObserver::new();
-        let mut ctx = Context::new("/dev/null", Path::new("/dev/null"), &mut obs);
+        let mut ctx = Context::new("/dev/null", &mut obs);
 
         let msg = "CINFO:2,0,\"DISC_NAME\"";
-        process_output_line(&mut ctx, msg).expect("Expected processing to be successful");
+        process_stdout_line(&mut ctx, msg).expect("Expected processing to be successful");
 
         let msg = "TINFO:0,2,0,\"TITLE_NAME\"";
-        process_output_line(&mut ctx, msg).expect("Expected processing to be successful");
+        process_stdout_line(&mut ctx, msg).expect("Expected processing to be successful");
 
         let msg = "SINFO:0,0,2,0,\"STREAM_NAME\"";
-        process_output_line(&mut ctx, msg).expect("Expected processing to be successful");
+        process_stdout_line(&mut ctx, msg).expect("Expected processing to be successful");
 
         let disc_info = ctx
             .disc_info
@@ -564,23 +590,23 @@ mod tests {
     #[test]
     fn process_output_line_calls_callbacks() {
         let mut obs = TestObserver::new();
-        let mut ctx = Context::new("/dev/null", Path::new("/dev/null"), &mut obs);
+        let mut ctx = Context::new("/dev/null", &mut obs);
 
         let msg = "PRGT:3400,7,\"Title\"";
-        process_output_line(&mut ctx, msg).expect("Expected processing to be successful");
+        process_stdout_line(&mut ctx, msg).expect("Expected processing to be successful");
         assert_eq!(ctx.progress.op, "Title".to_owned());
 
         let msg = "PRGC:3400,7,\"Subtitle\"";
-        process_output_line(&mut ctx, msg).expect("Expected processing to be successful");
+        process_stdout_line(&mut ctx, msg).expect("Expected processing to be successful");
         assert_eq!(ctx.progress.subop, "Subtitle".to_owned());
 
         let msg = "PRGV:32768,16384,65536";
-        process_output_line(&mut ctx, msg).expect("Expected processing to be successful");
+        process_stdout_line(&mut ctx, msg).expect("Expected processing to be successful");
         assert_eq!(ctx.progress.op_prog, 25);
         assert_eq!(ctx.progress.subop_prog, 50);
 
         let msg = "MSG:3007,0,0,\"Hello There!\",\"Hello There!\"";
-        process_output_line(&mut ctx, msg).expect("Expected processing to be successful");
+        process_stdout_line(&mut ctx, msg).expect("Expected processing to be successful");
         assert_eq!(obs.messages.len(), 1);
         assert_eq!(obs.errors.len(), 0);
         assert_eq!(obs.messages[0], "Hello There!".to_owned());
@@ -595,36 +621,35 @@ mod tests {
         let temp_file = TempFile(dir.join(log));
 
         let mut obs = TestObserver::new();
-        let mut ctx = Context::new("/dev/null", &dir, &mut obs);
-        ctx.enable_cmd_log(log)
-            .expect("Expected enabling command log to be successful");
+        let mut ctx = Context::new("/dev/null", &mut obs);
+        ctx.log_output(temp_file.path()).unwrap();
 
         let msg = "TCOUNT:42";
-        process_output_line(&mut ctx, msg).expect("Expected processing to be successful");
+        process_stdout_line(&mut ctx, msg).expect("Expected processing to be successful");
 
         // Ensure the file is closed before proceding.
         drop(ctx);
 
         let content = fs::read_to_string(temp_file.path()).expect("");
-        assert_eq!(content, "TCOUNT:42\n".to_owned());
+        assert_eq!(content, "STDOUT\tTCOUNT:42\n".to_owned());
     }
 
     #[test]
     fn process_output_line_invalid_message() {
         let mut obs = TestObserver::new();
-        let mut ctx = Context::new("/dev/null", Path::new("/dev/null"), &mut obs);
+        let mut ctx = Context::new("/dev/null", &mut obs);
 
         let msg = "TCOUNT:INVALID";
-        process_output_line(&mut ctx, msg).expect_err("Expected processing to fail");
+        process_stdout_line(&mut ctx, msg).expect_err("Expected processing to fail");
     }
 
     #[test]
     fn process_error_line_calls_callbacks() {
         let mut obs = TestObserver::new();
-        let mut ctx = Context::new("/dev/null", Path::new("/dev/null"), &mut obs);
+        let mut ctx = Context::new("/dev/null", &mut obs);
 
         let err = "Failed to read disc.";
-        process_error_line(&mut ctx, err).expect("Expected processing to be successful");
+        process_stderr_line(&mut ctx, err).expect("Expected processing to be successful");
         assert_eq!(obs.messages.len(), 0);
         assert_eq!(obs.errors.len(), 1);
         assert_eq!(obs.errors[0], "Failed to read disc.".to_owned());
@@ -639,24 +664,23 @@ mod tests {
         let temp_file = TempFile(dir.join(log));
 
         let mut obs = TestObserver::new();
-        let mut ctx = Context::new("/dev/null", &dir, &mut obs);
-        ctx.enable_cmd_log(log)
-            .expect("Expected enabling command log to be successful");
+        let mut ctx = Context::new("/dev/null", &mut obs);
+        ctx.log_output(temp_file.path()).unwrap();
 
         let err = "Failed to read disc.";
-        process_error_line(&mut ctx, err).expect("Expected processing to be successful");
+        process_stderr_line(&mut ctx, err).expect("Expected processing to be successful");
 
         // Ensure the file is closed before proceding.
         drop(ctx);
 
         let content = fs::read_to_string(temp_file.path()).expect("");
-        assert_eq!(content, "Failed to read disc.\n".to_owned());
+        assert_eq!(content, "STDERR\tFailed to read disc.\n".to_owned());
     }
 
     #[test]
     fn run_command() {
         let mut obs = TestObserver::new();
-        let mut ctx = Context::new("/dev/null", Path::new("/dev/null"), &mut obs);
+        let mut ctx = Context::new("/dev/null", &mut obs);
         let mut cmd = TestRunner::new();
         cmd.set_stdout(&["MSG:3007,0,0,\"Hello There!\",\"Hello There!\""]);
         cmd.set_stderr(&["I cast fireball"]);

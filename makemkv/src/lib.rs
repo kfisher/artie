@@ -14,19 +14,10 @@ mod test_utils;
 pub use crate::data::DiscInfo;
 pub use crate::error::{Error, Result};
 
-use std::fs::OpenOptions;
 use std::path::Path;
+use std::process::ExitStatus;
 
-use crate::commands::{Context, OsRunner};
-
-/// Filename where the "info" command log is written to.
-pub const INFO_CMD_LOG_FILENAME: &str = "makemkv.info.log";
-
-/// Filename where the "mkv" command log is written to.
-pub const COPY_CMD_LOG_FILENAME: &str = "makemkv.mkv.log";
-
-/// Filename where the disc information is written to.
-pub const DISC_INFO_FILENAME: &str = "disc_info.json";
+use crate::commands::Context;
 
 /// Trait for receiving data from running commands.
 ///
@@ -79,93 +70,93 @@ impl Progress {
 
 /// Extract information about a disc's content.
 ///
+/// <div class="warning">
+///
+/// Calling this function will block until the command completes. This can take a long time
+/// depending on the options and the system its being run on.
+///
+/// </div>
+///
 /// This will run the MakeMKV "info" command to extract information about the titles on the disc
 /// inserted into the optical drive specified by the device path `device` and return that
 /// information when it completes successfully.
 ///
-/// In addition to returning the disc information, its content will be written to the provided
-/// output directory in a file called "disc_info.json". Additionally, the output from MakeMKV will
-/// be written to "makemkv.info.log".
+/// `dev` is the device path of the optical drive (e.g. "/dev/sr0").
 ///
-/// This function will take a long time to complete.
+/// `observer` provides the ability for the caller to receive callbacks while the handbrake is
+/// running with information messages and the current progress.
 ///
-/// It is expected that the provided output directory will already exist and that the directory
-/// won't contain preexisting log or disc information files. If any of these expectations aren't
-/// met, the function will return an error. It is up to the caller to create the directory and
-/// delete existing files if required.
-pub fn run_info_cmd<T>(device: &str, outdir: &Path, observer: &mut T) -> Result<DiscInfo>
+/// `log_path` path to where to save the raw output from HandBrake.
+pub fn get_disc_info<T>(
+    device: &str,
+    observer: &mut T,
+    log_path: &Path
+) -> Result<(ExitStatus, DiscInfo)>
 where
     T: Observe,
 {
-    // NOTE: We don't check if the device path is valid/exists here since its likely to be OS
-    //       dependent. If it happens to be invalid, the command should fail early. Will revisit if
-    //       it becomes an issue in the future.
-    //
-    if !outdir.is_dir() {
-        return Err(Error::OutputDirDoesNotExist(outdir.to_owned()));
-    }
+    let mut ctx = Context::new(device, observer);
+    ctx.log_output(log_path)?;
 
-    let mut ctx = Context::new(device, outdir, observer);
-    ctx.enable_cmd_log(INFO_CMD_LOG_FILENAME)?;
+    let exit_status = commands::run_info_command(&mut ctx)?;
 
-    commands::run_info_command::<OsRunner>(&mut ctx)?;
+    let disc_info = ctx.take_disc_info().ok_or(Error::MissingDiscInfo)?;
 
-    let Some(disc_info) = ctx.take_disc_info() else {
-        return Err(Error::MissingDiscInfo);
-    };
-
-    let path = outdir.join(DISC_INFO_FILENAME);
-    disc_info.save(&path)?;
-
-    Ok(disc_info)
+    Ok((exit_status, disc_info))
 }
 
 /// Copy the titles from a disc and save them as MKV files.
+///
+/// <div class="warning">
+///
+/// Calling this function will block until the command completes. This can take a long time
+/// depending on the options and the system its being run on.
+///
+/// </div>
 ///
 /// This will run the MakeMKV "mkv" command which will copy all titles that meet the minimum and
 /// maximum length requirements to MKV files and save them to the provided output directory. The
 /// length requirements are configured via MakeMKV and not adjustable by this program.
 ///
-/// In addition to creating the MKV files, the log output will be written to the output directory
-/// in a file called "makemkv.mkv.log".
+/// `dev` is the device path of the optical drive (e.g. "/dev/sr0").
 ///
-/// This function will take a long time to complete.
+/// `out_dir` is the directory where the created MKV files should be saved.
 ///
-/// It is expected that the provided output directory will already exist and that the directory
-/// won't contain preexisting log or MKV files ("info" command related files are ok). If any of
-/// these expectations aren't met, the function will return an error. It is up to the caller to
-/// create the directory and delete existing files if required.
-pub fn run_copy_cmd<T>(device: &str, outdir: &Path, observer: &mut T) -> Result<()>
+/// `observer` provides the ability for the caller to receive callbacks while the handbrake is
+/// running with information messages and the current progress.
+///
+/// `log_path` path to where to save the raw output from HandBrake.
+///
+/// # Errors
+///
+/// In addiiton to the errors that can occur during the command's execution, this will error out if
+/// there are any MKV files in the output directory.
+pub fn copy_disc<T>(
+    device: &str,
+    out_dir: &Path,
+    observer: &mut T,
+    log_path: &Path
+) -> Result<ExitStatus>
 where
     T: Observe,
 {
-    // NOTE: We don't check if the device path is valid/exists here since its likely to be OS
-    //       dependent. If it happens to be invalid, the command should fail early. Will revisit if
-    //       it becomes an issue in the future.
-    //
-    if !outdir.is_dir() {
-        return Err(Error::OutputDirDoesNotExist(outdir.to_owned()));
+    if contains_mkv_files(out_dir)? {
+        return Err(Error::FoundExistingMkvFiles { path: out_dir.to_path_buf() });
     }
 
-    if contains_mkv_files(outdir)? {
-        return Err(Error::FoundExistingMkvFiles(outdir.to_path_buf()));
-    }
+    let mut ctx = Context::new(device, observer);
+    ctx.log_output(log_path)?;
 
-    let mut ctx = Context::new(device, outdir, observer);
-    ctx.enable_cmd_log(COPY_CMD_LOG_FILENAME)?;
-
-    commands::run_mkv_command::<OsRunner>(&mut ctx)?;
-
-    Ok(())
+    commands::run_mkv_command(&mut ctx, out_dir)
 }
 
 /// Checks for the existence of MKV files in a directory.
 fn contains_mkv_files(dir: &Path) -> Result<bool> {
     for item in dir
         .read_dir()
-        .map_err(Error::ExistingMkvFilesCheckIoError)?
+        .map_err(|e| Error::ExistingMkvFilesCheckIoError { error: e })?
     {
-        let item = item.map_err(Error::ExistingMkvFilesCheckIoError)?;
+        let item = item.map_err(|e| Error::ExistingMkvFilesCheckIoError { error: e })?;
         if item.path().extension().and_then(|s| s.to_str()) == Some("mkv") {
             return Ok(true);
         }
