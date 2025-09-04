@@ -15,11 +15,12 @@ use crate::error::{Error, Result};
 
 /// Represents the messages that are outputted by MakeMKV.
 #[derive(Debug)]
+#[allow(clippy::upper_case_acronyms, dead_code)]
 pub enum Message {
     /// CINFO messages contain information about a disc inserted into a drive.
     /// Each message is a key/value pair representing a single attribute of a
     /// disc.
-    Cinfo {
+    CINFO {
         /// The attribute identifier.
         id: Attribute,
 
@@ -34,7 +35,7 @@ pub enum Message {
     /// DRV messages contain information about an optical drive. This
     /// information is similar to, but may vary slightly from the data for
     /// optical drives from the optical drive package.
-    Drv {
+    DRV {
         /// The index of the drive assigned by MakeMKV.
         index: i32,
 
@@ -85,7 +86,7 @@ pub enum Message {
     },
 
     /// MSG messages are general information messages.
-    Msg {
+    MSG {
         /// Unique message code. This does not appear to have any real use
         /// outside of MakeMKV.
         code: i32,
@@ -108,7 +109,7 @@ pub enum Message {
     },
 
     /// PRGC messages contain the name of the current suboperation.
-    Prgc {
+    PRGC {
         /// Unique message code. This does not appear to have any real use
         /// outside of MakeMKV.
         code: i32,
@@ -121,7 +122,7 @@ pub enum Message {
     },
 
     /// PRGT messages contain the name of the current operation.
-    Prgt {
+    PRGT {
         /// Unique message code. This does not appear to have any real use
         /// outside of MakeMKV.
         code: i32,
@@ -135,7 +136,7 @@ pub enum Message {
 
     /// PRGV messages contain the progress of the current operation and
     /// suboperation.
-    Prgv {
+    PRGV {
         /// The progress of the current suboperation.
         suboperation: i32,
 
@@ -150,7 +151,7 @@ pub enum Message {
     /// SINFO messages contain information about an audio, subtitle, or video
     /// stream within a title on the disc. Each message is a key/value pair
     /// representing a single attribute of a stream.
-    Sinfo {
+    SINFO {
         /// The index of the title the stream belongs to.
         title_index: i32,
 
@@ -171,14 +172,14 @@ pub enum Message {
     /// TCOUNT messages contain the total number of titles. This may or may not
     /// match the number of titles MKV videos are created for since some titles
     /// may be omitted because they do not meet the min or max length.
-    Tcount {
+    TCOUNT {
         /// The total number of titles on the disc.
         count: i32,
     },
 
     /// TINFO messages contain information about a title on the disc. Each
     /// message is a key/value pair representing a single attribute of a title.
-    Tinfo {
+    TINFO {
         /// The index of the title within the disc.
         title_index: i32,
 
@@ -268,7 +269,7 @@ fn parse_cinfo_message(data: &str) -> Result<Message> {
 
     let value = String::from(value.trim_matches('"'));
 
-    Ok(Message::Cinfo { id, code, value })
+    Ok(Message::CINFO { id, code, value })
 }
 
 /// Parses the data component of a DRV message.
@@ -327,7 +328,7 @@ fn parse_drv_message(data: &str) -> Result<Message> {
 
     let device_path = String::from(device_path.trim_matches('"'));
 
-    Ok(Message::Drv {
+    Ok(Message::DRV {
         index,
         state,
         unknown,
@@ -382,7 +383,7 @@ fn parse_msg_message(data: &str) -> Result<Message> {
 
     let args: Vec<String> = parts.map(String::from).collect();
 
-    Ok(Message::Msg {
+    Ok(Message::MSG {
         code,
         flags,
         count,
@@ -420,7 +421,7 @@ fn parse_prgc_message(data: &str) -> Result<Message> {
 
     let name = String::from(name.trim_matches('"'));
 
-    Ok(Message::Prgc { code, id, name })
+    Ok(Message::PRGC { code, id, name })
 }
 
 /// Parses the data component of a PRGT message.
@@ -451,7 +452,7 @@ fn parse_prgt_message(data: &str) -> Result<Message> {
 
     let name = String::from(name.trim_matches('"'));
 
-    Ok(Message::Prgt { code, id, name })
+    Ok(Message::PRGT { code, id, name })
 }
 
 /// Parses the data component of a PRGV message.
@@ -484,7 +485,7 @@ fn parse_prgv_message(data: &str) -> Result<Message> {
         return invalid_message_data!("PRGV", data, "failed to convert 'max' to int");
     };
 
-    Ok(Message::Prgv {
+    Ok(Message::PRGV {
         suboperation,
         operation,
         max,
@@ -539,7 +540,7 @@ fn parse_sinfo_message(data: &str) -> Result<Message> {
 
     let value = String::from(value.trim_matches('"'));
 
-    Ok(Message::Sinfo {
+    Ok(Message::SINFO {
         title_index,
         stream_index,
         id,
@@ -553,7 +554,7 @@ fn parse_tcount_message(data: &str) -> Result<Message> {
     // | Key  | DATA  |
     // "TCOUNT:<count>"
     match data.parse::<i32>() {
-        Ok(count) => Ok(Message::Tcount { count }),
+        Ok(count) => Ok(Message::TCOUNT { count }),
         Err(_) => invalid_message_data!("TCOUNT", data, "failed to convert data to int"),
     }
 }
@@ -598,7 +599,7 @@ fn parse_tinfo_message(data: &str) -> Result<Message> {
 
     let value = String::from(value.trim_matches('"'));
 
-    Ok(Message::Tinfo {
+    Ok(Message::TINFO {
         title_index,
         id,
         code,
@@ -676,7 +677,7 @@ mod tests {
 
         let msg = parse_message(msg).expect("Expected a valid message to be returned");
 
-        let Message::Cinfo { id, code, value } = msg else {
+        let Message::CINFO { id, code, value } = msg else {
             panic!("Expected a Cinfo message to be returned")
         };
 
@@ -693,7 +694,7 @@ mod tests {
             panic!("Expected a valid message to be returned")
         };
 
-        let Message::Drv {
+        let Message::DRV {
             index,
             state,
             unknown,
@@ -722,7 +723,7 @@ mod tests {
 
         let msg = parse_message(msg).expect("Expected a valid message to be returned");
 
-        let Message::Msg {
+        let Message::MSG {
             code,
             flags,
             count,
@@ -748,7 +749,7 @@ mod tests {
 
         let msg = parse_message(msg).expect("Expected a valid message to be returned");
 
-        let Message::Prgc { code, id, name } = msg else {
+        let Message::PRGC { code, id, name } = msg else {
             panic!("Expected a Prgc message to be returned")
         };
 
@@ -763,7 +764,7 @@ mod tests {
 
         let msg = parse_message(msg).expect("Expected a valid message to be returned");
 
-        let Message::Prgt { code, id, name } = msg else {
+        let Message::PRGT { code, id, name } = msg else {
             panic!("Expected a Prgt message to be returned")
         };
 
@@ -778,7 +779,7 @@ mod tests {
 
         let msg = parse_message(msg).expect("Expected a valid message to be returned");
 
-        let Message::Prgv {
+        let Message::PRGV {
             suboperation,
             operation,
             max,
@@ -798,7 +799,7 @@ mod tests {
 
         let msg = parse_message(msg).expect("Expected a valid message to be returned");
 
-        let Message::Sinfo {
+        let Message::SINFO {
             title_index,
             stream_index,
             id,
@@ -822,7 +823,7 @@ mod tests {
 
         let msg = parse_message(msg).expect("Expected a valid message to be returned");
 
-        let Message::Tcount { count } = msg else {
+        let Message::TCOUNT { count } = msg else {
             panic!("Expected a Tcount message to be returned")
         };
 
@@ -835,7 +836,7 @@ mod tests {
 
         let msg = parse_message(msg).expect("Expected a valid message to be returned");
 
-        let Message::Tinfo {
+        let Message::TINFO {
             title_index,
             id,
             code,

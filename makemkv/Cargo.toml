@@ -4,9 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [lints.rust]
-# TODO: Remove these once initial development has completed!
-unused_imports = "allow"
-dead_code = "allow"
 
 [dependencies]
 serde = { version = "1.0.219", features = ["derive"] }

@@ -133,7 +133,7 @@ impl DiscInfo {
             let _ = entry.insert(value.to_owned());
             Ok(())
         } else {
-            Err(Error::DuplicateAttribute(attr))
+            Err(Error::DuplicateAttribute { attr })
         }
     }
 
@@ -206,8 +206,7 @@ impl DiscInfo {
 
     /// Loads the disc information from a JSON file at the provided path.
     pub fn load(path: &Path) -> Result<DiscInfo> {
-        let file =
-            OpenOptions::new()
+        let file = OpenOptions::new()
                 .read(true)
                 .open(path)
                 .map_err(|error| Error::FileOpenError {
@@ -260,7 +259,7 @@ impl TitleInfo {
             let _ = entry.insert(value.to_owned());
             Ok(())
         } else {
-            Err(Error::DuplicateAttribute(attr))
+            Err(Error::DuplicateAttribute { attr })
         }
     }
 
@@ -316,7 +315,7 @@ impl StreamInfo {
             let _ = entry.insert(value.to_owned());
             Ok(())
         } else {
-            Err(Error::DuplicateAttribute(attr))
+            Err(Error::DuplicateAttribute { attr })
         }
     }
 }
@@ -335,7 +334,7 @@ mod tests {
     fn is_dup_attr(e: Error, a: &Attribute) -> bool {
         use Error::*;
         match e {
-            DuplicateAttribute(b) => *a == b,
+            DuplicateAttribute { attr: b } => *a == b,
             _ => false,
         }
     }

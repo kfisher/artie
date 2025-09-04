@@ -13,22 +13,36 @@ mod platform {
     pub use super::linux::get_optical_drive;
 }
 
-/// Specifies the errors that can occur when performing optical drive
-/// operations.
+/// Result type for the `optical_drive` crate functions.
+pub type Result<T> = std::result::Result<T, Error>;
+
+/// Specifies the errors that can occur when performing optical drive operations.
+#[derive(Debug)]
 pub enum Error {
     /// Indicates an error occurred while attempting to run an external command.
-    CommandFailed(std::io::Error),
+    CommandIoError {
+        error: std::io::Error,
+    },
 
     /// Indicates an external command existed with an error code.
-    CommandReturnedErrorCode(i32),
+    CommandReturnedErrorCode {
+        code: Option<i32>,
+        stdout: String,
+        stderr: String,
+    },
 
-    /// An error that can occur when converting raw bytes from an external
-    /// command's standard output or standard error to a string, or vice-versa.
-    ConversionError(std::string::FromUtf8Error),
+    /// An error that can occur when converting raw bytes from an external command's standard 
+    /// output or standard error to a string, or vice-versa.
+    ConversionError {
+        error: std::string::FromUtf8Error,
+    },
 
     /// An error occurred while processing the JSON output from an external
     /// command.
-    JsonError(serde_json::Error),
+    JsonError {
+        error: serde_json::Error,
+        text: String,
+    },
 }
 
 /// Represents the state of the optical drive's disc.
@@ -64,6 +78,6 @@ pub struct OpticalDrive {
 /// Returns `None` if an optical drive cannot be found with the provided serial
 /// number. Returns an error if something goes wrong when querying the operating
 /// system.
-pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>, Error> {
+pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
     platform::get_optical_drive(serial_number)
 }
