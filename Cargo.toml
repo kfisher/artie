@@ -19,10 +19,12 @@ version = "0.1.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
 
-[dependencies]
-iced = { git = "https://github.com/iced-rs/iced.git", rev = "ebe223cb5d9dfdd20e0978969807d6944d670742" }
+[dependencies.iced]
+git = "https://github.com/iced-rs/iced.git"
+rev = "ebe223cb5d9dfdd20e0978969807d6944d670742"
+features = ["advanced", "svg"]
 
 [lints.rust]
 # TODO: Remove these once initial development has completed!
-# unused_imports = "allow"
-# dead_code = "allow"
+unused_imports = "allow"
+dead_code = "allow"
