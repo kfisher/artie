@@ -1,0 +1,14 @@
+// Copyright 2025 Kevin Fisher. All rights reserved.
+// SPDX-License-Identifier: GPL-3.0-only
+
+pub mod button;
+pub mod container;
+pub mod icon;
+pub mod text;
+
+use crate::Message;
+use crate::theme::Theme;
+
+/// The base generic widget that all other widgets used in the application can be converted into.
+pub type Element<'a> = iced::Element<'a, Message, Theme>;
+

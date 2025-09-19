@@ -37,11 +37,13 @@ pub struct Palette {
     pub yellow: Color,
 
     pub primary: Color,
+
+    pub is_dark: bool,
 }
 
 /// Helper macro to populate the palette from a module.
 macro_rules! palette {
-    ($p:ident) => {
+    ($p:ident, $d:expr) => {
         Palette {
             base: $p::BASE,
             blue: $p::BLUE,
@@ -71,16 +73,18 @@ macro_rules! palette {
             yellow: $p::YELLOW,
 
             primary: $p::BLUE,
+
+            is_dark: $d,
         }
     }
 }
 
 impl Palette {
     /// The dark theme palette.
-    pub const DARK: Self = palette!(mocha);
+    pub const DARK: Self = palette!(mocha, true);
 
     /// The light theme palette.
-    pub const LIGHT: Self = palette!(latte);
+    pub const LIGHT: Self = palette!(latte, false);
 }
 
 // NOTE: I could have defined the following constants directly in the palette constants. Defining

@@ -8,11 +8,11 @@ use crate::theme::color::Color;
 use crate::theme::palette::{Palette, mocha as default_palette};
 
 /// Defines the available themes for the application.
-#[derive(Default)]
+#[derive(Clone, Copy, Default)]
 pub enum Theme {
     #[default]
     Dark,
-    Lignt,
+    Light,
 }
 
 impl Theme {
@@ -20,7 +20,7 @@ impl Theme {
     pub const fn palette(&self) -> &Palette {
         match self {
             Theme::Dark => &Palette::DARK,
-            Theme::Lignt => &Palette::LIGHT,
+            Theme::Light => &Palette::LIGHT,
         }
     }
 }
