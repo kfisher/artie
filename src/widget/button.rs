@@ -4,57 +4,64 @@
 use std::borrow::Cow;
 
 use iced::border::Border;
-use iced::widget::Column;
+use iced::widget::Row;
 use iced::widget::button::{Catalog, Status, Style};
-use iced::widget::container::Container;
 use iced::widget::tooltip::{Position, Tooltip};
 
-use crate::widget::container::ContainerClass;
+use crate::widget::container::{Container, ContainerClass};
 use crate::Message;
 use crate::theme::Theme;
 use crate::theme::color::Color;
 use crate::theme::palette::Palette;
 use crate::widget::Element;
-use crate::widget::icon::{self, IconClass};
+use crate::widget::icon;
+use crate::widget::text::Text;
 
 /// The style classes used for the button widgets.
 #[derive(Default)]
 pub enum ButtonClass {
-    /// Navigation button style.
-    Nav,
+    /// The default style of buttons.
+    #[default]
+    Default,
+
+    /// Style for the buttons used for navigation.
+    Nav(bool),
 
     /// Button whose background is the theme's primary color.
-    #[default]
     Primary,
 }
 
 impl ButtonClass {
     /// Styles a button in the disabled state based on the class using the provided color palette.
-    fn disabled(&self, palette: &Palette) -> Style {
-        match self {
-            ButtonClass::Nav => Style {
-                text_color: palette.primary.alpha(0.5).into(),
-                ..self.normal(palette)
-            },
-            ButtonClass::Primary => Style {
-                background: Some(palette.primary.alpha(0.5).into()),
-                ..self.normal(palette)
-            },
+    pub fn disabled(&self, palette: &Palette) -> Style {
+        Style {
+            text_color: palette.primary.alpha(0.5).into(),
+            ..self.normal(palette)
         }
     }
 
     /// Styles a button in the hovered state based on the class using the provided color palette.
-    fn hovered(&self, palette: &Palette) -> Style {
+    pub fn hovered(&self, palette: &Palette) -> Style {
         let filter = match palette.is_dark {
             true => Color::lighten,
             false => Color::darken,
         };
         match self {
-            ButtonClass::Nav => Style {
-                background: Some(palette.primary.alpha(0.05).into()),
-                border: Border::default().rounded(2),
-                text_color: palette.primary.into(),
+            ButtonClass::Default => Style {
+                background: Some(palette.overlay_0.alpha(0.25).into()),
                 ..self.normal(palette)
+            },
+            ButtonClass::Nav(selected) => {
+                if *selected {
+                    self.normal(palette)
+                } else {
+                    Style {
+                        background: Some(palette.primary.alpha(0.25).into()),
+                        border: Border::default().rounded(4),
+                        text_color: palette.primary.into(),
+                        ..self.normal(palette)
+                    }
+                }
             },
             ButtonClass::Primary => Style {
                 background: Some(filter(palette.primary, 0.05).into()),
@@ -64,13 +71,30 @@ impl ButtonClass {
     }
 
     /// Styles a button in the active state based on the class using the provided color palette.
-    fn normal(&self, palette: &Palette) -> Style {
+    pub fn normal(&self, palette: &Palette) -> Style {
         match self {
-            ButtonClass::Nav => Style {
-                background: None,
+            ButtonClass::Default => Style {
+                background: Some(palette.surface_0.into()),
                 border: Border::default(),
                 text_color: palette.text.into(),
                 ..Style::default()
+            },
+            ButtonClass::Nav(selected) => {
+                if *selected {
+                    Style { 
+                        background: Some(palette.primary.alpha(0.25).into()),
+                        border: Border::default().rounded(4),
+                        text_color: palette.primary.into(),
+                        ..Style::default() 
+                    }
+                } else {
+                    Style { 
+                        background: None,
+                        border: Border::default(),
+                        text_color: palette.text.into(),
+                        ..Style::default() 
+                    }
+                }
             },
             ButtonClass::Primary => Style {
                 background: Some(palette.primary.into()),
@@ -82,13 +106,16 @@ impl ButtonClass {
     }
 
     /// Styles a button in the pressed state based on the class using the provided color palette.
-    fn pressed(&self, palette: &Palette) -> Style {
+    pub fn pressed(&self, palette: &Palette) -> Style {
         let filter = match palette.is_dark {
             true => Color::lighten,
             false => Color::darken,
         };
         match self {
-            ButtonClass::Nav => Style {
+            ButtonClass::Default => Style {
+                ..self.normal(palette)
+            },
+            ButtonClass::Nav(_) => Style {
                 text_color: filter(palette.primary, 0.05).into(),
                 ..self.normal(palette)
             },
@@ -111,6 +138,9 @@ pub struct Button<'a> {
     /// Size of the icon in pixels.
     icon_size: f32,
 
+    /// Button text.
+    label: Option<Cow<'a, str>>,
+
     /// Button padding on all four sides for the button.
     padding: f32,
 
@@ -128,6 +158,7 @@ impl<'a> Button<'a> {
             class,
             icon: None,
             icon_size: 16.0,
+            label: None,
             padding: 8.0,
             on_press: None,
             tooltip: None,
@@ -143,6 +174,15 @@ impl<'a> Button<'a> {
         T: Into<Cow<'a, str>>
     {
         self.icon = Some(name.into());
+        self
+    }
+
+    /// Sets the button's text.
+    pub fn label<T>(mut self, label: T) -> Self 
+    where 
+        T: Into<Cow<'a, str>>
+    {
+        self.label = Some(label.into());
         self
     }
 
@@ -177,7 +217,12 @@ impl<'a> From<Button<'a>> for Element<'a> {
             content.push(icon.into());
         }
 
-        let content = Column::with_children(content)
+        if let Some(label) = button.label {
+            let text = Text::new(label);
+            content.push(text.into());
+        }
+
+        let content = Row::with_children(content)
             .padding(button.padding);
 
         let widget = iced::widget::button::Button::new(content)
@@ -213,5 +258,17 @@ impl Catalog for Theme {
             Status::Disabled => class.disabled(palette),
         }
     }
+}
+
+/// Creates a navigation button.
+pub fn nav_button<'a, T>(icon: T, message: Message, tooltip: T, active: bool) -> Element<'a> 
+where 
+    T: Into<Cow<'a, str>> + 'a
+{
+    Button::new(ButtonClass::Nav(active))
+        .icon(icon)
+        .on_press(message)
+        .tooltip(tooltip.into())
+        .into()
 }
 

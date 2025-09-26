@@ -1,14 +1,17 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
+use std::fmt::{Display, Formatter, Result};
+
+use iced::border::{Border, Radius};
+
 pub mod color;
 pub mod palette;
 
-use crate::theme::color::Color;
 use crate::theme::palette::{Palette, mocha as default_palette};
 
 /// Defines the available themes for the application.
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Theme {
     #[default]
     Dark,
@@ -16,11 +19,40 @@ pub enum Theme {
 }
 
 impl Theme {
+    /// All available themes.
+    pub const ALL: &'static [Self] = &[
+        Self::Dark,
+        Self::Light,
+    ];
+
     /// Returns the base colors for the theme.
     pub const fn palette(&self) -> &Palette {
         match self {
             Theme::Dark => &Palette::DARK,
             Theme::Light => &Palette::LIGHT,
+        }
+    }
+
+    /// Returns the standard border style.
+    pub fn border(&self) -> Border {
+        Border {
+            color: self.palette().border.into(),
+            width: 2.0,
+            radius: Radius {
+                top_left: 0.0,
+                top_right: 0.0,
+                bottom_right: 0.0,
+                bottom_left: 0.0,
+            },
+        }
+    }
+}
+
+impl Display for Theme {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            Self::Light => write!(f, "Light"),
+            Self::Dark => write!(f, "Dark"),
         }
     }
 }
