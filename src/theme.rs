@@ -5,13 +5,15 @@ use std::fmt::{Display, Formatter, Result};
 
 use iced::border::{Border, Radius};
 
+use serde::{Deserialize, Serialize};
+
 pub mod color;
 pub mod palette;
 
 use crate::theme::palette::{Palette, mocha as default_palette};
 
 /// Defines the available themes for the application.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Default, PartialEq, Serialize)]
 pub enum Theme {
     #[default]
     Dark,
