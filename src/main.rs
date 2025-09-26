@@ -6,6 +6,8 @@ mod screen;
 mod theme;
 mod widget;
 
+use std::path::{Path, PathBuf};
+
 use iced::Fill;
 use iced::theme::Style;
 use iced::widget::{Column, Row, Space};
@@ -20,13 +22,20 @@ use crate::widget::button;
 use crate::widget::container::{Container, ContainerClass};
 
 fn main() -> iced::Result {
-    iced::application(Artie::default, Artie::update, Artie::view)
+    // TODO: This treats all errors as the same. It should only use the default settings if the 
+    //       file does not exist. Otherwise, it should error out and exit.
+    let settings = settings::load().unwrap_or_else(|_| Settings::default());
+
+    iced::application(move || Artie::new(settings.clone()), Artie::update, Artie::view)
         .title("Artie")
         .scale_factor(Artie::scale_factor)
         .theme(Artie::theme)
         .style(Artie::style)
         .run()
 }
+
+pub type Error = Box<dyn std::error::Error>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 /// Specifies the application messages.
 ///
@@ -61,6 +70,14 @@ pub struct Artie {
 }
 
 impl Artie {
+    /// Creates a new [`Artie`] instance.
+    fn new(settings: Settings) -> Self {
+        Self {
+            settings,
+            screen: Screen::Copy(CopyScreen::default()),
+        }
+    }
+
     /// Sets the scaling factor for the application.
     fn scale_factor(&self) -> f32 {
         self.settings.general.scale_factor.into()
@@ -97,7 +114,12 @@ impl Artie {
     /// Processes interactions to update the state of the application.
     fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
-            Message::ToggleTheme => self.settings.general.toggle_theme(),
+            Message::ToggleTheme => {
+                self.settings.general.toggle_theme();
+
+                // TODO: Need to handle the errors.
+                let _ = settings::save(&self.settings);
+            },
             Message::ViewCopyScreen => self.show_copy_screen(),
             Message::ViewSettingsScreen => self.show_settings_screen(),
             Message::ViewTranscodeScreen => self.show_transcode_screen(),
@@ -118,6 +140,7 @@ impl Artie {
             Screen::Settings(_) => (false, false, true),
             Screen::Transcode(_) => (false, true, false),
         };
+
         let sidebar = Column::with_capacity(5)
             .push(button::nav_button(
                     "fontawesome.v7.solid.compact-disc",
@@ -142,6 +165,7 @@ impl Artie {
                     false))
             .spacing(4)
             .padding([4, 2]);
+
         let sidebar = Container::new(sidebar)
             .class(ContainerClass::Background(|t| t.palette().crust))
             .height(Fill);
@@ -156,17 +180,6 @@ impl Artie {
             .push(sidebar)
             .push(content)
             .into()
-    }
-}
-
-impl Default for Artie {
-    fn default() -> Self {
-        let settings = Settings::default();
-        let screen = CopyScreen::new();
-        Self {
-            settings,
-            screen: Screen::Copy(screen),
-        }
     }
 }
 

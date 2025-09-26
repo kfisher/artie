@@ -1,11 +1,13 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
+use std::path::Path;
+
 use iced::{Alignment, Length};
 use iced::widget::{Column, Row};
 
 use crate::{Element, Message};
-use crate::settings::{ScaleFactor, Settings};
+use crate::settings::{self, ScaleFactor, Settings};
 use crate::theme::Theme;
 use crate::widget::container::{Container, ContainerClass};
 use crate::widget::pick_list::PickList;
@@ -40,10 +42,31 @@ impl SettingsScreen {
 
     /// Processes interactions related to the application settings.
     pub fn update(&mut self, settings: &mut Settings, message: Message) -> iced::Task<Message> {
-        match message {
-            Message::SetScaleFactor(factor) => settings.general.scale_factor = factor,
-            Message::SetTheme(theme) => settings.general.theme = theme,
-            _ => ()
+        let modified = match message {
+            Message::SetScaleFactor(factor) => {
+                if settings.general.scale_factor != factor {
+                    settings.general.scale_factor = factor;
+                    true
+                } else {
+                    false
+                }
+            },
+            Message::SetTheme(theme) => {
+                if settings.general.theme != theme {
+                    println!("SET THEME");
+                    settings.general.theme = theme;
+                    true
+                } else {
+                    println!("SAME THEME");
+                    false
+                }
+            },
+            _ => false,
+        };
+
+        if modified {
+            // TODO: Need to handle the error.
+            let _ = settings::save(settings);
         }
 
         iced::Task::none()
