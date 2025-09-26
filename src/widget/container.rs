@@ -4,10 +4,8 @@
 use iced::border::Border;
 use iced::widget::container::{Catalog, Style};
 
-use crate::Message;
 use crate::theme::Theme;
 use crate::theme::color::Color;
-use crate::widget::Element;
 
 pub use iced::widget::container::Container;
 
@@ -20,6 +18,9 @@ pub enum ContainerClass {
 
     /// Container with a background color.
     Background(fn(&Theme) -> Color),
+
+    /// Container style for panels.
+    Panel,
 
     /// Container used as a tooltip.
     Tooltip,
@@ -38,6 +39,14 @@ impl Catalog for Theme {
             ContainerClass::Default => style,
             ContainerClass::Background(f) => Style {
                 background: Some(f(self).into()),
+                ..style
+            },
+            ContainerClass::Panel => Style {
+                background: Some(self.palette().base.into()),
+                border: Border::default()
+                    .width(1)
+                    .color(self.palette().border)
+                    .rounded(8.0),
                 ..style
             },
             ContainerClass::Tooltip => Style {

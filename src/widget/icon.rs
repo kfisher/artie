@@ -16,7 +16,6 @@ use iced::widget::svg::Handle;
 
 use crate::Message;
 use crate::theme::Theme;
-use crate::theme::color::Color;
 use crate::widget::Element;
 
 /// The style classes used for the icon widget.
@@ -168,7 +167,7 @@ where
             renderer.draw_svg(
                 Svg {
                     handle: self.handle.clone(),
-                    color: color,
+                    color,
                     rotation: self.rotation.radians(),
                     opacity: self.opacity,
                 },

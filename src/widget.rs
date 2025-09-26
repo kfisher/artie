@@ -4,7 +4,13 @@
 pub mod button;
 pub mod container;
 pub mod icon;
+pub mod menu;
+pub mod pick_list;
+pub mod rule;
+pub mod scrollable;
+pub mod slider;
 pub mod text;
+pub mod text_input;
 
 use crate::Message;
 use crate::theme::Theme;

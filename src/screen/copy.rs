@@ -1,7 +1,7 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
-use crate::{Element, Message};
+use crate::Element;
 use crate::widget::text::Text;
 
 /// Screen for copying titles from DVDs and Blu-rays.
@@ -19,3 +19,10 @@ impl CopyScreen {
         Text::new("Copy").into()
     }
 }
+
+impl Default for CopyScreen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
