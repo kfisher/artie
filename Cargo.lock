@@ -574,6 +574,9 @@ dependencies = [
 [[package]]
 name = "copy_srv"
 version = "0.1.0"
+dependencies = [
+ "optical_drive",
+]
 
 [[package]]
 name = "core-foundation"
