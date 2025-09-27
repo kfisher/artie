@@ -1,0 +1,9 @@
+[package]
+name = "copy_srv"
+description = "Service for copying media."
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
