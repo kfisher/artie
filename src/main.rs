@@ -12,6 +12,8 @@ use iced::Fill;
 use iced::theme::Style;
 use iced::widget::{Column, Row, Space};
 
+use copy_srv::CopyService;
+
 use crate::settings::{ScaleFactor, Settings};
 use crate::screen::copy::CopyScreen;
 use crate::screen::transcode::TranscodeScreen;
@@ -26,7 +28,19 @@ fn main() -> iced::Result {
     //       file does not exist. Otherwise, it should error out and exit.
     let settings = settings::load().unwrap_or_else(|_| Settings::default());
 
-    iced::application(move || Artie::new(settings.clone()), Artie::update, Artie::view)
+    // TODO: Need to correctly handle errors instead of just crashing with a panic.
+    let copy_services = vec![
+        CopyService::new("Drive A", "FAUX0001").unwrap(),
+        CopyService::new("Drive B", "FAUX0002").unwrap(),
+    ];
+
+    iced::application(move || 
+            Artie::new(
+                settings.clone(),
+                copy_services.clone(),
+            ), 
+            Artie::update,
+            Artie::view)
         .title("Artie")
         .scale_factor(Artie::scale_factor)
         .theme(Artie::theme)
@@ -62,6 +76,9 @@ pub enum Screen {
 
 /// The application's state data.
 pub struct Artie {
+    /// List of configured copy services.
+    copy_services: Vec<CopyService>,
+
     /// The application settings.
     settings: Settings,
 
@@ -71,8 +88,9 @@ pub struct Artie {
 
 impl Artie {
     /// Creates a new [`Artie`] instance.
-    fn new(settings: Settings) -> Self {
+    fn new(settings: Settings, copy_services: Vec<CopyService>) -> Self {
         Self {
+            copy_services,
             settings,
             screen: Screen::Copy(CopyScreen::default()),
         }
@@ -85,7 +103,7 @@ impl Artie {
 
     /// Change the application's main content to the Copy screen.
     fn show_copy_screen(&mut self) {
-        self.screen = Screen::Copy(CopyScreen::new());
+        self.screen = Screen::Copy(CopyScreen::new(&self.copy_services));
     }
 
     /// Change the application's main content to the Settings screen.
@@ -171,7 +189,7 @@ impl Artie {
             .height(Fill);
 
         let content = match &self.screen {
-            Screen::Copy(copy_screen) => copy_screen.view(),
+            Screen::Copy(copy_screen) => copy_screen.view(&self.copy_services),
             Screen::Settings(settings_screen) => settings_screen.view(&self.settings),
             Screen::Transcode(transcode_screen) => transcode_screen.view(),
         };

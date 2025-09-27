@@ -20,10 +20,17 @@ serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
 toml = "0.9.7"
 
+[dependencies.copy_srv]
+path = "./copy_srv"
+
 [dependencies.iced]
 git = "https://github.com/iced-rs/iced.git"
 rev = "ebe223cb5d9dfdd20e0978969807d6944d670742"
 features = ["advanced", "svg"]
+
+[dependencies.optical_drive]
+path = "./optical_drive"
+features = ["faux_drives"]
 
 [dependencies.serde]
 workspace = true
