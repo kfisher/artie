@@ -11,6 +11,26 @@ use serde::{Deserialize, Serialize};
 use crate::{Error, Result};
 use crate::theme::Theme;
 
+/// Specifies the subset of messages specific to the application settings.
+#[derive(Clone, Debug)]
+pub enum Message {
+    SetScaleFactor(ScaleFactor),
+    SetTheme(Theme),
+    ToggleTheme,
+}
+
+impl Message {
+    /// Creates a [`Message::SetScaleFactor`] [`crate::Message::Settings`] message.
+    pub fn set_scale_factor(scale_factor: ScaleFactor) -> crate::Message {
+        crate::Message::Settings(Message::SetScaleFactor(scale_factor))
+    }
+
+    /// Creates a [`Message::SetTheme`] [`crate::Message::Settings`] message.
+    pub fn set_theme(theme: Theme) -> crate::Message {
+        crate::Message::Settings(Message::SetTheme(theme))
+    }
+}
+
 /// Represents the display scaling factor of the application.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub struct ScaleFactor(f32);
@@ -96,6 +116,37 @@ pub fn load() -> Result<Settings> {
     // TODO: Don't hard-code. Should create an environment variable and then fallback to the
     //       standard OS config location.
     Settings::from_file(Path::new("artie.toml"))
+}
+
+/// Process a settings related message.
+pub fn process_message(settings: &mut Settings, message: Message) {
+    let should_save = match message {
+        Message::SetScaleFactor(factor) => {
+            if settings.general.scale_factor != factor {
+                settings.general.scale_factor = factor;
+                true
+            } else {
+                false
+            }
+        },
+        Message::SetTheme(theme) => {
+            if settings.general.theme != theme {
+                settings.general.theme = theme;
+                true
+            } else {
+                false
+            }
+        },
+        Message::ToggleTheme => {
+            settings.general.toggle_theme();
+            true
+        },
+    };
+
+    if should_save {
+        // TODO: Need to handle the error.
+        let _ = save(settings);
+    }
 }
 
 /// Saves the settings to a TOML file.

@@ -59,9 +59,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// user interactions.
 #[derive(Clone, Debug)]
 pub enum Message {
-    SetScaleFactor(ScaleFactor),
-    SetTheme(Theme),
-    ToggleTheme,
+    Settings(settings::Message),
     ViewCopyScreen,
     ViewSettingsScreen,
     ViewTranscodeScreen,
@@ -132,20 +130,10 @@ impl Artie {
     /// Processes interactions to update the state of the application.
     fn update(&mut self, message: Message) -> iced::Task<Message> {
         match message {
-            Message::ToggleTheme => {
-                self.settings.general.toggle_theme();
-
-                // TODO: Need to handle the errors.
-                let _ = settings::save(&self.settings);
-            },
+            Message::Settings(message) => settings::process_message(&mut self.settings, message),
             Message::ViewCopyScreen => self.show_copy_screen(),
             Message::ViewSettingsScreen => self.show_settings_screen(),
             Message::ViewTranscodeScreen => self.show_transcode_screen(),
-            _ => return match &mut self.screen {
-                Screen::Copy(_) => iced::Task::none(),
-                Screen::Settings(screen) => screen.update(&mut self.settings, message),
-                Screen::Transcode(_) => iced::Task::none(),
-            }
         }
 
         iced::Task::none()
@@ -178,7 +166,7 @@ impl Artie {
             .push(Space::with_height(Fill))
             .push(button::nav_button(
                     "fontawesome.v7.solid.circle-half-stroke",
-                    Message::ToggleTheme,
+                    Message::Settings(settings::Message::ToggleTheme),
                     "Toggle Theme",
                     false))
             .spacing(4)

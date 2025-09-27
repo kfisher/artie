@@ -7,7 +7,7 @@ use iced::{Alignment, Length};
 use iced::widget::{Column, Row};
 
 use crate::{Element, Message};
-use crate::settings::{self, ScaleFactor, Settings};
+use crate::settings::{self, Message as SettingsMessage, ScaleFactor, Settings};
 use crate::theme::Theme;
 use crate::widget::container::{Container, ContainerClass};
 use crate::widget::pick_list::PickList;
@@ -40,38 +40,6 @@ impl SettingsScreen {
             .into()
     }
 
-    /// Processes interactions related to the application settings.
-    pub fn update(&mut self, settings: &mut Settings, message: Message) -> iced::Task<Message> {
-        let modified = match message {
-            Message::SetScaleFactor(factor) => {
-                if settings.general.scale_factor != factor {
-                    settings.general.scale_factor = factor;
-                    true
-                } else {
-                    false
-                }
-            },
-            Message::SetTheme(theme) => {
-                if settings.general.theme != theme {
-                    println!("SET THEME");
-                    settings.general.theme = theme;
-                    true
-                } else {
-                    println!("SAME THEME");
-                    false
-                }
-            },
-            _ => false,
-        };
-
-        if modified {
-            // TODO: Need to handle the error.
-            let _ = settings::save(settings);
-        }
-
-        iced::Task::none()
-    }
-
     /// Generates the view for the general settings.
     fn general_settings_view(&self, settings: &Settings) -> Element<'_> {
         fn form_row<'a, T>(label: &'a str, control: T) -> Row<'a, Message, Theme> 
@@ -93,7 +61,7 @@ impl SettingsScreen {
                 PickList::new(
                     ScaleFactor::OPTIONS,
                     Some(settings.general.scale_factor),
-                    Message::SetScaleFactor
+                    SettingsMessage::set_scale_factor,
                 ).width(100),
             ))
             .push(Rule::horizontal(1))
@@ -102,7 +70,7 @@ impl SettingsScreen {
                 PickList::new(
                     Theme::ALL,
                     Some(settings.general.theme),
-                    Message::SetTheme
+                    SettingsMessage::set_theme,
                 ).width(100),
             ));
 
