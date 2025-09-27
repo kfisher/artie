@@ -24,6 +24,9 @@ pub enum ContainerClass {
 
     /// Container used as a tooltip.
     Tooltip,
+
+    /// Custom container style.
+    Custom(fn(&Theme) -> Style),
 }
 
 impl Catalog for Theme {
@@ -34,20 +37,19 @@ impl Catalog for Theme {
     }
 
     fn style(&self, class: &Self::Class<'_>) -> Style {
-        let style = Style::default();
         match class {
-            ContainerClass::Default => style,
+            ContainerClass::Default => Style::default(),
             ContainerClass::Background(f) => Style {
                 background: Some(f(self).into()),
-                ..style
+                ..Style::default()
             },
             ContainerClass::Panel => Style {
                 background: Some(self.palette().base.into()),
                 border: Border::default()
                     .width(1)
                     .color(self.palette().border)
-                    .rounded(8.0),
-                ..style
+                    .rounded(8),
+                ..Style::default()
             },
             ContainerClass::Tooltip => Style {
                 background: Some(self.palette().crust.into()),
@@ -55,8 +57,9 @@ impl Catalog for Theme {
                     .rounded(2)
                     .width(1)
                     .color(self.palette().primary),
-                ..style
-            }
+                ..Style::default()
+            },
+            ContainerClass::Custom(f) => f(self),
         }
     }
 }
