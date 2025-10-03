@@ -10,11 +10,16 @@ mod widget;
 
 use std::path::{Path, PathBuf};
 
-use iced::Fill;
+use iced::advanced::graphics::futures::event;
+use iced::{Length, Subscription, Task};
+use iced::{self, Event};
+use iced::keyboard::{self, Event as KeyboardEvent};
+use iced::keyboard::key::{self, Key};
 use iced::theme::Style;
 use iced::widget::{Column, Row, Space};
 
 use copy_srv::CopyService;
+use tracing::instrument::WithSubscriber;
 
 use crate::error::{Error, Result};
 use crate::context::Context;
@@ -33,6 +38,7 @@ fn main() -> iced::Result {
     iced::application(Artie::new, Artie::update, Artie::view)
         .title("Artie")
         .scale_factor(Artie::scale_factor)
+        .subscription(Artie::subscription)
         .theme(Artie::theme)
         .style(Artie::style)
         .run()
@@ -50,6 +56,9 @@ pub enum Message {
     DeleteCopyService {
         index: usize,
     },
+
+    /// User interface event (e.g. keyboard, mouse, touch, etc.)
+    Event(Event),
 
     /// Changes the application's scale factor.
     SetScaleFactor(ScaleFactor),
@@ -150,6 +159,11 @@ impl Artie {
         self.screen = Screen::Transcode(TranscodeScreen::new());
     }
 
+    /// Subscribes to events.
+    fn subscription(&self) -> Subscription<Message> {
+        event::listen().map(Message::Event)
+    }
+
     /// Returns the base style of the application.
     fn style(&self, theme: &Theme) -> Style {
         let palette = theme.palette();
@@ -164,54 +178,86 @@ impl Artie {
         self.context.settings.general.theme
     }
 
+    /// Handles keyboard events.
+    ///
+    /// - `Escape` Close the modal dialog.
+    /// - `Tab` / `Shift+Tab` Change focus to the next input or the previous input.
+    fn key_event(&self, event: &KeyboardEvent) -> Task<Message> {
+        match event {
+            KeyboardEvent::KeyPressed { 
+                key: Key::Named(key::Named::Tab),
+                modifiers,
+                ..
+            } => {
+                if modifiers.shift() {
+                    iced::widget::focus_previous()
+                } else {
+                    iced::widget::focus_next()
+                }
+            },
+            KeyboardEvent::KeyPressed { 
+                key: Key::Named(key::Named::Escape),
+                .. 
+            } => {
+                // TODO: close modal dialog if open
+                Task::none()
+            },
+            _ => Task::none(),
+        }
+    }
+
     /// Processes interactions to update the state of the application.
-    fn update(&mut self, message: Message) -> iced::Task<Message> {
+    fn update(&mut self, message: Message) -> Task<Message> {
         // TODO: Consider adding logging output to each branch.
-        let task: Result<iced::Task<Message>> = match message {
+        let task: Result<Task<Message>> = match message {
             Message::DeleteCopyService { index: _ } => {
                 todo!()
                 //-] self.copy_services.remove(index);
                 //-] self.copy_service_changed()
-                //-]     .map(|_| iced::Task::none())
+                //-]     .map(|_| Task::none())
+            },
+            Message::Event(event) => match event {
+                Event::Keyboard(event) => Ok(self.key_event(&event)),
+                _ => Ok(Task::none())
             },
             Message::SetScaleFactor(factor) => {
                 if self.context.settings.general.scale_factor != factor {
                     self.context.settings.general.scale_factor = factor;
-                    self.context.save_settings().map(|_| iced::Task::none())
+                    self.context.save_settings().map(|_| Task::none())
                 } else {
-                    Ok(iced::Task::none())
+                    Ok(Task::none())
                 }
             },
             Message::SetTheme(theme) => {
                 if self.context.settings.general.theme != theme {
                     self.context.settings.general.theme = theme;
-                    self.context.save_settings().map(|_| iced::Task::none())
+                    self.context.save_settings().map(|_| Task::none())
                 } else {
-                    Ok(iced::Task::none())
+                    Ok(Task::none())
                 }
             },
             Message::SettingsScreen(message) => {
                 if let Screen::Settings(screen) = &mut self.screen {
                     screen.process_message(&self.context, message);
                 }
-                Ok(iced::Task::none())
+                Ok(Task::none())
             },
             Message::ToggleTheme => {
                 self.context.settings.general.toggle_theme();
-                self.context.save_settings().map(|_| iced::Task::none())
+                self.context.save_settings().map(|_| Task::none())
             },
             Message::UpdateCopyService { index, name, serial_number } => {
                 if index < self.context.copy_services.len() {
                     self.context.copy_services[index].update_config(&name, &serial_number)
                         .map_err(|error| Error::CopyServiceInitError { error })
                         .and_then(|_| self.copy_service_changed())
-                        .map(|_| iced::Task::none())
+                        .map(|_| Task::none())
                 } else {
                     let service = CopyService::new(&name, &serial_number);
                     match service {
                         Ok(service) => {
                             self.context.copy_services.push(service);
-                            self.copy_service_changed().map(|_| iced::Task::none())
+                            self.copy_service_changed().map(|_| Task::none())
                         },
                         Err(error) => {
                             Err(Error::CopyServiceInitError { error })
@@ -221,15 +267,15 @@ impl Artie {
             },
             Message::ViewCopyScreen => {
                 self.show_copy_screen();
-                Ok(iced::Task::none())
+                Ok(Task::none())
             },
             Message::ViewSettingsScreen => {
                 self.show_settings_screen();
-                Ok(iced::Task::none())
+                Ok(Task::none())
             },
             Message::ViewTranscodeScreen => {
                 self.show_transcode_screen();
-                Ok(iced::Task::none())
+                Ok(Task::none())
             },
         };
 
@@ -261,7 +307,8 @@ impl Artie {
                 Message::ViewSettingsScreen,
                 "Settings",
                 settings_active))
-            .push(Space::with_height(Fill))
+            .push(Space::with_height(Length::Fill))
+
             .push(button::nav_button(
                 "fontawesome.v7.solid.circle-half-stroke",
                 Message::ToggleTheme,
@@ -272,7 +319,7 @@ impl Artie {
 
         let sidebar = Container::new(sidebar)
             .class(ContainerClass::Background(|t| t.palette().crust))
-            .height(Fill);
+            .height(Length::Fill);
 
         let content = match &self.screen {
             Screen::Copy(copy_screen) => copy_screen.view(&self.context),
