@@ -19,6 +19,8 @@ version = "0.1.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
 toml = "0.9.7"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
 [dependencies.copy_srv]
 path = "./copy_srv"
@@ -36,6 +38,12 @@ features = ["faux_drives"]
 workspace = true
 
 [dependencies.toml]
+workspace = true
+
+[dependencies.tracing]
+workspace = true
+
+[dependencies.tracing-subscriber]
 workspace = true
 
 [lints.rust]

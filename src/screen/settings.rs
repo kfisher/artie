@@ -6,6 +6,8 @@
 use iced::{Alignment, Length};
 use iced::widget::{Column, Row, Space};
 
+use tracing::error;
+
 use copy_srv::CopyService;
 
 use crate::Message;
@@ -85,8 +87,7 @@ impl SettingsScreen {
                 if self.copy_service_form.is_none() {
                     self.copy_service_form = Some(CopyServiceForm::new(ctx.copy_services.len()));
                 } else {
-                    // TODO: Should handle this edge case. Could be as simply as logging an error
-                    //       or warning message.
+                    error!("ignore AddCopyService - already editing");
                 }
             },
             SettingsScreenMessage::DeleteCopyService { index: _ } => {
@@ -97,32 +98,28 @@ impl SettingsScreen {
                 if self.copy_service_form.is_none() {
                     self.copy_service_form = Some(CopyServiceForm::from_service(index, service));
                 } else {
-                    // TODO: Should handle this edge case. Could be as simply as logging an error
-                    //       or warning message.
+                    error!("ignore EditCopyService - already editing");
                 }
             },
             SettingsScreenMessage::EditCopyServiceDiscard => {
                 if self.copy_service_form.is_some() {
                     self.copy_service_form = None;
                 } else {
-                    // TODO: Should handle this edge case. Could be as simply as logging an error
-                    //       or warning message.
+                    error!("ignore EditCopyServiceDiscard - not editing");
                 }
             },
             SettingsScreenMessage::EditCopyServiceNameInput { text } => {
                 if let Some(form) = self.copy_service_form.as_mut() {
                     form.input_name(&text, ctx);
                 } else {
-                    // TODO: Should handle this edge case. Could be as simply as logging an error
-                    //       or warning message.
+                    error!("ignore EditCopyServiceNameInput - not editing");
                 }
             },
             SettingsScreenMessage::EditCopyServiceSerialNumberInput { text } => {
                 if let Some(form) = self.copy_service_form.as_mut() {
                     form.input_serial_number(&text, ctx);
                 } else {
-                    // TODO: Should handle this edge case. Could be as simply as logging an error
-                    //       or warning message.
+                    error!("ignore EditCopyServiceSerialNumberInput - not editing");
                 }
             },
         }

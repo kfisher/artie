@@ -28,6 +28,8 @@ use crate::widget::button;
 use crate::widget::container::{Container, ContainerClass};
 
 fn main() -> iced::Result {
+    tracing_subscriber::fmt::init();
+
     iced::application(Artie::new, Artie::update, Artie::view)
         .title("Artie")
         .scale_factor(Artie::scale_factor)
