@@ -53,16 +53,27 @@ impl Color {
 
     /// Darkens the color by the provided amount.
     pub const fn darken(mut self, amount: f32) -> Self {
-        self.lightness = (self.lightness + amount)
+        self.lightness = (self.lightness - amount)
             .clamp(Color::MIN_LIGHTNESS, Color::MAX_LIGHTNESS);
         self
     }
 
     /// Lightens the color by the provided amount.
     pub const fn lighten(mut self, amount: f32) -> Self {
-        self.lightness = (self.lightness - amount)
+        self.lightness = (self.lightness + amount)
             .clamp(Color::MIN_LIGHTNESS, Color::MAX_LIGHTNESS);
         self
+    }
+
+    /// Consumes and returns the color updated with the provided saturation.
+    pub const fn saturation(mut self, value: f32) -> Self {
+        self.saturation = value.clamp(Color::MIN_SATURATION, Color::MAX_SATURATION);
+        self
+    }
+
+    /// Gets the color that can be used for text displayed with a background of this color.
+    pub const fn text(self) -> Self {
+        Self::new(self.hue, 1.0, 1.0)
     }
 
     /// Returns the RGB values of the color.

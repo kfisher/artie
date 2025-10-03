@@ -1,6 +1,8 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
+mod error;
+mod context;
 mod settings;
 mod screen;
 mod theme;
@@ -14,42 +16,25 @@ use iced::widget::{Column, Row, Space};
 
 use copy_srv::CopyService;
 
+use crate::error::{Error, Result};
+use crate::context::Context;
 use crate::settings::{ScaleFactor, Settings};
 use crate::screen::copy::CopyScreen;
 use crate::screen::transcode::TranscodeScreen;
-use crate::screen::settings::SettingsScreen;
+use crate::screen::settings::{SettingsScreenMessage, SettingsScreen};
 use crate::theme::Theme;
 use crate::widget::Element;
 use crate::widget::button;
 use crate::widget::container::{Container, ContainerClass};
 
 fn main() -> iced::Result {
-    // TODO: This treats all errors as the same. It should only use the default settings if the 
-    //       file does not exist. Otherwise, it should error out and exit.
-    let settings = settings::load().unwrap_or_else(|_| Settings::default());
-
-    // TODO: Need to correctly handle errors instead of just crashing with a panic.
-    let copy_services = vec![
-        CopyService::new("Drive A", "FAUX0001").unwrap(),
-        CopyService::new("Drive B", "FAUX0002").unwrap(),
-    ];
-
-    iced::application(move || 
-            Artie::new(
-                settings.clone(),
-                copy_services.clone(),
-            ), 
-            Artie::update,
-            Artie::view)
+    iced::application(Artie::new, Artie::update, Artie::view)
         .title("Artie")
         .scale_factor(Artie::scale_factor)
         .theme(Artie::theme)
         .style(Artie::style)
         .run()
 }
-
-pub type Error = Box<dyn std::error::Error>;
-pub type Result<T> = std::result::Result<T, Error>;
 
 /// Specifies the application messages.
 ///
@@ -59,9 +44,37 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// user interactions.
 #[derive(Clone, Debug)]
 pub enum Message {
-    Settings(settings::Message),
+    /// Deletes a copy service configuration.
+    DeleteCopyService {
+        index: usize,
+    },
+
+    /// Changes the application's scale factor.
+    SetScaleFactor(ScaleFactor),
+
+    /// Changes the application's theme.
+    SetTheme(Theme),
+
+    /// Message specific to the settings screen only.
+    SettingsScreen(SettingsScreenMessage),
+
+    /// Toggles the application's theme between light and dark modes.
+    ToggleTheme,
+
+    /// Updates an existing copy service's configuration.
+    UpdateCopyService {
+        index: usize,
+        name: String,
+        serial_number: String,
+    },
+
+    /// View the screen used to copy media.
     ViewCopyScreen,
+
+    /// View the screen used to configuration the application.
     ViewSettingsScreen,
+
+    /// View the screen used to transcode video titles.
     ViewTranscodeScreen,
 }
 
@@ -74,11 +87,8 @@ pub enum Screen {
 
 /// The application's state data.
 pub struct Artie {
-    /// List of configured copy services.
-    copy_services: Vec<CopyService>,
-
-    /// The application settings.
-    settings: Settings,
+    /// The application context.
+    context: Context,
 
     /// The current application screen being displayed.
     screen: Screen,
@@ -86,22 +96,46 @@ pub struct Artie {
 
 impl Artie {
     /// Creates a new [`Artie`] instance.
-    fn new(settings: Settings, copy_services: Vec<CopyService>) -> Self {
-        Self {
-            copy_services,
-            settings,
+    fn new() -> Self {
+        let mut artie = Self {
+            context: match Context::from_config() {
+                Ok(context) => context,
+                // TODO: Need to correctly handle this error. It should only use the default values
+                //       if the file wasn't found. Otherwise, it should exit.
+                Err(_) => Context::default(),
+            },
             screen: Screen::Copy(CopyScreen::default()),
+        };
+        artie.show_settings_screen();
+        artie
+    }
+
+    /// Updates and saves the copy service settings and notifies the settings screen if the screen
+    /// is currently being displayed.
+    fn copy_service_changed(&mut self) -> Result<()> {
+        // Update the settings. To keep things easy, simply recreate the settings data.
+        self.context.settings.update_copy_services(&self.context.copy_services);
+
+        // Save the settings to the config file.
+        self.context.save_settings()?;
+
+        // If the settings screen changed, notify it that the configuration for one or more copy 
+        // services has changed.
+        if let Screen::Settings(screen) = &mut self.screen {
+            screen.copy_service_updated();
         }
+
+        Ok(())
     }
 
     /// Sets the scaling factor for the application.
     fn scale_factor(&self) -> f32 {
-        self.settings.general.scale_factor.into()
+        self.context.settings.general.scale_factor.into()
     }
 
     /// Change the application's main content to the Copy screen.
     fn show_copy_screen(&mut self) {
-        self.screen = Screen::Copy(CopyScreen::new(&self.copy_services));
+        self.screen = Screen::Copy(CopyScreen::new());
     }
 
     /// Change the application's main content to the Settings screen.
@@ -114,6 +148,7 @@ impl Artie {
         self.screen = Screen::Transcode(TranscodeScreen::new());
     }
 
+    /// Returns the base style of the application.
     fn style(&self, theme: &Theme) -> Style {
         let palette = theme.palette();
         Style {
@@ -124,19 +159,80 @@ impl Artie {
 
     /// Returns the theme of the application.
     fn theme(&self) -> Theme {
-        self.settings.general.theme
+        self.context.settings.general.theme
     }
 
     /// Processes interactions to update the state of the application.
     fn update(&mut self, message: Message) -> iced::Task<Message> {
-        match message {
-            Message::Settings(message) => settings::process_message(&mut self.settings, message),
-            Message::ViewCopyScreen => self.show_copy_screen(),
-            Message::ViewSettingsScreen => self.show_settings_screen(),
-            Message::ViewTranscodeScreen => self.show_transcode_screen(),
-        }
+        // TODO: Consider adding logging output to each branch.
+        let task: Result<iced::Task<Message>> = match message {
+            Message::DeleteCopyService { index: _ } => {
+                todo!()
+                //-] self.copy_services.remove(index);
+                //-] self.copy_service_changed()
+                //-]     .map(|_| iced::Task::none())
+            },
+            Message::SetScaleFactor(factor) => {
+                if self.context.settings.general.scale_factor != factor {
+                    self.context.settings.general.scale_factor = factor;
+                    self.context.save_settings().map(|_| iced::Task::none())
+                } else {
+                    Ok(iced::Task::none())
+                }
+            },
+            Message::SetTheme(theme) => {
+                if self.context.settings.general.theme != theme {
+                    self.context.settings.general.theme = theme;
+                    self.context.save_settings().map(|_| iced::Task::none())
+                } else {
+                    Ok(iced::Task::none())
+                }
+            },
+            Message::SettingsScreen(message) => {
+                if let Screen::Settings(screen) = &mut self.screen {
+                    screen.process_message(&self.context, message);
+                }
+                Ok(iced::Task::none())
+            },
+            Message::ToggleTheme => {
+                self.context.settings.general.toggle_theme();
+                self.context.save_settings().map(|_| iced::Task::none())
+            },
+            Message::UpdateCopyService { index, name, serial_number } => {
+                if index < self.context.copy_services.len() {
+                    self.context.copy_services[index].update_config(&name, &serial_number)
+                        .map_err(|error| Error::CopyServiceInitError { error })
+                        .and_then(|_| self.copy_service_changed())
+                        .map(|_| iced::Task::none())
+                } else {
+                    let service = CopyService::new(&name, &serial_number);
+                    match service {
+                        Ok(service) => {
+                            self.context.copy_services.push(service);
+                            self.copy_service_changed().map(|_| iced::Task::none())
+                        },
+                        Err(error) => {
+                            Err(Error::CopyServiceInitError { error })
+                        },
+                    }
+                }
+            },
+            Message::ViewCopyScreen => {
+                self.show_copy_screen();
+                Ok(iced::Task::none())
+            },
+            Message::ViewSettingsScreen => {
+                self.show_settings_screen();
+                Ok(iced::Task::none())
+            },
+            Message::ViewTranscodeScreen => {
+                self.show_transcode_screen();
+                Ok(iced::Task::none())
+            },
+        };
 
-        iced::Task::none()
+        // TODO: Revisit the error handling. For now simply panic.
+        task.expect("Update encountered and error while processing a message.")
     }
 
     /// Uses the current application state to generate the view.
@@ -149,26 +245,26 @@ impl Artie {
 
         let sidebar = Column::with_capacity(5)
             .push(button::nav_button(
-                    "fontawesome.v7.solid.compact-disc",
-                    Message::ViewCopyScreen,
-                    "Copy",
-                    copy_active))
+                "fontawesome.v7.solid.compact-disc",
+                Message::ViewCopyScreen,
+                "Copy",
+                copy_active))
             .push(button::nav_button(
-                    "fontawesome.v7.solid.film",
-                    Message::ViewTranscodeScreen,
-                    "Transcode",
-                    transcode_active))
+                "fontawesome.v7.solid.film",
+                Message::ViewTranscodeScreen,
+                "Transcode",
+                transcode_active))
             .push(button::nav_button(
-                    "fontawesome.v7.solid.gear",
-                    Message::ViewSettingsScreen,
-                    "Settings",
-                    settings_active))
+                "fontawesome.v7.solid.gear",
+                Message::ViewSettingsScreen,
+                "Settings",
+                settings_active))
             .push(Space::with_height(Fill))
             .push(button::nav_button(
-                    "fontawesome.v7.solid.circle-half-stroke",
-                    Message::Settings(settings::Message::ToggleTheme),
-                    "Toggle Theme",
-                    false))
+                "fontawesome.v7.solid.circle-half-stroke",
+                Message::ToggleTheme,
+                "Toggle Theme",
+                false))
             .spacing(4)
             .padding([4, 2]);
 
@@ -177,8 +273,8 @@ impl Artie {
             .height(Fill);
 
         let content = match &self.screen {
-            Screen::Copy(copy_screen) => copy_screen.view(&self.copy_services),
-            Screen::Settings(settings_screen) => settings_screen.view(&self.settings),
+            Screen::Copy(copy_screen) => copy_screen.view(&self.context),
+            Screen::Settings(settings_screen) => settings_screen.view(&self.context),
             Screen::Transcode(transcode_screen) => transcode_screen.view(),
         };
 

@@ -3,3 +3,6 @@ target/
 
 # Editors
 .vscode/
+
+# Ignore the configuration file being used for initial development.
+artie.toml

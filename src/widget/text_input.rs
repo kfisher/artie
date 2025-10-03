@@ -1,9 +1,12 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
+use iced::Border;
 use iced::widget::text_input::{Catalog, Status, Style};
 
 use crate::theme::Theme;
+
+pub use iced::widget::text_input::TextInput;
 
 /// The style classes used for the text widget.
 #[derive(Default)]
@@ -11,6 +14,8 @@ pub enum TextInputClass {
     // The default input style.
     #[default]
     Default,
+
+    Invalid,
 }
 
 impl Catalog for Theme {
@@ -20,46 +25,33 @@ impl Catalog for Theme {
         TextInputClass::default()
     }
 
-    fn style(&self, _class: &Self::Class<'_>, _status: Status) -> Style {
-        todo!()
-        // let palette = self.palette();
+    fn style(&self, class: &Self::Class<'_>, status: Status) -> Style {
+        let palette = self.palette();
 
-        // let active = Style {
-        //     background: Background::Color(self.palette().sky.into()),
-        //     border: Border {
-        //         radius: 2.0.into(),
-        //         width: 1.0,
-        //         color: palette.text.into(),
-        //     },
-        //     icon: palette.pink.into(),
-        //     placeholder: palette.green.into(),
-        //     value: palette.text.into(),
-        //     selection: palette.mauve.into(),
-        // };
+        let border_color = match class {
+            TextInputClass::Default => palette.border,
+            TextInputClass::Invalid => palette.danger,
+        };
 
-        // match status {
-        //     Status::Active => active,
-        //     Status::Hovered => Style {
-        //         border: Border {
-        //             color: palette.pink.into(),
-        //             ..active.border
-        //         },
-        //         ..active
-        //     },
-        //     Status::Focused { .. } => Style {
-        //         border: Border {
-        //             color: palette.pink.into(),
-        //             ..active.border
-        //         },
-        //         ..active
-        //     },
-        //     Status::Disabled => Style {
-        //         background: Background::Color(palette.pink.into()),
-        //         value: active.placeholder,
-        //         placeholder: palette.pink.into(),
-        //         ..active
-        //     },
-        // }
+        let border_color = match status {
+            Status::Active => border_color,
+            Status::Hovered => border_color,
+            Status::Focused { is_hovered: _ } => border_color,
+            Status::Disabled => border_color,
+        };
+
+        Style {
+            background: iced::Background::Color(palette.surface_0.into()),
+            border: Border {
+                radius: 4.0.into(),
+                width: 1.0,
+                color: border_color.into(),
+            },
+            icon: palette.green.into(),
+            placeholder: palette.subtext_0.into(),
+            value: palette.text.into(),
+            selection: palette.green.into(),
+        }
     }
 }
 

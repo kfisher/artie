@@ -35,8 +35,10 @@ pub struct Palette {
     pub text: Color,
     pub yellow: Color,
 
-    pub primary: Color,
     pub border: Color,
+    pub danger: Color,
+    pub primary: Color,
+    pub success: Color,
 
     pub is_dark: bool,
 }
@@ -72,8 +74,12 @@ macro_rules! palette {
             text: $p::TEXT,
             yellow: $p::YELLOW,
 
-            primary: $p::BLUE,
+            // TODO: If we end up sticking with darkening these colors, should update the pallet
+            //       itself. Would also allow better tweaking for light themes.
             border: $p::OVERLAY_0,
+            danger: $p::RED.darken(0.10),
+            primary: $p::BLUE.darken(0.10),
+            success: $p::GREEN.darken(0.10),
 
             is_dark: $d,
         }

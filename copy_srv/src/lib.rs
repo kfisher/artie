@@ -18,6 +18,10 @@ pub enum Error {
     InvalidOpticalDrive {
         error: Option<optical_drive::Error>,
     },
+
+    /// Error emitted when the copy service fails to complete an action because a copy operation
+    /// is currently in progress.
+    OperationInProgress,
 }
 
 /// Service which handles copying titles from DVDs and Blu-rays discs.
@@ -56,5 +60,29 @@ impl CopyService {
             drive,
         })
     }
+
+    /// Updates the copy service configuration.
+    ///
+    /// # Errors 
+    ///
+    /// This will return the same errors as [`CopyService::new`]. Additionally, this will return
+    /// [`Error::OperationInProgress`] if attempting to update while a copy operation is in
+    /// progress.
+    pub fn update_config(&mut self, name: &str, serial_number: &str) -> Result<()> {
+        self.name = name.to_owned();
+        self.drive = optical_drive::get_optical_drive(serial_number)
+            .map_err(|error| Error::InvalidOpticalDrive { error: Some(error) })?
+            .ok_or_else(|| Error::InvalidOpticalDrive { error: None })?;
+
+        // TODO: Need to check if performing a copy operation.
+
+        // TODO: Need to acquire an exclusive lock for the drive to prevent multiple instances
+        //       performing operations for the same drive.
+        
+        Ok(())
+    }
 }
 
+// TODO Testing
+// - new (ok and error)
+// - update (ok and error)

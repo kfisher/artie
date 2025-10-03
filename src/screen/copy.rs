@@ -14,24 +14,26 @@ use copy_srv::CopyService;
 use optical_drive::{DiscState, OpticalDrive};
 
 use crate::Element;
+use crate::context::Context;
 use crate::theme::Theme;
 use crate::widget::container::{Container, ContainerClass};
 use crate::widget::text::{self, Text};
 
 /// Screen for copying titles from DVDs and Blu-rays.
+#[derive(Default)]
 pub struct CopyScreen {
 }
 
 impl CopyScreen {
     /// Create a new instance of the screen.
-    pub fn new(_copy_services: &[CopyService]) -> CopyScreen {
+    pub fn new() -> CopyScreen {
         CopyScreen { }
     }
 
     /// Generates the view for the screen.
-    pub fn view(&self, copy_services: &[CopyService]) -> Element<'_> {
-        let mut drives: Vec<Element<'_>> = Vec::with_capacity(copy_services.len());
-        for service in copy_services {
+    pub fn view(&self, ctx: &Context) -> Element<'_> {
+        let mut drives: Vec<Element<'_>> = Vec::with_capacity(ctx.copy_services.len());
+        for service in ctx.copy_services.iter() {
             let widget = DriveWidget {
                 drive: service,
             };
@@ -42,12 +44,6 @@ impl CopyScreen {
             .spacing(16)
             .padding([18, 36])
             .into()
-    }
-}
-
-impl Default for CopyScreen {
-    fn default() -> Self {
-        Self::new(&Vec::new())
     }
 }
 
