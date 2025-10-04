@@ -3,8 +3,9 @@
 
 use std::borrow::Cow;
 
-use iced::Alignment;
+use iced::{Alignment, Length};
 use iced::border::Border;
+use iced::font::{Font, Weight};
 use iced::widget::Row;
 use iced::widget::button::{Catalog, Status, Style};
 use iced::widget::tooltip::{Position, Tooltip};
@@ -60,6 +61,9 @@ pub struct Button<'a> {
 
     /// Optional tooltip to display when mousing over.
     tooltip: Option<Cow<'a, str>>,
+
+    /// The width of the button.
+    width: Length,
 }
 
 impl<'a> Button<'a> {
@@ -73,6 +77,7 @@ impl<'a> Button<'a> {
             padding: 8.0,
             on_press: None,
             tooltip: None,
+            width: Length::Shrink,
         }
     }
 
@@ -122,6 +127,15 @@ impl<'a> Button<'a> {
         self.tooltip = Some(tooltip);
         self
     }
+
+    /// Sets the width of the button.
+    pub fn width<T>(mut self, width: T) -> Self 
+    where 
+        T: Into<Length>
+    {
+        self.width = width.into();
+        self
+    }
 }
 
 impl<'a> From<Button<'a>> for Element<'a> {
@@ -136,19 +150,26 @@ impl<'a> From<Button<'a>> for Element<'a> {
         }
 
         if let Some(label) = button.label {
-            let text = Text::new(label).class(TextClass::Inherit);
+            let text = Text::new(label).class(TextClass::Inherit)
+                .width(Length::Fill)
+                // .font(Font {
+                //     weight: Weight::Semibold,
+                //     ..Font::default()
+                // })
+                .center();
             content.push(text.into());
         }
 
         let content = Row::with_children(content)
             .padding(button.padding)
-            .spacing(button.padding / 2.0)
+            .spacing(button.padding)
             .align_y(Alignment::Center);
 
         let widget = iced::widget::button::Button::new(content)
             .padding(0)
             .class(button.class)
-            .on_press_maybe(button.on_press);
+            .on_press_maybe(button.on_press)
+            .width(button.width);
 
         if let Some(tooltip) = button.tooltip {
             Tooltip::new(
@@ -174,7 +195,7 @@ impl Catalog for Theme {
 
         match class {
             ButtonClass::Danger => button_style(
-                palette.danger.text(),
+                palette.surface_2,
                 palette.danger,
                 &status,
             ),
@@ -185,12 +206,12 @@ impl Catalog for Theme {
             ),
             ButtonClass::Nav(selected) => nav_button_style(*selected, palette, &status),
             ButtonClass::Primary => button_style(
-                palette.primary.text(),
-                palette.primary,
+                palette.surface_1,
+                palette.mauve,
                 &status,
             ),
             ButtonClass::Success => button_style(
-                palette.success.text(),
+                palette.surface_2,
                 palette.success,
                 &status,
             ),

@@ -77,9 +77,9 @@ macro_rules! palette {
             // TODO: If we end up sticking with darkening these colors, should update the pallet
             //       itself. Would also allow better tweaking for light themes.
             border: $p::OVERLAY_0,
-            danger: $p::RED.darken(0.10),
-            primary: $p::BLUE.darken(0.10),
-            success: $p::GREEN.darken(0.10),
+            danger: $p::RED,
+            primary: $p::BLUE,
+            success: $p::GREEN,
 
             is_dark: $d,
         }

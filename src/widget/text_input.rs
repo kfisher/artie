@@ -25,7 +25,7 @@ impl Catalog for Theme {
         TextInputClass::default()
     }
 
-    fn style(&self, class: &Self::Class<'_>, status: Status) -> Style {
+    fn style(&self, class: &Self::Class<'_>, _status: Status) -> Style {
         let palette = self.palette();
 
         let border_color = match class {
@@ -33,20 +33,9 @@ impl Catalog for Theme {
             TextInputClass::Invalid => palette.danger,
         };
 
-        let border_color = match status {
-            Status::Active => border_color,
-            Status::Hovered => border_color,
-            Status::Focused { is_hovered: _ } => border_color,
-            Status::Disabled => border_color,
-        };
-
         Style {
             background: iced::Background::Color(palette.surface_0.into()),
-            border: Border {
-                radius: 4.0.into(),
-                width: 1.0,
-                color: border_color.into(),
-            },
+            border: self.border().color(border_color),
             icon: palette.green.into(),
             placeholder: palette.subtext_0.into(),
             value: palette.text.into(),

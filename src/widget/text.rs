@@ -59,6 +59,19 @@ where
         })
 }
 
+/// Creates level 2 heading text.
+pub fn heading2<'a, T>(text: T) -> Text<'a, Theme> 
+where 
+    T: Into<Cow<'a, str>> + 'a
+{
+    Text::new(text.into())
+        .size(24)
+        .font(Font {
+            weight: Weight::Bold,
+            ..Font::default()
+        })
+}
+
 /// Creates label text.
 pub fn label<'a, T>(text: T) -> Text<'a, Theme> 
 where 

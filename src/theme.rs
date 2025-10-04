@@ -39,12 +39,12 @@ impl Theme {
     pub fn border(&self) -> Border {
         Border {
             color: self.palette().border.into(),
-            width: 2.0,
+            width: 1.0,
             radius: Radius {
-                top_left: 0.0,
-                top_right: 0.0,
-                bottom_right: 0.0,
-                bottom_left: 0.0,
+                top_left: 4.0,
+                top_right: 4.0,
+                bottom_right: 4.0,
+                bottom_left: 4.0,
             },
         }
     }

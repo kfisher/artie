@@ -3,6 +3,7 @@
 
 pub mod button;
 pub mod container;
+pub mod dialog;
 pub mod icon;
 pub mod menu;
 pub mod pick_list;

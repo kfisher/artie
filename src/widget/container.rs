@@ -16,6 +16,9 @@ pub enum ContainerClass {
     #[default]
     Default,
 
+    /// Container style for modal dialogues.
+    Dialog,
+
     /// Container with a background color.
     Background(fn(&Theme) -> Color),
 
@@ -39,6 +42,10 @@ impl Catalog for Theme {
     fn style(&self, class: &Self::Class<'_>) -> Style {
         match class {
             ContainerClass::Default => Style::default(),
+            ContainerClass::Dialog => Style {
+                background: Some(self.palette().mantle.alpha(0.8).into()),
+                ..Style::default()
+            },
             ContainerClass::Background(f) => Style {
                 background: Some(f(self).into()),
                 ..Style::default()

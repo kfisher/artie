@@ -17,6 +17,7 @@ use crate::theme::Theme;
 use crate::widget::Element;
 use crate::widget::button::{Button, ButtonClass};
 use crate::widget::container::{Container, ContainerClass};
+use crate::widget::dialog::ConfirmDeleteDialog;
 use crate::widget::pick_list::{PickList, PickListClass};
 use crate::widget::rule::Rule;
 use crate::widget::text;
@@ -53,6 +54,9 @@ pub enum SettingsScreenMessage {
 }
 
 pub struct SettingsScreen {
+    /// Dialog used to confirm deletion of a copy service.
+    copy_service_dialog: Option<ConfirmDeleteDialog<usize>>,
+
     /// Form data for editing a copy service configuration.
     ///
     /// Will only be `Some` while a copy service is being edited. Only once service can be edited
@@ -64,6 +68,7 @@ impl SettingsScreen {
     /// Creates a new [`SettingsScreen`] instance.
     pub fn new() -> Self {
         Self {
+            copy_service_dialog: None,
             copy_service_form: None,
         }
     }
@@ -80,6 +85,21 @@ impl SettingsScreen {
         self.copy_service_form = None;
     }
 
+    /// Generates a UI element for displaying a dialog.
+    ///
+    /// Will only return `Some` if the settings screen is displaying a dialog.
+    pub fn dialog(&self) -> Option<Element<'_>> {
+        self.copy_service_dialog.as_ref()
+            .map(|dialog| dialog.view(Message::DeleteCopyService { index: dialog.id }))
+    }
+
+    /// Callback when a dialog is closed.
+    ///
+    /// This will close any dialog this screen may have been opened without applying any changes.
+    pub fn dialog_closed(&mut self) {
+        self.copy_service_dialog = None;
+    }
+
     /// Processes a settings screen message.
     pub fn process_message(&mut self, ctx: &Context, message: SettingsScreenMessage) {
         match message {
@@ -90,8 +110,16 @@ impl SettingsScreen {
                     error!("ignore AddCopyService - already editing");
                 }
             },
-            SettingsScreenMessage::DeleteCopyService { index: _ } => {
-                // self.copy_services[index].display = CopyServiceDisplay::Delete;
+            SettingsScreenMessage::DeleteCopyService { index } => {
+                let service = &ctx.copy_services[index];
+                if self.copy_service_dialog.is_none() {
+                    self.copy_service_dialog = Some(ConfirmDeleteDialog { 
+                        id: index,
+                        text: format!("{} ({})", service.name, service.drive.serial_number),
+                    });
+                } else {
+                    error!("ignore DeleteCopyService - already displayed");
+                }
             },
             SettingsScreenMessage::EditCopyService { index } => {
                 let service = &ctx.copy_services[index];

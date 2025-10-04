@@ -31,6 +31,7 @@ use crate::theme::Theme;
 use crate::widget::Element;
 use crate::widget::button;
 use crate::widget::container::{Container, ContainerClass};
+use crate::widget::dialog;
 
 fn main() -> iced::Result {
     tracing_subscriber::fmt::init();
@@ -52,6 +53,9 @@ fn main() -> iced::Result {
 /// user interactions.
 #[derive(Clone, Debug)]
 pub enum Message {
+    /// Close the open dialog cancelling any pending actions.
+    CloseDialog,
+
     /// Deletes a copy service configuration.
     DeleteCopyService {
         index: usize,
@@ -121,6 +125,15 @@ impl Artie {
         artie
     }
 
+    /// Closes the open dialog.
+    fn close_dialog(&mut self) {
+        match &mut self.screen {
+            Screen::Copy(_) => (),
+            Screen::Settings(screen) => screen.dialog_closed(),
+            Screen::Transcode(_) => (),
+        }
+    }
+
     /// Updates and saves the copy service settings and notifies the settings screen if the screen
     /// is currently being displayed.
     fn copy_service_changed(&mut self) -> Result<()> {
@@ -137,6 +150,34 @@ impl Artie {
         }
 
         Ok(())
+    }
+
+    /// Handles keyboard events.
+    ///
+    /// - `Escape` Close the modal dialog.
+    /// - `Tab` / `Shift+Tab` Change focus to the next input or the previous input.
+    fn key_event(&mut self, event: &KeyboardEvent) -> Task<Message> {
+        match event {
+            KeyboardEvent::KeyPressed { 
+                key: Key::Named(key::Named::Tab),
+                modifiers,
+                ..
+            } => {
+                if modifiers.shift() {
+                    iced::widget::focus_previous()
+                } else {
+                    iced::widget::focus_next()
+                }
+            },
+            KeyboardEvent::KeyPressed { 
+                key: Key::Named(key::Named::Escape),
+                .. 
+            } => {
+                self.close_dialog();
+                Task::none()
+            },
+            _ => Task::none(),
+        }
     }
 
     /// Sets the scaling factor for the application.
@@ -178,43 +219,18 @@ impl Artie {
         self.context.settings.general.theme
     }
 
-    /// Handles keyboard events.
-    ///
-    /// - `Escape` Close the modal dialog.
-    /// - `Tab` / `Shift+Tab` Change focus to the next input or the previous input.
-    fn key_event(&self, event: &KeyboardEvent) -> Task<Message> {
-        match event {
-            KeyboardEvent::KeyPressed { 
-                key: Key::Named(key::Named::Tab),
-                modifiers,
-                ..
-            } => {
-                if modifiers.shift() {
-                    iced::widget::focus_previous()
-                } else {
-                    iced::widget::focus_next()
-                }
-            },
-            KeyboardEvent::KeyPressed { 
-                key: Key::Named(key::Named::Escape),
-                .. 
-            } => {
-                // TODO: close modal dialog if open
-                Task::none()
-            },
-            _ => Task::none(),
-        }
-    }
-
     /// Processes interactions to update the state of the application.
     fn update(&mut self, message: Message) -> Task<Message> {
         // TODO: Consider adding logging output to each branch.
         let task: Result<Task<Message>> = match message {
-            Message::DeleteCopyService { index: _ } => {
-                todo!()
-                //-] self.copy_services.remove(index);
-                //-] self.copy_service_changed()
-                //-]     .map(|_| Task::none())
+            Message::CloseDialog => {
+                self.close_dialog();
+                Ok(Task::none())
+            },
+            Message::DeleteCopyService { index } => {
+                self.close_dialog();
+                self.context.copy_services.remove(index);
+                self.copy_service_changed().map(|_| Task::none())
             },
             Message::Event(event) => match event {
                 Event::Keyboard(event) => Ok(self.key_event(&event)),
@@ -321,16 +337,30 @@ impl Artie {
             .class(ContainerClass::Background(|t| t.palette().crust))
             .height(Length::Fill);
 
-        let content = match &self.screen {
-            Screen::Copy(copy_screen) => copy_screen.view(&self.context),
-            Screen::Settings(settings_screen) => settings_screen.view(&self.context),
-            Screen::Transcode(transcode_screen) => transcode_screen.view(),
+        let (content, dialog) = match &self.screen {
+            Screen::Copy(copy_screen) => (
+                copy_screen.view(&self.context),
+                None,
+            ),
+            Screen::Settings(settings_screen) => (
+                settings_screen.view(&self.context),
+                settings_screen.dialog(),
+            ),
+            Screen::Transcode(transcode_screen) => (
+                transcode_screen.view(),
+                None,
+            ),
         };
 
-        Row::with_capacity(2)
+        let content = Row::with_capacity(2)
             .push(sidebar)
-            .push(content)
-            .into()
+            .push(content);
+
+        if let Some(dialog) = dialog {
+            dialog::view(content.into(), dialog)
+        } else {
+            content.into()
+        }
     }
 }
 
