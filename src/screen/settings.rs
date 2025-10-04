@@ -155,10 +155,8 @@ impl SettingsScreen {
 
     /// Generates the UI element for displaying the screen.
     pub fn view(&self, ctx: &Context) -> Element<'_> {
-        let rows = Column::with_capacity(3)
-            .push(text::heading1("Appearance"))
+        let rows = Column::with_capacity(2)
             .push(self.appearance_view(ctx))
-            .push(text::heading1("Drives"))
             .push(self.copy_service_view(ctx))
             .spacing(16);
 
@@ -180,9 +178,13 @@ impl SettingsScreen {
                 .push(control)
                 .align_y(Alignment::Center)
                 .spacing(8)
-                .padding(16)
                 .width(Length::Fill)
+                .padding([8, 0])
         }
+
+        let header = Row::with_capacity(1)
+            .push(text::heading2("Appearance"))
+            .padding([8, 0]);
 
         let scale_factor = form_row(
             "Scale Factor",
@@ -204,13 +206,16 @@ impl SettingsScreen {
             .width(100),
         );
 
-        let content = Column::with_capacity(3)
+        let content = Column::with_capacity(6)
+            .push(header)
+            .push(Rule::horizontal(1))
             .push(scale_factor)
             .push(Rule::horizontal(1))
-            .push(theme);
+            .push(theme)
+            .push(Rule::horizontal(1));
 
         Container::new(content)
-            .class(ContainerClass::Panel)
+            .class(ContainerClass::Default)
             .max_width(1080)
             .into()
     }
@@ -219,17 +224,12 @@ impl SettingsScreen {
     fn copy_service_item_view(&self, index: usize, copy_service: &CopyService) -> Element<'_> {
         let mut cols: Vec<Element<'_>> = Vec::with_capacity(3);
 
-        let name = Column::with_capacity(2)
-            .push(text::label(copy_service.name.clone()))
-            .push(text::small_subtext("Name"))
-            .width(Length::Fill);
-        cols.push(name.into());
-
-        let serial_number = Column::with_capacity(2)
-            .push(text::label(copy_service.drive.serial_number.clone()))
-            .push(text::small_subtext("Serial Number"))
-            .width(Length::Fill);
-        cols.push(serial_number.into());
+        cols.push(text::label(copy_service.name.clone())
+            .width(Length::Fill)
+            .into());
+        cols.push(text::label(copy_service.drive.serial_number.clone())
+            .width(Length::Fill)
+            .into());
 
         // Only show the edit controls if not currently editing a copy service configuration.
         //
@@ -238,7 +238,7 @@ impl SettingsScreen {
         if self.copy_service_form.is_none() {
             let edit_button = Button::new(ButtonClass::Default)
                 .icon("fontawesome.v7.solid.edit")
-                .icon_size(20.0)
+                // .icon_size(20.0)
                 .on_press(
                     Message::SettingsScreen(
                         SettingsScreenMessage::EditCopyService { index }
@@ -249,20 +249,21 @@ impl SettingsScreen {
 
         Row::with_children(cols)
             .align_y(Alignment::Center)
-            .padding(16)
+            .padding([8, 0])
             .width(Length::Fill)
-            .spacing(8)
             .into()
     }
 
     /// Generates the UI element for displaying the section for the copy service settings.
     fn copy_service_view(&self, ctx: &Context) -> Element<'_> {
-        let mut rows: Vec<Element<'_>> = Vec::with_capacity(ctx.copy_services.len() * 2);
+        let mut rows: Vec<Element<'_>> = Vec::with_capacity((ctx.copy_services.len() * 2) + 3);
+
+        let header = Row::with_capacity(1)
+            .push(text::heading2("Drives"))
+            .padding([8, 0]);
 
         for (index, service) in ctx.copy_services.iter().enumerate() {
-            if index > 0 {
-                rows.push(Rule::horizontal(1).into())
-            }
+            rows.push(Rule::horizontal(1).into());
 
             let row = match &self.copy_service_form {
                 Some(form) => if form.index == index {
@@ -286,16 +287,28 @@ impl SettingsScreen {
         }
 
         let content = Container::new(Column::with_children(rows))
-            .class(ContainerClass::Panel);
+            .class(ContainerClass::Default);
 
-        Column::with_capacity(2)
-            .push(content)
+        let message = if self.copy_service_form.is_none() {
+            Some(Message::SettingsScreen(SettingsScreenMessage::AddCopyService))
+        } else {
+            None
+        };
+
+        let controls = Row::with_capacity(1)
             .push(Button::new(ButtonClass::Primary)
                 .icon("fontawesome.v7.solid.plus")
                 .label("Add")
-                .on_press(Message::SettingsScreen(SettingsScreenMessage::AddCopyService)))
+                .on_press_maybe(message))
+            .padding([8, 0]);
+
+        Column::with_capacity(4)
+            .push(header)
+            .push(content)
+            .push(Rule::horizontal(1))
+            .push(controls)
             .max_width(1080)
-            .spacing(16)
+            .spacing(0)
             .into()
     }
 }
@@ -324,6 +337,9 @@ pub struct CopyServiceForm {
     /// This will enable or disable the save button. The button will be disabled if the form's data
     /// is invalid or if none of the values have changed.
     can_apply: bool,
+
+    /// Indicates if the service can be deleted.
+    can_delete: bool,
 }
 
 impl CopyServiceForm {
@@ -334,6 +350,7 @@ impl CopyServiceForm {
             name: String::from(""),
             serial_number: String::from(""),
             can_apply: false,
+            can_delete: false,
         }
     }
 
@@ -344,6 +361,7 @@ impl CopyServiceForm {
             name: service.name.clone(),
             serial_number: service.drive.serial_number.clone(),
             can_apply: false,
+            can_delete: true,
         }
     }
 
@@ -361,7 +379,7 @@ impl CopyServiceForm {
 
     /// Generates the UI element for displaying the form.
     fn view(&self) -> Element<'_> {
-        let input = TextInput::new("Name", &self.name)
+        let input = TextInput::new("", &self.name)
             .on_input(move |text| {
                 Message::SettingsScreen(
                     SettingsScreenMessage::EditCopyServiceNameInput { 
@@ -377,7 +395,7 @@ impl CopyServiceForm {
             .push(label)
             .width(Length::Fill);
 
-        let input = TextInput::new("Serial Number", &self.serial_number)
+        let input = TextInput::new("", &self.serial_number)
             .on_input(move |text| {
                 Message::SettingsScreen(
                     SettingsScreenMessage::EditCopyServiceSerialNumberInput { 
@@ -409,30 +427,35 @@ impl CopyServiceForm {
             None
         };
 
+        let mut controls: Vec<Element<'_>> = Vec::with_capacity(4);
+        
+        if self.can_delete {
+            let delete_button = Button::new(ButtonClass::Danger)
+                .icon("fontawesome.v7.solid.trash")
+                .label("Delete")
+                .on_press(
+                    Message::SettingsScreen(
+                        SettingsScreenMessage::DeleteCopyService { index: self.index }
+                    )
+                );
+            controls.push(delete_button.into());
+        }
+
+        controls.push(Space::with_width(Length::Fill).into());
+
         let apply_button = Button::new(ButtonClass::Success)
             .icon("fontawesome.v7.solid.check")
             .label("Save")
             .on_press_maybe(apply_message);
+        controls.push(apply_button.into());
 
         let discard_button = Button::new(ButtonClass::Default)
             .icon("fontawesome.v7.solid.cancel")
             .label("Cancel")
             .on_press(Message::SettingsScreen( SettingsScreenMessage::EditCopyServiceDiscard));
+        controls.push(discard_button.into());
 
-        let delete_button = Button::new(ButtonClass::Danger)
-            .icon("fontawesome.v7.solid.trash")
-            .label("Delete")
-            .on_press(
-                Message::SettingsScreen(
-                    SettingsScreenMessage::DeleteCopyService { index: self.index }
-                )
-            );
-
-        let controls = Row::with_capacity(2)
-            .push(apply_button)
-            .push(discard_button)
-            .push(Space::with_width(Length::Fill))
-            .push(delete_button)
+        let controls = Row::with_children(controls)
             .spacing(8);
 
         Column::with_capacity(2)

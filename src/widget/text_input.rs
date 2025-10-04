@@ -1,10 +1,11 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
-use iced::Border;
+use iced::border::{Border, Radius};
 use iced::widget::text_input::{Catalog, Status, Style};
 
 use crate::theme::Theme;
+use crate::theme::palette::{ColorSet, Palette};
 
 pub use iced::widget::text_input::TextInput;
 
@@ -25,23 +26,46 @@ impl Catalog for Theme {
         TextInputClass::default()
     }
 
-    fn style(&self, class: &Self::Class<'_>, _status: Status) -> Style {
+    fn style(&self, class: &Self::Class<'_>, status: Status) -> Style {
         let palette = self.palette();
 
-        let border_color = match class {
-            TextInputClass::Default => palette.border,
-            TextInputClass::Invalid => palette.danger,
-        };
-
-        Style {
-            background: iced::Background::Color(palette.surface_0.into()),
-            border: self.border().color(border_color),
-            icon: palette.green.into(),
-            placeholder: palette.subtext_0.into(),
-            value: palette.text.into(),
-            selection: palette.green.into(),
+        match status {
+            Status::Active | Status::Hovered | Status::Disabled => Style {
+                background: palette.surface_2.color.into(),
+                border: border(&palette.surface_2, palette, class),
+                icon: crate::theme::palette::colors::TODO,
+                placeholder: palette.surface_2.text.scale_alpha(0.5),
+                value: palette.text.color,
+                selection: palette.selection.color,
+            },
+            Status::Focused { is_hovered: _ } => Style {
+                background: palette.surface_3.color.into(),
+                border: border(&palette.surface_3, palette, class),
+                icon: crate::theme::palette::colors::TODO,
+                placeholder: palette.surface_3.text.scale_alpha(0.5),
+                value: palette.text.color,
+                selection: palette.selection.color,
+            },
         }
     }
 }
 
+/// Creates the border style for text input.
+fn border(base: &ColorSet, palette: &Palette, class: &TextInputClass) -> Border {
+    let color = match class {
+        TextInputClass::Default => base.border,
+        TextInputClass::Invalid => palette.danger.color,
+    };
+
+    Border {
+        color: color,
+        width: 1.0,
+        radius: Radius {
+            top_left: 4.0,
+            top_right: 4.0,
+            bottom_right: 4.0,
+            bottom_left: 4.0,
+        },
+    }
+}
 

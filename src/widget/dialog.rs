@@ -37,11 +37,11 @@ impl<T> ConfirmDeleteDialog<T> {
                 format!("This will permanently delete {} and cannot be undone.",
                 self.text))
             )
-            .class(ContainerClass::Background(|t| t.palette().surface_0))
+            .class(ContainerClass::Background(|t| t.palette().surface_1.color))
             .width(Length::Fill)
             .padding([32, 12]);
 
-        let confirm_button = Button::new(ButtonClass::Danger)
+        let confirm_button = Button::new(ButtonClass::Primary)
             .label("Yes")
             .width(100.0)
             .on_press(message);

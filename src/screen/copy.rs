@@ -77,7 +77,7 @@ impl<'a> From<DriveWidget<'a>> for Element<'_> {
             .width(Length::Fill);
 
         let content = Container::new(Text::new("<<CONTENT>>"))
-            .class(ContainerClass::Background(|t| t.palette().base))
+            .class(ContainerClass::Background(|theme| theme.palette().surface_1.color))
             .padding(16)
             .width(Length::Fill);
 
@@ -88,12 +88,12 @@ impl<'a> From<DriveWidget<'a>> for Element<'_> {
             .padding([2, 1]);
 
         Container::new(content)
-            .class(ContainerClass::Custom(|t| ContainerStyle {
-                background: Some(t.palette().surface_0.into()),
+            .class(ContainerClass::Custom(|theme| ContainerStyle {
+                background: Some(theme.palette().surface_0.color.into()),
                 border: Border::default()
                     .width(1)
-                    .color(t.palette().border)
-                    .rounded(8),
+                    .color(theme.palette().surface_0.border)
+                    .rounded(4),
                 ..ContainerStyle::default()
             }))
             .max_width(1080)

@@ -11,7 +11,7 @@ pub use iced::widget::rule::Rule;
 #[derive(Default)]
 pub enum RuleClass {
     #[default]
-    Default,
+    Background,
 }
 
 impl Catalog for Theme {
@@ -25,14 +25,14 @@ impl Catalog for Theme {
         let palette = self.palette();
 
         let style = Style {
-            color: palette.overlay_0.into(),
+            color: palette.background.border,
             fill_mode: FillMode::Full,
             radius: 0.0.into(),
-            snap: true,
+            snap: false,
         };
 
         match class {
-            RuleClass::Default => style,
+            RuleClass::Background => style,
         }
     }
 }

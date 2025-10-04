@@ -1,11 +1,11 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
-use iced::border::Border;
+use iced::Color;
+use iced::border::{Border, Radius};
 use iced::widget::container::{Catalog, Style};
 
 use crate::theme::Theme;
-use crate::theme::color::Color;
 
 pub use iced::widget::container::Container;
 
@@ -40,10 +40,11 @@ impl Catalog for Theme {
     }
 
     fn style(&self, class: &Self::Class<'_>) -> Style {
+        let palette = self.palette();
         match class {
             ContainerClass::Default => Style::default(),
             ContainerClass::Dialog => Style {
-                background: Some(self.palette().mantle.alpha(0.8).into()),
+                background: Some(palette.modal.into()),
                 ..Style::default()
             },
             ContainerClass::Background(f) => Style {
@@ -51,19 +52,31 @@ impl Catalog for Theme {
                 ..Style::default()
             },
             ContainerClass::Panel => Style {
-                background: Some(self.palette().base.into()),
-                border: Border::default()
-                    .width(1)
-                    .color(self.palette().border)
-                    .rounded(8),
+                background: Some(palette.surface_0.color.into()),
+                border: Border {
+                    color: palette.surface_0.border,
+                    width: 1.0,
+                    radius: Radius {
+                        top_left: 4.0,
+                        top_right: 4.0,
+                        bottom_right: 4.0,
+                        bottom_left: 4.0,
+                    },
+                },
                 ..Style::default()
             },
             ContainerClass::Tooltip => Style {
-                background: Some(self.palette().crust.into()),
-                border: Border::default()
-                    .rounded(2)
-                    .width(1)
-                    .color(self.palette().primary),
+                background: Some(palette.surface_1.color.scale_alpha(0.90).into()),
+                border: Border {
+                    color: palette.surface_1.border,
+                    width: 1.0,
+                    radius: Radius {
+                        top_left: 4.0,
+                        top_right: 4.0,
+                        bottom_right: 4.0,
+                        bottom_left: 4.0,
+                    },
+                },
                 ..Style::default()
             },
             ContainerClass::Custom(f) => f(self),

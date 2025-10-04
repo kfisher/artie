@@ -1,9 +1,11 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
+//! TODO: DOC
+
 use std::borrow::Cow;
 
-use iced::{Alignment, Length};
+use iced::{Alignment, Color, Length};
 use iced::border::Border;
 use iced::font::{Font, Weight};
 use iced::widget::Row;
@@ -13,8 +15,8 @@ use iced::widget::tooltip::{Position, Tooltip};
 use crate::widget::container::{Container, ContainerClass};
 use crate::Message;
 use crate::theme::Theme;
-use crate::theme::color::Color;
-use crate::theme::palette::Palette;
+use crate::theme::color;
+use crate::theme::palette::{ColorSet, Palette};
 use crate::widget::Element;
 use crate::widget::icon;
 use crate::widget::text::{Text, TextClass};
@@ -152,10 +154,6 @@ impl<'a> From<Button<'a>> for Element<'a> {
         if let Some(label) = button.label {
             let text = Text::new(label).class(TextClass::Inherit)
                 .width(Length::Fill)
-                // .font(Font {
-                //     weight: Weight::Semibold,
-                //     ..Font::default()
-                // })
                 .center();
             content.push(text.into());
         }
@@ -195,24 +193,20 @@ impl Catalog for Theme {
 
         match class {
             ButtonClass::Danger => button_style(
-                palette.surface_2,
-                palette.danger,
+                &palette.danger,
                 &status,
             ),
             ButtonClass::Default => button_style(
-                palette.surface_1.text(),
-                palette.surface_1,
+                &palette.surface_1,
                 &status,
             ),
             ButtonClass::Nav(selected) => nav_button_style(*selected, palette, &status),
             ButtonClass::Primary => button_style(
-                palette.surface_1,
-                palette.mauve,
+                &palette.primary,
                 &status,
             ),
             ButtonClass::Success => button_style(
-                palette.surface_2,
-                palette.success,
+                &palette.success,
                 &status,
             ),
         }
@@ -232,30 +226,18 @@ where
 }
 
 /// Generates the style for the default type of buttons.
-fn button_style(fg: Color, bg: Color, status: &Status) -> Style {
-    let base = Style {
-        background: Some(bg.into()),
-        border: Border::default()
-            .width(0)
-            .rounded(4),
-        text_color: fg.into(),
-        ..Style::default()
+fn button_style(color_set: &ColorSet, status: &Status) -> Style {
+    let background = match status {
+        Status::Active | Status::Pressed => color_set.color,
+        Status::Hovered => color_set.hover,
+        Status::Disabled => color_set.color.scale_alpha(0.50),
     };
 
-    match status {
-        Status::Active => base,
-        Status::Hovered => Style {
-            background: Some(bg.darken(0.10).into()),
-            ..base
-        },
-        Status::Pressed => Style {
-            background: Some(bg.darken(0.125).into()),
-            ..base
-        },
-        Status::Disabled => Style {
-            background: Some(bg.alpha(0.25).into()),
-            ..base
-        },
+    Style {
+        background: Some(background.into()),
+        border: Border::default().width(0).rounded(4),
+        text_color: color_set.text,
+        ..Style::default()
     }
 }
 
@@ -263,39 +245,33 @@ fn button_style(fg: Color, bg: Color, status: &Status) -> Style {
 fn nav_button_style(selected: bool, palette: &Palette, status: &Status) -> Style {
     let base = match selected {
         true => Style {
-            background: Some(palette.primary.alpha(0.25).into()),
+            background: Some(palette.primary.color.into()),
             border: Border::default().rounded(4),
-            text_color: palette.primary.into(),
+            text_color: palette.primary.text,
             ..Style::default() 
         },
         false => Style {
             background: None,
             border: Border::default(),
-            text_color: palette.text.into(),
+            text_color: palette.text.color,
             ..Style::default() 
         },
     };
 
     match status {
         Status::Active => base,
-        Status::Hovered => if selected {
+        Status::Hovered | Status::Pressed => if selected {
             base
         } else {
             Style {
-                background: Some(palette.primary.alpha(0.25).into()),
+                background: Some(palette.primary.color.into()),
                 border: Border::default().rounded(4),
-                text_color: palette.primary.into(),
+                text_color: palette.primary.text,
                 ..base
             }
         },
-        Status::Pressed => Style {
-            background: Some(palette.primary.alpha(0.25).into()),
-            border: Border::default().rounded(4),
-            text_color: palette.primary.into(),
-            ..base
-        },
         Status::Disabled => Style {
-            text_color: palette.primary.alpha(0.5).into(),
+            background: Some(palette.primary.color.scale_alpha(0.50).into()),
             ..base
         },
     }

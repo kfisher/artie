@@ -209,8 +209,8 @@ impl Artie {
     fn style(&self, theme: &Theme) -> Style {
         let palette = theme.palette();
         Style {
-            background_color: palette.mantle.into(),
-            text_color: palette.text.into(),
+            background_color: palette.background.color,
+            text_color: palette.text.color,
         }
     }
 
@@ -334,7 +334,7 @@ impl Artie {
             .padding([4, 2]);
 
         let sidebar = Container::new(sidebar)
-            .class(ContainerClass::Background(|t| t.palette().crust))
+            .class(ContainerClass::Background(|t| t.palette().surface_1.color))
             .height(Length::Fill);
 
         let (content, dialog) = match &self.screen {

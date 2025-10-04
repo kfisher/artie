@@ -34,13 +34,13 @@ impl Catalog for Theme {
     fn style(&self, class: &Self::Class<'_>) -> Style {
         match class {
             TextClass::Default => Style {
-                color: Some(self.palette().text.into()),
+                color: Some(self.palette().text.color),
             },
             TextClass::Inherit => Style {
                 color: None,
             },
             TextClass::Subtext => Style {
-                color: Some(self.palette().subtext_0.into()),
+                color: Some(self.palette().subtext.color),
             },
         }
     }

@@ -1,6 +1,7 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: BSD-3-Clause
 
+use iced::border::{Border, Radius};
 use iced::widget::pick_list::{Catalog, Status, Style};
 
 use crate::theme::Theme;
@@ -24,11 +25,20 @@ impl Catalog for Theme {
     fn style(&self, _class: &<Self as Catalog>::Class<'_>, _status: Status) -> Style {
         let palette = self.palette();
         Style {
-            text_color: palette.text.into(),
-            placeholder_color: palette.sky.into(),
-            handle_color: palette.text.into(),
-            background: palette.surface_0.into(),
-            border: self.border(),
+            text_color: palette.text.color,
+            placeholder_color: palette.subtext.color,
+            handle_color: palette.surface_2.text,
+            background: palette.surface_2.color.into(),
+            border: Border {
+                color: palette.surface_2.border,
+                width: 1.0,
+                radius: Radius {
+                    top_left: 4.0,
+                    top_right: 4.0,
+                    bottom_right: 4.0,
+                    bottom_left: 4.0,
+                },
+            },
         }
     }
 }
