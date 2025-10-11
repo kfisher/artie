@@ -7,7 +7,7 @@ version.workspace = true
 
 [workspace]
 resolver = "3"
-members = [ "copy_srv", "handbrake", "makemkv", "optical_drive" ]
+members = [ "copy_srv", "fs", "handbrake", "makemkv", "optical_drive" ]
 
 [workspace.package]
 authors = [ "Kevin Fisher" ]
