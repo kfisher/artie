@@ -1,6 +1,8 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
+//! TODO: DOC
+
 use std::borrow::Cow;
 
 use iced::font::{Font, Weight};
@@ -16,6 +18,12 @@ pub enum TextClass {
     // The default application text style.
     #[default]
     Default,
+
+    // Inherits the text color from the parent.
+    Inherit,
+
+    // Subtext style.
+    Subtext,
 }
 
 impl Catalog for Theme {
@@ -28,7 +36,13 @@ impl Catalog for Theme {
     fn style(&self, class: &Self::Class<'_>) -> Style {
         match class {
             TextClass::Default => Style {
-                color: Some(self.palette().text.into()),
+                color: Some(self.palette().text.color),
+            },
+            TextClass::Inherit => Style {
+                color: None,
+            },
+            TextClass::Subtext => Style {
+                color: Some(self.palette().subtext.color),
             },
         }
     }
@@ -47,7 +61,20 @@ where
         })
 }
 
-/// Creates a label for a form.
+/// Creates level 2 heading text.
+pub fn heading2<'a, T>(text: T) -> Text<'a, Theme> 
+where 
+    T: Into<Cow<'a, str>> + 'a
+{
+    Text::new(text.into())
+        .size(24)
+        .font(Font {
+            weight: Weight::Bold,
+            ..Font::default()
+        })
+}
+
+/// Creates label text.
 pub fn label<'a, T>(text: T) -> Text<'a, Theme> 
 where 
     T: Into<Cow<'a, str>> + 'a
@@ -58,4 +85,14 @@ where
             weight: Weight::Bold,
             ..Font::default()
         })
+}
+
+/// Creates subtext.
+pub fn small_subtext<'a, T>(text: T) -> Text<'a, Theme> 
+where 
+    T: Into<Cow<'a, str>> + 'a
+{
+    Text::new(text.into())
+        .class(TextClass::Subtext)
+        .size(12)
 }

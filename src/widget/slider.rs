@@ -1,6 +1,8 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
+//! TODO: DOC
+
 use iced::widget::slider::{Catalog, Status, Style};
 use crate::theme::Theme;
 

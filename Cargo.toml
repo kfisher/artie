@@ -7,7 +7,7 @@ version.workspace = true
 
 [workspace]
 resolver = "3"
-members = [ "handbrake", "makemkv", "optical_drive" ]
+members = [ "copy_srv", "handbrake", "makemkv", "optical_drive" ]
 
 [workspace.package]
 authors = [ "Kevin Fisher" ]
@@ -19,16 +19,31 @@ version = "0.1.0"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
 toml = "0.9.7"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[dependencies.copy_srv]
+path = "./copy_srv"
 
 [dependencies.iced]
 git = "https://github.com/iced-rs/iced.git"
 rev = "ebe223cb5d9dfdd20e0978969807d6944d670742"
-features = ["advanced", "svg"]
+features = ["advanced", "svg", "tokio"]
+
+[dependencies.optical_drive]
+path = "./optical_drive"
+features = ["faux_drives"]
 
 [dependencies.serde]
 workspace = true
 
 [dependencies.toml]
+workspace = true
+
+[dependencies.tracing]
+workspace = true
+
+[dependencies.tracing-subscriber]
 workspace = true
 
 [lints.rust]

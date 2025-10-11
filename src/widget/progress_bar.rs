@@ -4,33 +4,31 @@
 //! TODO: DOC
 
 use iced::border::{Border, Radius};
-use iced::widget::pick_list::{Catalog, Status, Style};
+use iced::widget::progress_bar::{Catalog, Style};
 
 use crate::theme::Theme;
 
-pub use iced::widget::PickList;
+pub use iced::widget::progress_bar::ProgressBar;
 
-/// The style classes used for the pick-list widget.
 #[derive(Default)]
-pub enum PickListClass {
+pub enum ProgressBarClass {
     #[default]
     Default,
 }
 
-impl Catalog for Theme {
-    type Class<'a> = PickListClass;
 
-    fn default<'a>() -> <Self as Catalog>::Class<'a> {
-        PickListClass::default()
+impl Catalog for Theme {
+    type Class<'a> = ProgressBarClass;
+
+    fn default<'a>() -> Self::Class<'a> {
+        ProgressBarClass::default()
     }
 
-    fn style(&self, _class: &<Self as Catalog>::Class<'_>, _status: Status) -> Style {
+    fn style(&self, _class: &Self::Class<'_>) -> Style {
         let palette = self.palette();
         Style {
-            text_color: palette.text.color,
-            placeholder_color: palette.subtext.color,
-            handle_color: palette.surface_2.text,
             background: palette.surface_2.color.into(),
+            bar: palette.secondary.color.into(),
             border: Border {
                 color: palette.surface_2.border,
                 width: 1.0,
@@ -44,3 +42,4 @@ impl Catalog for Theme {
         }
     }
 }
+

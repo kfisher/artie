@@ -1,6 +1,8 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
+//! TODO: DOC
+
 use iced::widget::rule::{Catalog, FillMode, Style};
 
 use crate::theme::Theme;
@@ -11,7 +13,8 @@ pub use iced::widget::rule::Rule;
 #[derive(Default)]
 pub enum RuleClass {
     #[default]
-    Default,
+    Background,
+    Surface1,
 }
 
 impl Catalog for Theme {
@@ -24,15 +27,16 @@ impl Catalog for Theme {
     fn style(&self, class: &Self::Class<'_>) -> Style {
         let palette = self.palette();
 
-        let style = Style {
-            color: palette.overlay_0.into(),
-            fill_mode: FillMode::Full,
-            radius: 0.0.into(),
-            snap: true,
+        let color = match class {
+            RuleClass::Background => palette.background.border,
+            RuleClass::Surface1 => palette.surface_1.border,
         };
 
-        match class {
-            RuleClass::Default => style,
+        Style {
+            color: color,
+            fill_mode: FillMode::Full,
+            radius: 0.0.into(),
+            snap: false,
         }
     }
 }

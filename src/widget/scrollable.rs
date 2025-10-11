@@ -1,6 +1,8 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
+//! TODO: DOC
+
 use iced::widget::scrollable::{Catalog, Rail, Scroller, Status, Style};
 use iced::widget::container::Style as ContainerStyle;
 
@@ -23,7 +25,7 @@ impl Catalog for Theme {
     // TODO: Need to fill out the style. This was added as a requirement of another widget and
     //       currently doesn't seem to effect anything being used.
     fn style(&self, _class: &Self::Class<'_>, _status: Status) -> Style {
-        let temporary: iced::Color = self.palette().maroon.into();
+        let temporary: iced::Color = crate::theme::palette::colors::TODO;
         Style {
             container: ContainerStyle::default(),
             vertical_rail: Rail {

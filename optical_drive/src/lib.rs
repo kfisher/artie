@@ -7,6 +7,9 @@
 #[cfg(target_os = "linux")]
 mod linux;
 
+#[cfg(feature = "faux_drives")]
+mod faux;
+
 /// Platform specific code.
 mod platform {
     #[cfg(target_os = "linux")]
@@ -46,6 +49,7 @@ pub enum Error {
 }
 
 /// Represents the state of the optical drive's disc.
+#[derive(Clone, Debug, PartialEq)]
 pub enum DiscState {
     /// No disc is inserted in the optical drive.
     None,
@@ -58,6 +62,7 @@ pub enum DiscState {
 }
 
 /// Represents an optical drive.
+#[derive(Clone, Debug, PartialEq)]
 pub struct OpticalDrive {
     /// The device path of the drive, such as "/dev/sr0".
     pub path: String,
@@ -79,5 +84,12 @@ pub struct OpticalDrive {
 /// number. Returns an error if something goes wrong when querying the operating
 /// system.
 pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
-    platform::get_optical_drive(serial_number)
+    let drive = platform::get_optical_drive(serial_number)?;
+
+    #[cfg(feature = "faux_drives")]
+    if drive.is_none() {
+        return faux::get_optical_drive(serial_number);
+    }
+
+    Ok(drive)
 }

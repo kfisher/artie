@@ -4,12 +4,33 @@
 use std::fmt::{Display, Formatter, Result as FormatResult};
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
+use copy_srv::CopyService;
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Result};
+use crate::error::{Error, Result, SerializationError};
 use crate::theme::Theme;
+
+/// Settings for a copy service instance.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct CopyServiceSettings {
+    /// The label for the service instance.
+    pub name: String,
+
+    /// The serial number of the drive.
+    pub serial_number: String,
+}
+
+impl CopyServiceSettings {
+    /// Creates a new [`CopyServiceSettings`] instance.
+    pub fn new(name: String, serial_number: String) -> Self {
+        Self {
+            name,
+            serial_number,
+        }
+    }
+}
 
 /// Represents the display scaling factor of the application.
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
@@ -19,8 +40,9 @@ impl ScaleFactor {
     /// All available scaling factors provided via the pick list.
     pub const OPTIONS: &'static [ScaleFactor] = &[
         ScaleFactor(1.0),
+        ScaleFactor(1.5),
         ScaleFactor(2.0),
-        ScaleFactor(3.0),
+        ScaleFactor(2.5),
     ];
 }
 
@@ -72,43 +94,68 @@ impl Default for GeneralSettings {
 pub struct Settings {
     /// General application settings.
     pub general: GeneralSettings,
+
+    /// List of configured copy service instances.
+    #[serde(default)]
+    pub copy_services: Vec<CopyServiceSettings>,
 }
 
 impl Settings {
     /// Loads settings stored in a TOML file at the provided path.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::FileIoError`] if the file cannot be read, or
+    /// - [`Error::SerializationError`] if the file's content cannot be deserialized.
     pub fn from_file(path: &Path) -> Result<Self> {
-        let contents = fs::read_to_string(path)?;
-        let settings: Settings = toml::from_str(&contents)?;
+        let contents = fs::read_to_string(path)
+            .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
+        let settings: Settings = toml::from_str(&contents)
+            .map_err(|error| Error::Serialization { 
+                path: Some(path.to_owned()),
+                error: SerializationError::TomlDeserialize(error),
+            })?;
         Ok(settings)
     }
 
     /// Saves the settings to the TOML file at the provided path.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::FileIoError`] if the file cannot be written to, or
+    /// - [`Error::SerializationError`] if the settings cannot be serialized.
     pub fn save(&self, path: &Path) -> Result<()> {
-        let toml_string = toml::to_string_pretty(self)?;
-        let mut file = fs::File::create(path)?;
-        file.write_all(toml_string.as_bytes())?;
+        let toml_string = toml::to_string_pretty(self)
+            .map_err(|error| Error::Serialization { 
+                path: Some(path.to_owned()),
+                error: SerializationError::TomlSerialize(error),
+            })?;
+        let mut file = fs::File::create(path)
+            .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
+        file.write_all(toml_string.as_bytes())
+            .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
         Ok(())
     }
-}
 
-/// Loads the settings from a TOML file.
-pub fn load() -> Result<Settings> {
-    // TODO: Don't hard-code. Should create an environment variable and then fallback to the
-    //       standard OS config location.
-    Settings::from_file(Path::new("artie.toml"))
-}
-
-/// Saves the settings to a TOML file.
-pub fn save(settings: &Settings) -> Result<()> {
-    // TODO: Don't hard-code. Should create an environment variable and then fallback to the
-    //       standard OS config location.
-    settings.save(Path::new("artie.toml"))
+    /// Updates the copy service settings based on the provided service instances.
+    ///
+    /// This will completely overwrite all existing copy service settings. It is also assumed that
+    /// the provided data is valid.
+    pub fn update_copy_services(&mut self, services: &[CopyService]) {
+        self.copy_services = services.iter()
+            .map(|service| CopyServiceSettings::new(
+                service.name().to_owned(),
+                service.serial_number().to_owned(),
+            ))
+            .collect();
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::env;
+    use std::path::PathBuf;
     use std::thread;
 
     pub struct TempFile(pub PathBuf);
@@ -148,6 +195,12 @@ mod tests {
                 scale_factor: ScaleFactor(1.5),
                 theme: Theme::Dark,
             },
+            copy_services: vec![
+                CopyServiceSettings::new(
+                    String::from("Test Service A"),
+                    String::from("TEST0001"),
+                ),
+            ],
         };
 
         settings.save(path.path()).unwrap();
@@ -156,5 +209,9 @@ mod tests {
 
         assert_eq!(settings.general.scale_factor.0, loaded_settings.general.scale_factor.0);
         assert_eq!(settings.general.theme, loaded_settings.general.theme);
+
+        // TODO: Missing Copy Service Settings Test
     }
+
+    // TODO: test update_copy_services
 }

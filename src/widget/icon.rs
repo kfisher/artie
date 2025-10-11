@@ -6,7 +6,9 @@
 // Copyright 2019 Héctor Ramón, Iced contributors
 // SPDX-License-Identifier: MIT
 
-use iced::{ContentFit, Length, Point, Rectangle, Rotation, Size, Vector};
+//! TODO: DOC
+
+use iced::{ContentFit, Degrees, Length, Point, Radians, Rectangle, Rotation, Size, Vector};
 use iced::advanced::layout::{Layout, Limits, Node};
 use iced::advanced::mouse::Cursor;
 use iced::advanced::renderer::Style;
@@ -78,6 +80,13 @@ impl Icon {
         T: Into<Length> + Copy
     {
         self.width = width.into();
+        self
+    }
+
+    /// Consumes the icon returning a modified version with the provided rotation.
+    pub fn rotation(mut self, degrees: f32) -> Self 
+    {
+        self.rotation = Rotation::Floating(Degrees(degrees).into());
         self
     }
 }
