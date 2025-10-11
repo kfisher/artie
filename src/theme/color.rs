@@ -5,6 +5,9 @@
 
 use iced::Color;
 
+/// Oklab color space representation of color.
+///
+/// See <https://en.wikipedia.org/wiki/Oklab_color_space> for additional information.
 pub struct Oklch {
     pub l: f32,
     pub c: f32,
@@ -12,6 +15,7 @@ pub struct Oklch {
     pub a: f32,
 }
 
+#[allow(dead_code)]
 impl Oklch {
     /// Create Oklch from sRGB Color
     fn from_rgb(color: &Color) -> Self {

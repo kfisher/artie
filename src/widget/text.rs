@@ -1,7 +1,7 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! TODO: DOC
+//! Text
 
 use std::borrow::Cow;
 
@@ -46,19 +46,6 @@ impl Catalog for Theme {
             },
         }
     }
-}
-
-/// Creates level 1 heading text.
-pub fn heading1<'a, T>(text: T) -> Text<'a, Theme> 
-where 
-    T: Into<Cow<'a, str>> + 'a
-{
-    Text::new(text.into())
-        .size(32)
-        .font(Font {
-            weight: Weight::Bold,
-            ..Font::default()
-        })
 }
 
 /// Creates level 2 heading text.

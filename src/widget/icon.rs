@@ -6,9 +6,9 @@
 // Copyright 2019 Héctor Ramón, Iced contributors
 // SPDX-License-Identifier: MIT
 
-//! TODO: DOC
+//! SVG Icons
 
-use iced::{ContentFit, Degrees, Length, Point, Radians, Rectangle, Rotation, Size, Vector};
+use iced::{ContentFit, Degrees, Length, Point, Rectangle, Rotation, Size, Vector};
 use iced::advanced::layout::{Layout, Limits, Node};
 use iced::advanced::mouse::Cursor;
 use iced::advanced::renderer::Style;

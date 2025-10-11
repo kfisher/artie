@@ -1,7 +1,7 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! TODO: DOC
+//! Text Input Control
 
 use iced::border::{Border, Radius};
 use iced::widget::text_input::{Catalog, Status, Style};

@@ -1,7 +1,7 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Animation widgets and utilities.
+//! Animations
 
 /// Animation for rotating an object.
 pub struct RotationAnimation {
@@ -30,16 +30,6 @@ impl RotationAnimation {
     pub fn tick(&mut self, delta_time: f32) {
         self.degrees += 360.0 * self.rotations_per_second * delta_time;
         self.degrees %= 360.0;
-    }
-
-    /// Enable the animation.
-    pub fn start(&mut self) {
-        self.enabled = true;
-    }
-
-    /// Disable the animation.
-    pub fn stop(&mut self) {
-        self.enabled = false;
     }
 }
 

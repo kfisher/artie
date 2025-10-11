@@ -1,7 +1,7 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! TODO: DOC
+//! Progress Bars
 
 use iced::border::{Border, Radius};
 use iced::widget::progress_bar::{Catalog, Style};

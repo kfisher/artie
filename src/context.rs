@@ -46,9 +46,9 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// - [`Error::FileIoError`] if the file cannot be read, or
+    /// - [`Error::FileIo`] if the file cannot be read, or
     /// - [`Error::FileNotFound`] if the file cannot be found, or
-    /// - [`Error::SerializationError`] if the file's content cannot be deserialized.
+    /// - [`Error::Serialization`] if the file's content cannot be deserialized.
     pub fn from_config() -> Result<Self> {
         let path = get_config_path();
 
@@ -80,8 +80,8 @@ impl Context {
     ///
     /// # Errors
     ///
-    /// - [`Error::FileIoError`] if the file cannot be written to, or
-    /// - [`Error::SerializationError`] if the settings could not be serialized.
+    /// - [`Error::FileIo`] if the file cannot be written to, or
+    /// - [`Error::Serialization`] if the settings could not be serialized.
     pub fn save_settings(&self) -> Result<()> {
         let path = get_config_path();
         self.settings.save(&path)

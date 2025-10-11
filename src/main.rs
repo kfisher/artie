@@ -12,7 +12,7 @@ mod widget;
 use std::time::{Duration, Instant};
 
 use iced::advanced::graphics::futures::event;
-use iced::{Alignment, Length, Subscription, Task};
+use iced::{Length, Subscription, Task};
 use iced::{self, Event};
 use iced::keyboard::Event as KeyboardEvent;
 use iced::keyboard::key::{self, Key};
@@ -238,7 +238,7 @@ impl Artie {
 
         if self.tick_enabled {
             subscriptions.push(
-                time::every(Duration::from_secs_f32(1.0 / 60.0)).map(|i| Message::Tick(i))
+                time::every(Duration::from_secs_f32(1.0 / 60.0)).map(Message::Tick)
             );
         }
 
@@ -319,9 +319,8 @@ impl Artie {
             Message::Tick(instant) => {
                 let delta_time = instant.duration_since(self.last_tick).as_secs_f32();
                 self.last_tick = instant;
-                match &mut self.screen {
-                    Screen::Copy(screen) => screen.tick(delta_time),
-                    _ => ()
+                if let Screen::Copy(screen) = &mut self.screen {
+                    screen.tick(delta_time);
                 }
                 Ok(Task::none())
             },

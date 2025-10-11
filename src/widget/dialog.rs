@@ -1,7 +1,7 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! TODO: DOC
+//! Dialog Windows
 
 use iced::Length;
 use iced::widget::{Column, MouseArea, Row, Space};
@@ -20,14 +20,6 @@ pub struct ConfirmDeleteDialog<T> {
 }
 
 impl<T> ConfirmDeleteDialog<T> {
-    /// Creates a new [`ConfirmDialog`] instance.
-    pub fn new(id: T, text: &str) -> Self {
-        Self {
-            id,
-            text: text.to_owned(),
-        }
-    }
-
     /// Generate the UI element for displaying the dialog content.
     pub fn view(&self, message: Message) -> Element<'_> {
         let header = Container::new(text::heading2("Are you sure?"))

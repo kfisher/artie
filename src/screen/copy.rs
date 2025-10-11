@@ -1,33 +1,19 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
+//! [`crate::Screen::Copy`] screen.
+
 mod drive;
 mod form;
 
-use std::borrow::Cow;
-
-use iced::advanced::Widget;
-use iced::{Alignment, Border, Length};
-use iced::font::{Family, Font, Style as FontStyle, Weight};
-use iced::widget::{Column, Row, Space};
-use iced::widget::container::Style as ContainerStyle;
+use iced::Alignment;
+use iced::widget::Column;
 
 use tracing::error;
 
-use copy_srv::{CopyService, State};
-
-use optical_drive::DiscState;
-
 use crate::Message;
 use crate::context::Context;
-use crate::theme::Theme;
-use crate::theme::palette::{ColorSet, Palette};
 use crate::widget::Element;
-use crate::widget::button::{Button, ButtonClass};
-use crate::widget::container::{Container, ContainerClass};
-use crate::widget::rule::{Rule, RuleClass};
-use crate::widget::text::{Text, TextClass};
-use crate::widget::icon::{self, IconClass};
 
 use drive::DriveComponent;
 use form::{CopyForm, MediaType};

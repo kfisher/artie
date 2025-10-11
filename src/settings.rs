@@ -1,6 +1,8 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
+//! Manages application settings.
+
 use std::fmt::{Display, Formatter, Result as FormatResult};
 use std::fs;
 use std::io::Write;
@@ -105,8 +107,8 @@ impl Settings {
     ///
     /// # Errors
     ///
-    /// - [`Error::FileIoError`] if the file cannot be read, or
-    /// - [`Error::SerializationError`] if the file's content cannot be deserialized.
+    /// - [`Error::FileIo`] if the file cannot be read, or
+    /// - [`Error::Serialization`] if the file's content cannot be deserialized.
     pub fn from_file(path: &Path) -> Result<Self> {
         let contents = fs::read_to_string(path)
             .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
@@ -122,8 +124,8 @@ impl Settings {
     ///
     /// # Errors
     ///
-    /// - [`Error::FileIoError`] if the file cannot be written to, or
-    /// - [`Error::SerializationError`] if the settings cannot be serialized.
+    /// - [`Error::FileIo`] if the file cannot be written to, or
+    /// - [`Error::Serialization`] if the settings cannot be serialized.
     pub fn save(&self, path: &Path) -> Result<()> {
         let toml_string = toml::to_string_pretty(self)
             .map_err(|error| Error::Serialization { 

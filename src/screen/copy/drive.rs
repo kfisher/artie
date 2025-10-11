@@ -5,26 +5,24 @@ use std::borrow::Cow;
 use std::time::Duration;
 
 use iced::{Alignment, Border, Length};
-use iced::font::{Family, Font, Style as FontStyle, Weight};
+use iced::font::{Family, Font, Weight};
 use iced::widget::{Column, Row, Space};
 use iced::widget::container::Style as ContainerStyle;
 
 use copy_srv::{CopyService, State};
 
-use optical_drive::{DiscState, OpticalDrive};
+use optical_drive::DiscState;
 
 use crate::Message;
-use crate::context::Context;
 use crate::theme::Theme;
-use crate::theme::palette::{ColorSet, Palette};
 use crate::widget::animation::RotationAnimation;
 use crate::widget::Element;
 use crate::widget::button::{Button, ButtonClass};
 use crate::widget::container::{Container, ContainerClass};
 use crate::widget::progress_bar::ProgressBar;
 use crate::widget::rule::{Rule, RuleClass};
-use crate::widget::text::{Text, TextClass};
-use crate::widget::icon::{self, IconClass};
+use crate::widget::text::Text;
+use crate::widget::icon::{self};
 
 use super::CopyScreenMessage;
 use super::form::CopyForm;
@@ -51,7 +49,7 @@ pub struct DriveComponent {
 }
 
 impl DriveComponent {
-    /// Creates a new [`DriveComponentState`] instance from a copy service.
+    /// Creates a new [`DriveComponent`] instance from a copy service.
     pub fn from_service(index: usize, service: &CopyService) -> Self {
         Self {
             serial_number: service.serial_number().to_owned(),
@@ -74,7 +72,17 @@ impl DriveComponent {
     }
 
     /// Generates the UI element for the drive component.
+    ///
+    /// # Panic 
+    ///
+    /// This will panic if the provided service's serial number does not match the serial number
+    /// stored in this component.
     pub fn view<'a>(&'a self, service: &'a CopyService) -> Element<'a> {
+        if self.serial_number != service.serial_number() {
+            // The screen's data has become out-of-sync with the service.
+            panic!("Serial number mismatch.")
+        }
+
         let mut content: Vec<Element<'_>> = Vec::with_capacity(5);
 
         match service.state() {

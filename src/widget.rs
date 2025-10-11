@@ -1,7 +1,10 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! TODO: DOC
+//! Common UI elements.
+//!
+//! In addition to defining some custom widgets, this also defines the styling for and re-exports
+//! the widgets provided by `iced`.
 
 pub mod animation;
 pub mod button;

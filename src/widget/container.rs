@@ -1,7 +1,7 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! TODO: DOC
+//! Containers
 
 use iced::Color;
 use iced::border::{Border, Radius};
@@ -14,7 +14,7 @@ pub use iced::widget::container::Container;
 /// The style classes used for the container widget.
 #[derive(Default)]
 pub enum ContainerClass {
-    // TODO: DOC
+    /// Container with background and text colors being set based on the accent color.
     Accent,
 
     /// Container with a background color.
@@ -24,7 +24,7 @@ pub enum ContainerClass {
     /// Custom container style.
     Custom(fn(&Theme) -> Style),
 
-    // TODO: DOC
+    /// Container with background and text colors being set based on the danger color.
     Danger,
 
     /// Transparent container with no borders.
@@ -37,22 +37,22 @@ pub enum ContainerClass {
     /// Container style for panels.
     Panel,
 
-    // TODO: DOC
+    /// Container with background and text colors being set based on the secondary color.
     Secondary,
 
-    // TODO: DOC
+    /// Container with background and text colors being set based on the success color.
     Success,
 
-    // TODO: DOC
+    /// Container with background and text colors being set based on the surface 0 color.
     Surface0,
 
-    // TODO: DOC
+    /// Container with background and text colors being set based on the surface 1 color.
     Surface1,
 
-    // TODO: DOC
+    /// Container with background and text colors being set based on the surface 2 color.
     Surface2,
 
-    // TODO: DOC
+    /// Container with background and text colors being set based on the surface 3 color.
     Surface3,
 
     /// Container used as a tooltip.

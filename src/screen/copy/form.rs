@@ -4,16 +4,12 @@
 use std::borrow::Cow;
 use std::fmt::{Display, Formatter, Result};
 
-use iced::{Alignment, Border, Length};
-use iced::font::{Family, Font, Style as FontStyle, Weight};
+use iced::font::{Font, Weight};
 use iced::widget::{Column, Row};
 
-use tracing::warn;
 
 use crate::Message;
 use crate::theme::Theme;
-use crate::widget::button::{Button, ButtonClass};
-use crate::widget::container::{Container, ContainerClass};
 use crate::widget::Element;
 use crate::widget::pick_list::PickList;
 use crate::widget::text::{Text, TextClass};
@@ -166,20 +162,16 @@ impl CopyForm {
         self.location.validate(|value| !value.trim().is_empty());
 
         self.release_year.validate(|value| {
-            if let Ok(year) = value.parse::<u16>() {
-                if (1000..=9999).contains(&year) {
-                    return true;
-                }
+            if let Ok(year) = value.parse::<u16>() && (1000..=9999).contains(&year) {
+                return true;
             }
 
             false
         });
 
         self.disc_number.validate(|value| {
-            if let Ok(disc_number) = value.parse::<u16>() {
-                if disc_number > 0 {
-                    return true;
-                }
+            if let Ok(disc_number) = value.parse::<u16>() && disc_number > 0 {
+                return true;
             }
 
             false
@@ -187,10 +179,8 @@ impl CopyForm {
 
         if self.media_type == MediaType::Show {
             self.season_number.validate(|value| {
-                if let Ok(season_number) = value.parse::<u16>() {
-                    if season_number > 0 {
-                        return true;
-                    }
+                if let Ok(season_number) = value.parse::<u16>() && season_number > 0 {
+                    return true;
                 }
 
                 false

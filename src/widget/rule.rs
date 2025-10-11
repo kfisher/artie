@@ -1,7 +1,7 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! TODO: DOC
+//! Horizontal/Vertical Rules
 
 use iced::widget::rule::{Catalog, FillMode, Style};
 
@@ -12,8 +12,11 @@ pub use iced::widget::rule::Rule;
 /// The style classes used for the horizontal and vertical line widgets.
 #[derive(Default)]
 pub enum RuleClass {
+    /// Color of rule will be based on the background palette color.
     #[default]
     Background,
+
+    /// Color of rule will be based on the surface 1 palette color.
     Surface1,
 }
 
@@ -33,7 +36,7 @@ impl Catalog for Theme {
         };
 
         Style {
-            color: color,
+            color,
             fill_mode: FillMode::Full,
             radius: 0.0.into(),
             snap: false,

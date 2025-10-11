@@ -1,6 +1,8 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
+//! Application color palette.
+
 use std::sync::LazyLock;
 
 use iced::Color;

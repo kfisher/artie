@@ -1,7 +1,7 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! TODO: DOC
+//! Scrollable Container
 
 use iced::widget::scrollable::{Catalog, Rail, Scroller, Status, Style};
 use iced::widget::container::Style as ContainerStyle;

@@ -1,8 +1,9 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-use std::fmt::{Display, Formatter, Result};
+//! Application theming.
 
+use std::fmt::{Display, Formatter, Result};
 
 use serde::{Deserialize, Serialize};
 

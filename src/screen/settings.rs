@@ -1,7 +1,7 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Screen for configuring the application.
+//! [`crate::Screen::Settings`] screen.
 
 use iced::{Alignment, Length};
 use iced::widget::{Column, Row, Space};
@@ -53,6 +53,7 @@ pub enum SettingsScreenMessage {
     },
 }
 
+/// Screen for configuring application settings.
 #[derive(Default)]
 pub struct SettingsScreen {
     /// Dialog used to confirm deletion of a copy service.
