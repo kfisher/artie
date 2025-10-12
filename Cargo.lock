@@ -1979,6 +1979,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "model"
+version = "0.1.0"
+
+[[package]]
 name = "naga"
 version = "26.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
