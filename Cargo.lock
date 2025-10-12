@@ -99,7 +99,9 @@ name = "artie"
 version = "0.1.0"
 dependencies = [
  "copy_srv",
+ "db",
  "iced",
+ "model",
  "optical_drive",
  "serde",
  "toml",

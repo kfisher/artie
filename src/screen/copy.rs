@@ -11,12 +11,14 @@ use iced::widget::Column;
 
 use tracing::error;
 
+use model::MediaType;
+
 use crate::Message;
 use crate::context::Context;
 use crate::widget::Element;
 
 use drive::DriveComponent;
-use form::{CopyForm, MediaType};
+use form::CopyForm;
 
 /// Messages specific to the settings screen.
 #[derive(Clone, Debug)]
