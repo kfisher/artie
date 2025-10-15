@@ -16,6 +16,7 @@ license = "GPL-3.0-only"
 version = "0.1.0"
 
 [workspace.dependencies]
+chrono = "0.4.42"
 rusqlite = { version = "0.37.0", features = ["bundled"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
