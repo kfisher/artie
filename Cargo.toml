@@ -7,7 +7,7 @@ version.workspace = true
 
 [workspace]
 resolver = "3"
-members = [ "copy_srv", "handbrake", "makemkv", "optical_drive" ]
+members = [ "copy_srv", "db", "handbrake", "makemkv", "model", "optical_drive" ]
 
 [workspace.package]
 authors = [ "Kevin Fisher" ]
@@ -16,11 +16,17 @@ license = "GPL-3.0-only"
 version = "0.1.0"
 
 [workspace.dependencies]
+blake3 = "1.8.2"
+chrono = "0.4.42"
+rusqlite = { version = "0.37.0", features = ["bundled"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
 toml = "0.9.7"
 tracing = "0.1"
 tracing-subscriber = "0.3"
+
+[dependencies.db]
+path = "./db"
 
 [dependencies.copy_srv]
 path = "./copy_srv"
@@ -29,6 +35,9 @@ path = "./copy_srv"
 git = "https://github.com/iced-rs/iced.git"
 rev = "ebe223cb5d9dfdd20e0978969807d6944d670742"
 features = ["advanced", "svg", "tokio"]
+
+[dependencies.model]
+path = "./model"
 
 [dependencies.optical_drive]
 path = "./optical_drive"

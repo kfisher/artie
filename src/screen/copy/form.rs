@@ -7,6 +7,7 @@ use std::fmt::{Display, Formatter, Result};
 use iced::font::{Font, Weight};
 use iced::widget::{Column, Row};
 
+use model::MediaType;
 
 use crate::Message;
 use crate::theme::Theme;
@@ -16,33 +17,6 @@ use crate::widget::text::{Text, TextClass};
 use crate::widget::text_input::{TextInput, TextInputClass};
 
 use super::CopyScreenMessage;
-
-/// Specifies the different types of media.
-///
-/// TODO: This needs to be moved.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub enum MediaType {
-    #[default]
-    Movie,
-    Show,
-}
-
-impl MediaType {
-    /// All available themes.
-    pub const ALL: &'static [Self] = &[
-        Self::Movie,
-        Self::Show,
-    ];
-}
-
-impl Display for MediaType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        match self {
-            MediaType::Movie => write!(f, "Movie"),
-            MediaType::Show => write!(f, "Show"),
-        }
-    }
-}
 
 /// Inputs for initiating a copy requests.
 #[derive(Default)]
