@@ -332,6 +332,64 @@ pub struct CopyOperation {
     pub videos: Option<Vec<Video>>,
 }
 
+impl Default for CopyOperation {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            started: DateTime::<Utc>::default(),
+            completed: DateTime::<Utc>::default(),
+            state: OperationState::Requested,
+            media_type: MediaType::Movie,
+            title: String::default(),
+            year: 0,
+            disc: 0,
+            disc_uuid: String::default(),
+            season: 0,
+            location: String::default(),
+            memo: String::default(),
+            metadata: String::default(),
+            drive: Reference {
+                id: 0,
+                value: None
+            },
+            info_log: String::default(),
+            copy_log: String::default(),
+            host: Reference {
+                id: 0,
+                value: None
+            },
+            titles: None,
+            videos: None,
+        }
+    }
+}
+
+/// The parameters for a copy operation.
+pub struct CopyParamaters {
+    /// The type of media being copied (Movie or TV Show).
+    pub media_type: MediaType,
+
+    /// The title of the show or movie.
+    pub title: String,
+
+    /// The release year of the movie or show (first season premier).
+    pub release_year: String,
+
+    /// The season of the show the title belongs to.
+    ///
+    /// This is only required for television shows. It will be ignored for movies.
+    pub season_number: u16,
+
+    /// Disc number.
+    pub disc_number: u16,
+
+    /// Location where the disc is stored.
+    pub location: String,
+
+    /// Additional information provided by the user.
+    pub memo: String,
+}
+
 /// Represents a specific computer an operation was performed on.
 pub struct Host {
     /// Unique id of the host (primary key).
