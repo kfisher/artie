@@ -8,3 +8,4 @@ version.workspace = true
 
 [dependencies]
 model = { path = "../model" }
+serde = { workspace = true }

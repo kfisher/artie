@@ -25,11 +25,14 @@ toml = "0.9.7"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 
+[dependencies.copy_srv]
+path = "./copy_srv"
+
 [dependencies.db]
 path = "./db"
 
-[dependencies.copy_srv]
-path = "./copy_srv"
+[dependencies.fs]
+path = "./fs"
 
 [dependencies.iced]
 git = "https://github.com/iced-rs/iced.git"

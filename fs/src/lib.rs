@@ -9,6 +9,8 @@
 use std::fs;
 use std::path::PathBuf;
 
+use serde::{Deserialize, Serialize};
+
 use model::{CopyOperation, MediaLocation};
 
 /// Result type for `fs` crate functions.
@@ -25,7 +27,7 @@ pub enum Error {
 }
 
 /// Container for root directory paths.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct FileSystem {
     settings: Settings,
 }
@@ -131,7 +133,7 @@ impl FileSystem {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Settings {
     /// Path to the media inbox directory.
     ///

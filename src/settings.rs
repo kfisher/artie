@@ -4,12 +4,12 @@
 //! Manages application settings.
 
 use std::fmt::{Display, Formatter, Result as FormatResult};
-use std::fs;
 use std::io::Write;
 use std::path::Path;
 
-use copy_srv::CopyService;
 use serde::{Deserialize, Serialize};
+
+use copy_srv::CopyService;
 
 use crate::error::{Error, Result, SerializationError};
 use crate::theme::Theme;
@@ -100,6 +100,10 @@ pub struct Settings {
     /// List of configured copy service instances.
     #[serde(default)]
     pub copy_services: Vec<CopyServiceSettings>,
+
+    /// File path settings for media locations.
+    #[serde(default)]
+    pub fs: fs::Settings,
 }
 
 impl Settings {
@@ -110,7 +114,7 @@ impl Settings {
     /// - [`Error::FileIo`] if the file cannot be read, or
     /// - [`Error::Serialization`] if the file's content cannot be deserialized.
     pub fn from_file(path: &Path) -> Result<Self> {
-        let contents = fs::read_to_string(path)
+        let contents = std::fs::read_to_string(path)
             .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
         let settings: Settings = toml::from_str(&contents)
             .map_err(|error| Error::Serialization { 
@@ -132,7 +136,7 @@ impl Settings {
                 path: Some(path.to_owned()),
                 error: SerializationError::TomlSerialize(error),
             })?;
-        let mut file = fs::File::create(path)
+        let mut file = std::fs::File::create(path)
             .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
         file.write_all(toml_string.as_bytes())
             .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
@@ -179,7 +183,7 @@ mod tests {
             if !p.exists() {
                 return
             }
-            let result = fs::remove_file(p);
+            let result = std::fs::remove_file(p);
             // Avoid panicking while panicking as this causes the process to immediately abort,
             // without displaying test results.
             if !thread::panicking() {
@@ -203,6 +207,12 @@ mod tests {
                     String::from("TEST0001"),
                 ),
             ],
+            fs: fs::Settings {
+                inbox: path.path().join("inbox"),
+                library: path.path().join("library"),
+                archive: path.path().join("archive"),
+                data: path.path().join("data"),
+            },
         };
 
         settings.save(path.path()).unwrap();

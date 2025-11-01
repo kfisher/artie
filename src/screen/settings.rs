@@ -3,6 +3,8 @@
 
 //! [`crate::Screen::Settings`] screen.
 
+use std::path::Path;
+
 use iced::{Alignment, Length};
 use iced::widget::{Column, Row, Space};
 
@@ -19,9 +21,9 @@ use crate::widget::button::{Button, ButtonClass};
 use crate::widget::container::{Container, ContainerClass};
 use crate::widget::dialog::ConfirmDeleteDialog;
 use crate::widget::pick_list::PickList;
-use crate::widget::rule::Rule;
+use crate::widget::rule::{Rule, RuleClass};
 use crate::widget::text;
-use crate::widget::text_input::TextInput;
+use crate::widget::text_input::{TextInput, TextInputClass};
 
 /// Messages specific to the settings screen.
 #[derive(Clone, Debug)]
@@ -157,8 +159,9 @@ impl SettingsScreen {
 
     /// Generates the UI element for displaying the screen.
     pub fn view(&self, ctx: &Context) -> Element<'_> {
-        let rows = Column::with_capacity(2)
+        let rows = Column::with_capacity(3)
             .push(self.appearance_view(ctx))
+            .push(self.path_view(ctx))
             .push(self.copy_service_view(ctx))
             .max_width(1080)
             .spacing(16);
@@ -211,11 +214,11 @@ impl SettingsScreen {
 
         let content = Column::with_capacity(6)
             .push(header)
-            .push(Rule::horizontal(1))
+            .push(Rule::horizontal(1).class(RuleClass::Surface1))
             .push(scale_factor)
-            .push(Rule::horizontal(1))
+            .push(Rule::horizontal(1).class(RuleClass::Surface1))
             .push(theme)
-            .push(Rule::horizontal(1));
+            .push(Rule::horizontal(1).class(RuleClass::Surface1));
 
         Container::new(content)
             .class(ContainerClass::Default)
@@ -265,7 +268,7 @@ impl SettingsScreen {
             .padding([8, 0]);
 
         for (index, service) in ctx.copy_services.iter().enumerate() {
-            rows.push(Rule::horizontal(1).into());
+            rows.push(Rule::horizontal(1).class(RuleClass::Surface1).into());
 
             let row = match &self.copy_service_form {
                 Some(form) => if form.index == index {
@@ -282,7 +285,7 @@ impl SettingsScreen {
         // Account for a new service being added.
         if let Some(form) = &self.copy_service_form && form.index >= ctx.copy_services.len() {
             if !ctx.copy_services.is_empty() {
-                rows.push(Rule::horizontal(1).into())
+                rows.push(Rule::horizontal(1).class(RuleClass::Surface1).into())
             }
 
             rows.push(form.view());
@@ -307,8 +310,68 @@ impl SettingsScreen {
         Column::with_capacity(4)
             .push(header)
             .push(content)
-            .push(Rule::horizontal(1))
+            .push(Rule::horizontal(1).class(RuleClass::Surface1))
             .push(controls)
+            .spacing(0)
+            .into()
+    }
+
+    /// Generates the UI element for displaying the section for the path (file system) settings.
+    fn path_view(&self, ctx: &Context) -> Element<'_> {
+        let header = Row::with_capacity(1)
+            .push(text::heading2("File Paths"))
+            .padding([8, 0]);
+
+        fn form_row<'a>(label: &'a str, value: &Path) -> Row<'a, crate::Message, Theme> 
+        {
+            let file_input = TextInput::new("", value.to_str().unwrap_or_default())
+                .class(TextInputClass::Default)
+                .line_height(iced::widget::text::LineHeight::Relative(1.45));
+
+            let file_dialog_button = Button::new(ButtonClass::Default)
+                .icon("fontawesome.v7.solid.ellipsis");
+
+            Row::with_capacity(2)
+                .push(text::label(label).width(124))
+                .push(file_input)
+                .push(file_dialog_button)
+                .align_y(Alignment::Center)
+                .width(Length::Fill)
+                .spacing(4)
+                .padding([8, 0])
+        }
+
+        let inbox_row = form_row(
+            "Media Inbox",
+            &ctx.settings.fs.inbox,
+        );
+
+        let library_row = form_row(
+            "Media Library",
+            &ctx.settings.fs.library,
+        );
+
+        let archive_row = form_row(
+            "Media Archive",
+            &ctx.settings.fs.archive,
+        );
+
+        let data_row = form_row(
+            "Data",
+            &ctx.settings.fs.data,
+        );
+
+        Column::with_capacity(10)
+            .push(header)
+            .push(Rule::horizontal(1).class(RuleClass::Surface1))
+            .push(inbox_row)
+            .push(Rule::horizontal(1).class(RuleClass::Surface1))
+            .push(library_row)
+            .push(Rule::horizontal(1).class(RuleClass::Surface1))
+            .push(archive_row)
+            .push(Rule::horizontal(1).class(RuleClass::Surface1))
+            .push(data_row)
+            .push(Rule::horizontal(1).class(RuleClass::Surface1))
             .spacing(0)
             .into()
     }

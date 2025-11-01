@@ -100,6 +100,7 @@ version = "0.1.0"
 dependencies = [
  "copy_srv",
  "db",
+ "fs",
  "iced",
  "model",
  "optical_drive",
@@ -1133,6 +1134,7 @@ name = "fs"
 version = "0.1.0"
 dependencies = [
  "model",
+ "serde",
 ]
 
 [[package]]
