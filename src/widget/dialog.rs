@@ -73,7 +73,7 @@ pub fn view<'a>(base: Element<'a>, content: Element<'a>) -> Element<'a>
         .center(Length::Fill);
 
     let dialog = widget::opaque(
-        MouseArea::new(dialog).on_press(Message::CloseDialog)
+        MouseArea::new(dialog)
     );
 
     Stack::new()

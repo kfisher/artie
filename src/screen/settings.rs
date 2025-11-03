@@ -80,6 +80,9 @@ pub struct SettingsScreen {
     /// Will only be `Some` while a copy service is being edited. Only once service can be edited
     /// at a time.
     copy_service_form: Option<CopyServiceForm>,
+
+    /// Indicates if the file dialog is open.
+    file_dialog_open: bool,
 }
 
 impl SettingsScreen {
@@ -88,6 +91,7 @@ impl SettingsScreen {
         Self {
             copy_service_dialog: None,
             copy_service_form: None,
+            file_dialog_open: false,
         }
     }
 
@@ -107,6 +111,10 @@ impl SettingsScreen {
     ///
     /// Will only return `Some` if the settings screen is displaying a dialog.
     pub fn dialog(&self) -> Option<Element<'_>> {
+        if self.file_dialog_open {
+            return Some(Container::new(Space::with_width(0)).into());
+        }
+
         self.copy_service_dialog.as_ref()
             .map(|dialog| dialog.view(Message::DeleteCopyService { index: dialog.id }))
     }
@@ -116,6 +124,7 @@ impl SettingsScreen {
     /// This will close any dialog this screen may have been opened without applying any changes.
     pub fn dialog_closed(&mut self) {
         self.copy_service_dialog = None;
+        self.file_dialog_open = false;
     }
 
     /// Processes a settings screen message.
@@ -173,45 +182,49 @@ impl SettingsScreen {
                 }
             },
             SettingsScreenMessage::OpenArchiveFileDialog => {
+                self.file_dialog_open = true;
                 return Task::perform(
                     open_folder_dialog(), 
                     |path| {
                         match path {
                             Some(path) => Message::SetMediaArchivePath { path },
-                            None => Message::Cancel,
+                            None => Message::CloseDialog,
                         }
                     }
                 );
             },
             SettingsScreenMessage::OpenDataFileDialog => {
+                self.file_dialog_open = true;
                 return Task::perform(
                     open_folder_dialog(), 
                     |path| {
                         match path {
                             Some(path) => Message::SetDataPath { path },
-                            None => Message::Cancel,
+                            None => Message::CloseDialog,
                         }
                     }
                 );
             },
             SettingsScreenMessage::OpenInboxFileDialog => {
+                self.file_dialog_open = true;
                 return Task::perform(
                     open_folder_dialog(), 
                     |path| {
                         match path {
                             Some(path) => Message::SetMediaInboxPath { path },
-                            None => Message::Cancel,
+                            None => Message::CloseDialog,
                         }
                     }
                 );
             },
             SettingsScreenMessage::OpenLibraryFileDialog => {
+                self.file_dialog_open = true;
                 return Task::perform(
                     open_folder_dialog(), 
                     |path| {
                         match path {
                             Some(path) => Message::SetMediaLibraryPath { path },
-                            None => Message::Cancel,
+                            None => Message::CloseDialog,
                         }
                     }
                 );

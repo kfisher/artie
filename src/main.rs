@@ -327,6 +327,7 @@ impl Artie {
             },
             Message::SetDataPath { path } => {
                 if self.context.settings.fs.data != path {
+                    self.close_dialog();
                     self.context.settings.fs.data = path;
                     self.context.save_settings().map(|_| Task::none())
                 } else {
@@ -335,6 +336,7 @@ impl Artie {
             },
             Message::SetMediaArchivePath { path } => {
                 if self.context.settings.fs.archive != path {
+                    self.close_dialog();
                     self.context.settings.fs.archive = path;
                     self.context.save_settings().map(|_| Task::none())
                 } else {
@@ -343,6 +345,7 @@ impl Artie {
             },
             Message::SetMediaInboxPath { path } => {
                 if self.context.settings.fs.inbox != path {
+                    self.close_dialog();
                     self.context.settings.fs.inbox = path;
                     self.context.save_settings().map(|_| Task::none())
                 } else {
@@ -351,6 +354,7 @@ impl Artie {
             },
             Message::SetMediaLibraryPath { path } => {
                 if self.context.settings.fs.library != path {
+                    self.close_dialog();
                     self.context.settings.fs.library = path;
                     self.context.save_settings().map(|_| Task::none())
                 } else {

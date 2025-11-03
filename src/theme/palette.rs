@@ -134,7 +134,7 @@ pub static DARK_PALETTE: LazyLock<Palette> = LazyLock::new(|| {
             border: colors::TODO,
             hover:  colors::TODO,
         },
-        modal: Color::from_rgba8(0x36, 0x41, 0x51, 0.90),
+        modal: Color::from_rgba8(0x00, 0x00, 0x00, 0.50),
     }
 });
 
