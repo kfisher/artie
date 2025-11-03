@@ -3,10 +3,12 @@
 
 //! [`crate::Screen::Settings`] screen.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use iced::{Alignment, Length};
+use iced::{Alignment, Length, Task};
 use iced::widget::{Column, Row, Space};
+
+use rfd::{AsyncFileDialog, FileDialog};
 
 use tracing::error;
 
@@ -53,6 +55,18 @@ pub enum SettingsScreenMessage {
     EditCopyServiceSerialNumberInput {
         text: String,
     },
+
+    /// Open the file dialog for selecting the archive directory.
+    OpenArchiveFileDialog,
+
+    /// Open the file dialog for selecting the data directory.
+    OpenDataFileDialog,
+
+    /// Open the file dialog for selecting the inbox directory.
+    OpenInboxFileDialog,
+
+    /// Open the file dialog for selecting the library directory.
+    OpenLibraryFileDialog,
 }
 
 /// Screen for configuring application settings.
@@ -105,7 +119,11 @@ impl SettingsScreen {
     }
 
     /// Processes a settings screen message.
-    pub fn process_message(&mut self, ctx: &Context, message: SettingsScreenMessage) {
+    pub fn process_message(
+        &mut self,
+        ctx: &Context,
+        message: SettingsScreenMessage
+    ) -> Task<Message> {
         match message {
             SettingsScreenMessage::AddCopyService => {
                 if self.copy_service_form.is_none() {
@@ -154,7 +172,53 @@ impl SettingsScreen {
                     error!("ignore EditCopyServiceSerialNumberInput - not editing");
                 }
             },
+            SettingsScreenMessage::OpenArchiveFileDialog => {
+                return Task::perform(
+                    open_folder_dialog(), 
+                    |path| {
+                        match path {
+                            Some(path) => Message::SetMediaArchivePath { path },
+                            None => Message::Cancel,
+                        }
+                    }
+                );
+            },
+            SettingsScreenMessage::OpenDataFileDialog => {
+                return Task::perform(
+                    open_folder_dialog(), 
+                    |path| {
+                        match path {
+                            Some(path) => Message::SetDataPath { path },
+                            None => Message::Cancel,
+                        }
+                    }
+                );
+            },
+            SettingsScreenMessage::OpenInboxFileDialog => {
+                return Task::perform(
+                    open_folder_dialog(), 
+                    |path| {
+                        match path {
+                            Some(path) => Message::SetMediaInboxPath { path },
+                            None => Message::Cancel,
+                        }
+                    }
+                );
+            },
+            SettingsScreenMessage::OpenLibraryFileDialog => {
+                return Task::perform(
+                    open_folder_dialog(), 
+                    |path| {
+                        match path {
+                            Some(path) => Message::SetMediaLibraryPath { path },
+                            None => Message::Cancel,
+                        }
+                    }
+                );
+            },
         }
+
+        Task::none()
     }
 
     /// Generates the UI element for displaying the screen.
@@ -322,14 +386,19 @@ impl SettingsScreen {
             .push(text::heading2("File Paths"))
             .padding([8, 0]);
 
-        fn form_row<'a>(label: &'a str, value: &Path) -> Row<'a, crate::Message, Theme> 
+        fn form_row<'a>(
+            label: &'a str,
+            value: &Path,
+            msg: SettingsScreenMessage
+        ) -> Row<'a, crate::Message, Theme> 
         {
             let file_input = TextInput::new("", value.to_str().unwrap_or_default())
                 .class(TextInputClass::Default)
                 .line_height(iced::widget::text::LineHeight::Relative(1.45));
 
             let file_dialog_button = Button::new(ButtonClass::Default)
-                .icon("fontawesome.v7.solid.ellipsis");
+                .icon("fontawesome.v7.solid.ellipsis")
+                .on_press(Message::SettingsScreen(msg));
 
             Row::with_capacity(2)
                 .push(text::label(label).width(124))
@@ -344,21 +413,25 @@ impl SettingsScreen {
         let inbox_row = form_row(
             "Media Inbox",
             &ctx.settings.fs.inbox,
+            SettingsScreenMessage::OpenInboxFileDialog,
         );
 
         let library_row = form_row(
             "Media Library",
             &ctx.settings.fs.library,
+            SettingsScreenMessage::OpenLibraryFileDialog,
         );
 
         let archive_row = form_row(
             "Media Archive",
             &ctx.settings.fs.archive,
+            SettingsScreenMessage::OpenArchiveFileDialog,
         );
 
         let data_row = form_row(
             "Data",
             &ctx.settings.fs.data,
+            SettingsScreenMessage::OpenDataFileDialog,
         );
 
         Column::with_capacity(10)
@@ -566,6 +639,15 @@ impl CopyServiceForm {
 
         self.can_apply = true;
     }
+}
+
+/// Opens a dialog for selecting a folder.
+async fn open_folder_dialog() -> Option<PathBuf> {
+    let file = AsyncFileDialog::new()
+        .pick_folder()
+        .await;
+
+    file.map(|handle| handle.path().to_owned())
 }
 
 // TESTING TODO:

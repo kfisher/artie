@@ -9,6 +9,7 @@ mod theme;
 mod widget;
 
 
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use iced::advanced::graphics::futures::event;
@@ -54,6 +55,13 @@ fn main() -> iced::Result {
 /// user interactions.
 #[derive(Clone, Debug)]
 pub enum Message {
+    /// Generic cancel message.
+    ///
+    /// Then this message is received, nothing will happen. This is mainly meant for async tasks
+    /// that are cancelled from within the task itself such as the user hitting cancel on the file
+    /// select dialog.
+    Cancel,
+
     /// Cancels an active copy operation.
     CancelCopyDisc {
         index: usize,
@@ -81,6 +89,26 @@ pub enum Message {
     /// Resets the copy service after a successful or failed copy operation.
     ResetCopyService {
         index: usize,
+    },
+
+    /// Sets the path to the data directory.
+    SetDataPath {
+        path: PathBuf,
+    },
+
+    /// Sets the path to the media archive directory.
+    SetMediaArchivePath {
+        path: PathBuf,
+    },
+
+    /// Sets the path to the media inbox directory.
+    SetMediaInboxPath {
+        path: PathBuf,
+    },
+
+    /// Sets the path to the media library directory.
+    SetMediaLibraryPath {
+        path: PathBuf,
     },
 
     /// Changes the application's scale factor.
@@ -148,7 +176,7 @@ impl Artie {
             last_tick: Instant::now(),
             tick_enabled: false,
         };
-        artie.show_copy_screen();
+        artie.show_settings_screen();
         artie
     }
 
@@ -263,6 +291,9 @@ impl Artie {
     fn update(&mut self, message: Message) -> Task<Message> {
         // TODO: Consider adding logging output to each branch.
         let task: Result<Task<Message>> = match message {
+            Message::Cancel => {
+                Ok(Task::none())
+            },
             Message::CancelCopyDisc { index } => {
                 tracing::info!(index=index, "cancel copy");
                 Ok(Task::none())
@@ -294,6 +325,38 @@ impl Artie {
                 tracing::info!(index=index, "reset copy service");
                 Ok(Task::none())
             },
+            Message::SetDataPath { path } => {
+                if self.context.settings.fs.data != path {
+                    self.context.settings.fs.data = path;
+                    self.context.save_settings().map(|_| Task::none())
+                } else {
+                    Ok(Task::none())
+                }
+            },
+            Message::SetMediaArchivePath { path } => {
+                if self.context.settings.fs.archive != path {
+                    self.context.settings.fs.archive = path;
+                    self.context.save_settings().map(|_| Task::none())
+                } else {
+                    Ok(Task::none())
+                }
+            },
+            Message::SetMediaInboxPath { path } => {
+                if self.context.settings.fs.inbox != path {
+                    self.context.settings.fs.inbox = path;
+                    self.context.save_settings().map(|_| Task::none())
+                } else {
+                    Ok(Task::none())
+                }
+            },
+            Message::SetMediaLibraryPath { path } => {
+                if self.context.settings.fs.library != path {
+                    self.context.settings.fs.library = path;
+                    self.context.save_settings().map(|_| Task::none())
+                } else {
+                    Ok(Task::none())
+                }
+            },
             Message::SetScaleFactor(factor) => {
                 if self.context.settings.general.scale_factor != factor {
                     self.context.settings.general.scale_factor = factor;
@@ -312,9 +375,10 @@ impl Artie {
             },
             Message::SettingsScreen(message) => {
                 if let Screen::Settings(screen) = &mut self.screen {
-                    screen.process_message(&self.context, message);
+                    Ok(screen.process_message(&self.context, message))
+                } else {
+                    Ok(Task::none())
                 }
-                Ok(Task::none())
             },
             Message::Tick(instant) => {
                 let delta_time = instant.duration_since(self.last_tick).as_secs_f32();
