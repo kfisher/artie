@@ -6,3 +6,6 @@ target/
 
 # Ignore the configuration file being used for initial development.
 artie.toml
+
+# Ignore data directories being used for initial development
+dev-fs/
