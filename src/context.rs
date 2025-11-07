@@ -6,6 +6,9 @@
 use std::path::PathBuf;
 
 use copy_srv::CopyService;
+
+use db::Database;
+
 use fs::FileSystem;
 
 use crate::error::{Error, Result};
@@ -25,6 +28,9 @@ pub struct Context {
     /// operations to copy titles from a disc.
     pub copy_services: Vec<CopyService>,
 
+    /// Interface to the database.
+    pub db: Database,
+
     /// Provides utilities for interfacing with the file system.
     pub fs: FileSystem,
 
@@ -40,6 +46,7 @@ impl Context {
     pub fn new() -> Self {
         Self {
             copy_services: Vec::new(),
+            db: Database::default(),
             fs: FileSystem::default(),
             settings: Settings::default(),
         }
@@ -93,11 +100,14 @@ impl Context {
                 .expect("Failed to create copy service!"))
             .collect();
 
-        let file_system = FileSystem::new(&settings.fs);
+        let fs = FileSystem::new(&settings.fs);
+
+        let db = Database::new(settings.fs.data.as_ref());
 
         let context = Self {
             copy_services,
-            fs: file_system,
+            db,
+            fs,
             settings,
         };
 

@@ -10,7 +10,7 @@ pub mod title;
 pub mod transcode_operation;
 pub mod video;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
 
@@ -50,46 +50,68 @@ pub enum Error {
 }
 
 /// Database configuration settings.
+#[derive(Clone, Default)]
 pub struct Settings {
     /// The path to the database file.
     ///
     /// A `None` value will result in the database being created in-memory.
-    pub path: Option<PathBuf>,
+    path: Option<PathBuf>,
 }
 
-/// Open a connection to the database.
-pub fn connect(settings: &Settings) -> Result<Connection> {
-    match settings.path.as_ref() {
-        Some(path) => Connection::open(path),
-        None => Connection::open_in_memory(),
-    }.map_err(|error| Error::Connect {
-        path: settings.path.clone(),
-        error 
-    })
+/// Provides the interface for connecting to and initializing the database.
+#[derive(Default)]
+pub struct Database {
+    /// Database connection and configuration settings.
+    settings: Settings,
 }
 
-/// Initializes the database. 
-pub fn init(settings: &Settings) -> Result<()> {
-    let span = tracing::info_span!("db_init");
-    let _guard = span.enter();
-
-    let mut run_migrations = true;
-
-    // If the path already exists, assume the database is already initialized. This will only work
-    // during initial development. Beyond that, we'll need to track versions.
-    if let Some(path) = settings.path.as_ref() && path.is_file() {
-        run_migrations = false;
+impl Database {
+    /// Create a new [`Database`] instance.
+    pub fn new(data_dir: &Path) -> Self {
+        Self {
+            settings: Settings {
+                path: Some(data_dir.join(DATABASE_NAME)),
+            }
+        }
     }
 
-    let conn = connect(settings)?;
-
-    if run_migrations {
-        migration_0(&conn)?;
+    /// Open a connection to the database.
+    pub fn connect(&self) -> Result<Connection> {
+        match self.settings.path.as_ref() {
+            Some(path) => Connection::open(path),
+            None => Connection::open_in_memory(),
+        }.map_err(|error| Error::Connect {
+            path: self.settings.path.clone(),
+            error 
+        })
     }
 
-    tracing::info!("database initialized");
-    Ok(())
+    /// Initializes the database. 
+    pub fn init(&self) -> Result<()> {
+        let span = tracing::info_span!("db_init");
+        let _guard = span.enter();
+
+        let mut run_migrations = true;
+
+        // If the path already exists, assume the database is already initialized. This will only work
+        // during initial development. Beyond that, we'll need to track versions.
+        if let Some(path) = self.settings.path.as_ref() && path.is_file() {
+            run_migrations = false;
+        }
+
+        let conn = self.connect()?;
+
+        if run_migrations {
+            migration_0(&conn)?;
+        }
+
+        tracing::info!("database initialized");
+        Ok(())
+    }
 }
+
+/// The name of the SQLite database file.
+const DATABASE_NAME: &str = "artie.db";
 
 /// Initializes the database schema.
 fn migration_0(conn: &Connection) -> Result<()> {
@@ -117,11 +139,8 @@ mod tests {
 
     #[test]
     fn test_init() {
-        let settings = Settings {
-            path: None,
-        };
-
-        let result = init(&settings);
+        let db = Database::default();
+        let result = db.init();
         assert!(result.is_ok());
     }
 }

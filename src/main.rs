@@ -176,7 +176,12 @@ impl Artie {
             last_tick: Instant::now(),
             tick_enabled: false,
         };
-        artie.show_settings_screen();
+
+        // TODO: is there a better way to handle this error?
+        artie.context.db.init().expect("Failed to initialize database");
+
+        artie.show_copy_screen();
+
         artie
     }
 

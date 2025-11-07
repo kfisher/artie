@@ -9,4 +9,5 @@ version.workspace = true
 [dependencies]
 rusqlite = { workspace = true }
 model = { path = "../model" }
+serde = { workspace = true }
 tracing = { workspace = true }
