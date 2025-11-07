@@ -5,6 +5,8 @@
 
 use std::path::PathBuf;
 
+use model::MediaLocation;
+
 /// Result type for the application.
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -27,6 +29,29 @@ pub enum Error {
     /// This may also be raised if the path is not a file or if the user does not have the required
     /// permissions to know of the file's existence.
     FileNotFound {
+        path: PathBuf,
+    },
+
+    /// Error raised when the path to the media archive directory does not exist or cannot be
+    /// accessed.
+    InvalidArchivePath {
+        path: PathBuf,
+    },
+
+    /// Error raised when the path to the data directory does not exist or cannot be accessed.
+    InvalidDataPath {
+        path: PathBuf,
+    },
+
+    /// Error raised when the path to the media inbox directory does not exist or cannot be
+    /// accessed.
+    InvalidInboxPath {
+        path: PathBuf,
+    },
+
+    /// Error raised when the path to the media library directory does not exist or cannot be
+    /// accessed.
+    InvalidLibraryPath {
         path: PathBuf,
     },
 

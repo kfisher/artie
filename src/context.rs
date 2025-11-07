@@ -6,6 +6,7 @@
 use std::path::PathBuf;
 
 use copy_srv::CopyService;
+use fs::FileSystem;
 
 use crate::error::{Error, Result};
 use crate::settings::Settings;
@@ -24,6 +25,9 @@ pub struct Context {
     /// operations to copy titles from a disc.
     pub copy_services: Vec<CopyService>,
 
+    /// Provides utilities for interfacing with the file system.
+    pub fs: FileSystem,
+
     /// The application settings.
     ///
     /// The application settings are saved to a TOML file. See [`get_config_path`] for more
@@ -36,6 +40,7 @@ impl Context {
     pub fn new() -> Self {
         Self {
             copy_services: Vec::new(),
+            fs: FileSystem::default(),
             settings: Settings::default(),
         }
     }
@@ -48,6 +53,13 @@ impl Context {
     ///
     /// - [`Error::FileIo`] if the file cannot be read, or
     /// - [`Error::FileNotFound`] if the file cannot be found, or
+    /// - [`Error::InvalidArchivePath`] if the media archive folder does not exist or cannot be 
+    ///   accessed, or
+    /// - [`Error::InvalidDataPath`] if the data folder does not exist or cannot be accessed, or
+    /// - [`Error::InvalidInboxPath`] if the media inbox folder does not exist or cannot be
+    ///   accessed, or
+    /// - [`Error::InvalidLibraryPath`] if the media library folder does not exist or cannot be
+    ///   accessed, or
     /// - [`Error::Serialization`] if the file's content cannot be deserialized.
     pub fn from_config() -> Result<Self> {
         let path = get_config_path();
@@ -58,6 +70,22 @@ impl Context {
 
         let settings = Settings::from_file(&path)?;
 
+        if !settings.fs.archive.is_dir() {
+            return Err(Error::InvalidArchivePath { path: settings.fs.archive.clone() });
+        }
+
+        if !settings.fs.data.is_dir() {
+            return Err(Error::InvalidDataPath { path: settings.fs.data.clone() });
+        }
+
+        if !settings.fs.inbox.is_dir() {
+            return Err(Error::InvalidInboxPath { path: settings.fs.inbox.clone() });
+        }
+
+        if !settings.fs.library.is_dir() {
+            return Err(Error::InvalidLibraryPath { path: settings.fs.library.clone() });
+        }
+
         let copy_services: Vec<CopyService> = settings.copy_services.iter()
             .map(|config| CopyService::new(&config.name, &config.serial_number)
                 // FIXME: Handle this error once the copy service can support having drives in a 
@@ -65,8 +93,11 @@ impl Context {
                 .expect("Failed to create copy service!"))
             .collect();
 
+        let file_system = FileSystem::new(&settings.fs);
+
         let context = Self {
             copy_services,
+            fs: file_system,
             settings,
         };
 

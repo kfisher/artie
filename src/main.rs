@@ -211,6 +211,13 @@ impl Artie {
         Ok(())
     }
 
+    /// Updates and saves the file system settings.
+    fn file_system_changed(&mut self) -> Result<()> {
+        self.context.settings.update_fs(&self.context.fs.settings);
+        self.context.save_settings()?;
+        Ok(())
+    }
+
     /// Handles keyboard events.
     ///
     /// - `Escape` Close the modal dialog.
@@ -328,8 +335,8 @@ impl Artie {
             Message::SetDataPath { path } => {
                 if self.context.settings.fs.data != path {
                     self.close_dialog();
-                    self.context.settings.fs.data = path;
-                    self.context.save_settings().map(|_| Task::none())
+                    self.context.fs.settings.data = path;
+                    self.file_system_changed().map(|_| Task::none())
                 } else {
                     Ok(Task::none())
                 }
@@ -337,8 +344,8 @@ impl Artie {
             Message::SetMediaArchivePath { path } => {
                 if self.context.settings.fs.archive != path {
                     self.close_dialog();
-                    self.context.settings.fs.archive = path;
-                    self.context.save_settings().map(|_| Task::none())
+                    self.context.fs.settings.archive = path;
+                    self.file_system_changed().map(|_| Task::none())
                 } else {
                     Ok(Task::none())
                 }
@@ -346,8 +353,8 @@ impl Artie {
             Message::SetMediaInboxPath { path } => {
                 if self.context.settings.fs.inbox != path {
                     self.close_dialog();
-                    self.context.settings.fs.inbox = path;
-                    self.context.save_settings().map(|_| Task::none())
+                    self.context.fs.settings.inbox = path;
+                    self.file_system_changed().map(|_| Task::none())
                 } else {
                     Ok(Task::none())
                 }
@@ -355,8 +362,8 @@ impl Artie {
             Message::SetMediaLibraryPath { path } => {
                 if self.context.settings.fs.library != path {
                     self.close_dialog();
-                    self.context.settings.fs.library = path;
-                    self.context.save_settings().map(|_| Task::none())
+                    self.context.fs.settings.library = path;
+                    self.file_system_changed().map(|_| Task::none())
                 } else {
                     Ok(Task::none())
                 }

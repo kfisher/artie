@@ -155,6 +155,11 @@ impl Settings {
             ))
             .collect();
     }
+
+    /// Updates the file system settings.
+    pub fn update_fs(&mut self, settings: &fs::Settings) {
+        self.fs = settings.clone();
+    }
 }
 
 #[cfg(test)]

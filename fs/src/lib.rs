@@ -27,16 +27,16 @@ pub enum Error {
 }
 
 /// Container for root directory paths.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct FileSystem {
-    settings: Settings,
+    pub settings: Settings,
 }
 
 impl FileSystem {
     /// Creates a [`FileSystem`] instance.
-    pub fn new(settings: Settings) -> Self {
+    pub fn new(settings: &Settings) -> Self {
         Self {
-            settings,
+            settings: settings.clone(),
         }
     }
 
@@ -206,7 +206,7 @@ mod tests {
             data: base.join("data"),
         };
 
-        let file_system = FileSystem::new(settings);
+        let file_system = FileSystem::new(&settings);
 
         if make_dirs {
             let result = file_system.make_dirs();
@@ -338,7 +338,7 @@ mod tests {
             data: base.join("data"),
         };
 
-        let file_system = FileSystem::new(settings);
+        let file_system = FileSystem::new(&settings);
 
         // This should fail because inbox is a file, not a directory
         let result = file_system.make_dirs();
