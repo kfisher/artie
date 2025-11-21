@@ -21,7 +21,13 @@ use iced::theme::Style;
 use iced::time;
 use iced::widget::{Column, Row, Space};
 
+use tracing::Level;
+use tracing_subscriber::Layer;
+use tracing_subscriber::filter::{self, Targets};
+use tracing_subscriber::prelude::*;
+
 use copy_srv::CopyService;
+use model::CopyParameters;
 
 use crate::error::{Error, Result};
 use crate::context::Context;
@@ -36,7 +42,22 @@ use crate::widget::container::{Container, ContainerClass};
 use crate::widget::dialog;
 
 fn main() -> iced::Result {
-    tracing_subscriber::fmt::init();
+
+    let filter = Targets::new()
+        .with_target("artie", Level::DEBUG)
+        .with_target("copy_srv", Level::DEBUG)
+        .with_target("db", Level::DEBUG)
+        .with_target("fs", Level::DEBUG)
+        .with_target("handbrake", Level::DEBUG)
+        .with_target("makemkv", Level::DEBUG)
+        .with_target("model", Level::DEBUG)
+        .with_target("optical_drive", Level::DEBUG);
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_filter(filter))
+        .init();
+
+    // tracing_subscriber::fmt::init();
 
     iced::application(Artie::new, Artie::update, Artie::view)
         .title("Artie")
@@ -73,6 +94,7 @@ pub enum Message {
     /// Message to initiate a copy operation.
     CopyDisc {
         index: usize,
+        params: CopyParameters,
     },
 
     /// Message specific to the copy screen only.
@@ -314,8 +336,10 @@ impl Artie {
                 self.close_dialog();
                 Ok(Task::none())
             },
-            Message::CopyDisc { index } => { 
-                tracing::info!(index=index, "copy disc");
+            Message::CopyDisc { index, params } => { 
+                let cs = &self.context.copy_services[index];
+                let ct = copy_srv::CancellationToken{};
+                cs.copy_disc(&params, &ct).expect("FAIL");
                 Ok(Task::none())
             },
             Message::CopyScreen(message) => {
@@ -415,7 +439,7 @@ impl Artie {
                         .and_then(|_| self.copy_service_changed())
                         .map(|_| Task::none())
                 } else {
-                    let service = CopyService::new(&name, &serial_number);
+                    let service = CopyService::new(&name, &serial_number, &self.context.db);
                     match service {
                         Ok(service) => {
                             self.context.copy_services.push(service);

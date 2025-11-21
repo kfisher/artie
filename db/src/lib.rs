@@ -50,7 +50,7 @@ pub enum Error {
 }
 
 /// Database configuration settings.
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Settings {
     /// The path to the database file.
     ///
@@ -59,7 +59,7 @@ pub struct Settings {
 }
 
 /// Provides the interface for connecting to and initializing the database.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Database {
     /// Database connection and configuration settings.
     settings: Settings,

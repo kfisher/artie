@@ -6,6 +6,9 @@
 //! This crate is used to perform file system operations related to managing media and data files
 //! that are generated when performing copy and transcode operations. 
 
+pub mod utils;
+
+
 use std::fs;
 use std::path::PathBuf;
 
@@ -158,43 +161,10 @@ pub struct Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
-    use std::path::{Path, PathBuf};
-    use std::thread;
+    use std::path::PathBuf;
 
     use model::MediaType;
-
-    pub struct TempFile(pub PathBuf);
-
-    impl TempFile {
-        fn new(file_name: &str) -> TempFile {
-            TempFile(env::temp_dir().join(file_name))
-        }
-
-        fn path(&self) -> &Path {
-            let TempFile(ref p) = *self;
-            p
-        }
-    }
-
-    impl Drop for TempFile {
-        fn drop(&mut self) {
-            let TempFile(ref p) = *self;
-            if !p.exists() {
-                return
-            }
-            let result = if p.is_dir() {
-                fs::remove_dir_all(p)
-            } else {
-                fs::remove_file(p)
-            };
-            // Avoid panicking while panicking as this causes the process to immediately abort,
-            // without displaying test results.
-            if !thread::panicking() {
-                result.unwrap();
-            }
-        }
-    }
+    use utils::TempFile;
 
     fn setup_file_system(temp: &TempFile, make_dirs: bool) -> FileSystem {
         let base = temp.path();

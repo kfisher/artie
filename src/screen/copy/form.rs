@@ -7,7 +7,7 @@ use std::fmt::{Display, Formatter, Result};
 use iced::font::{Font, Weight};
 use iced::widget::{Column, Row};
 
-use model::MediaType;
+use model::{CopyParameters, MediaType};
 
 use crate::Message;
 use crate::theme::Theme;
@@ -242,6 +242,35 @@ impl CopyForm {
             .padding(8)
             .spacing(8)
             .into()
+    }
+
+    /// Creates a [`CopyParameters`] instance based of the form's current values.
+    pub fn copy_parameters(&self) -> CopyParameters {
+        // NOTE: The following will panic if the conversions fail. This should be relatively safe
+        //       given how the form is hooked up and the fact that this should only ever be called
+        //       when the form is valid.
+
+        let year = self.release_year.value.parse::<u16>()
+            .expect("failed to convert year");
+
+        let disc = self.disc_number.value.parse::<u16>()
+            .expect("failed to convert disc number");
+
+        let season = match self.media_type {
+            MediaType::Show => self.season_number.value.parse::<u16>()
+                .expect("failed to convert season"),
+            _ => 0,
+        };
+
+        CopyParameters {
+            media_type: self.media_type,
+            title: self.title.value.clone(),
+            release_year: year,
+            season_number: season,
+            disc_number: disc,
+            location: self.location.value.clone(),
+            memo: self.memo.value.clone(),
+        }
     }
 }
 

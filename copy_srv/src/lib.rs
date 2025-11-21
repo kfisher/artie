@@ -3,7 +3,14 @@
 
 //! Crate that provides a service for copying titles from DVDs and Blu-rays.
 
+use std::rc::Rc;
 use std::time::Duration;
+
+use chrono::prelude::Utc;
+
+use db::Database;
+
+use model::{CopyOperation, CopyParameters, Reference};
 
 use optical_drive::{self, OpticalDrive};
 
@@ -13,13 +20,31 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Error type for `copy_srv` crate functions.
 #[derive(Debug)]
 pub enum Error {
-    // Error emitted when the copy service cannot not acquire the exclusive lock for a drive. 
+    /// Error emitted when interacting with the database fails.
+    DatabaseError {
+        error: db::Error,
+    },
+
+    /// Error emitted when the copy service cannot not acquire the exclusive lock for a drive. 
     DriveLocked,
 
-    // Error emitted when the copy service cannot find or get information about an optical drive.
+    /// Error emitted when the copy service cannot start a copy operation because the optical drive 
+    /// does not contain a disc.
+    EmptyOpticalDrive,
+
+    /// Error emitted when the copy service cannot find or get information about an optical drive.
     InvalidOpticalDrive {
         error: Option<optical_drive::Error>,
     },
+
+    /// Error emitted when attempting a copy operation with invalid parameters.
+    InvalidCopyParameters {
+        params: CopyParameters,
+    },
+
+    /// Error emitted when attempting a copy operation when the service is in an invalid state for 
+    /// starting a copy operation.
+    InvalidState,
 
     /// Error emitted when the copy service fails to complete an action because a copy operation
     /// is currently in progress.
@@ -73,10 +98,24 @@ impl State {
     }
 }
 
+/// Notifies a process that its operation should be cancelled.
+///
+/// **TODO** This currently isn't implemented. It just has the API for checking if a cancellation
+/// has been requested. It will also need to be moved to somewhere like the models library.
+pub struct CancellationToken {
+}
+
+impl CancellationToken {
+    /// Returns `true` if cancellation has been requested.
+    pub fn is_cancelled(&self) -> bool {
+        false
+    }
+}
+
 /// Service which handles copying titles from DVDs and Blu-rays discs.
 ///
 /// Each service instance will handling copying from an individual optical drive.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct CopyService {
     /// The label assigned to the copy service instance.
     name: String,
@@ -89,6 +128,9 @@ pub struct CopyService {
 
     /// The current state of the service.
     state: State,
+
+    /// Interface to the application's database.
+    db: Rc<Database>,
 }
 
 impl CopyService {
@@ -129,17 +171,82 @@ impl CopyService {
     ///
     /// [`Error::DriveLocked`] will be returned if another service instance already has the lock
     /// for the target drive.
-    pub fn new(name: &str, serial_number: &str) -> Result<Self> {
+    pub fn new(name: &str, serial_number: &str, db: &Rc<Database>) -> Result<Self> {
         let mut service = Self {
             name: name.to_owned(),
             serial_number: serial_number.to_owned(),
             drive: None,
             state: State::Disconnected,
+            db: db.clone(),
         };
 
         service.refresh_drive()?;
 
         Ok(service)
+    }
+
+    /// Copies a disc to the media inbox folder using the provided parameters.
+    ///
+    /// This is a very long running process, so it should not be run in the UI thread. To cancel
+    /// the operation, use the provided cancellation token.
+    pub fn copy_disc(&self, params: &CopyParameters, ct: &CancellationToken) -> Result<()> {
+        let span = tracing::info_span!("copy_disc", sn=self.serial_number());
+        let _guard = span.enter();
+
+        // TODO: Multi-Threaded Tracing
+        tracing::info!(sn=self.serial_number, params=?params, "started copy operation");
+
+        if !params.valid() {
+            tracing::error!(params=?params, "copy parameters are invalid");
+            return Err(Error::InvalidCopyParameters { params: params.clone() });
+        }
+
+        if self.state != State::Idle {
+            tracing::error!(state=?self.state, "invalid state");
+            return Err(Error::InvalidState);
+        }
+
+        let Some(drive) = self.drive.as_ref() else {
+            tracing::error!("missing optical drive info");
+            return Err(Error::InvalidOpticalDrive { error: None });
+        };
+
+        let optical_drive::DiscState::Inserted { label: _, uuid: disc_uuid } = &drive.disc else {
+            tracing::error!("missing optical drive disc info");
+            return Err(Error::EmptyOpticalDrive);
+        };
+
+        let conn = self.db.connect().map_err(|e| Error::DatabaseError { error: e })?;
+
+        let drive = db::optical_drive::get_or_create(&conn, &drive.serial_number)
+            .map_err(|e| Error::DatabaseError { error: e })?;
+
+        let host = db::host::get_or_create(&conn, &get_hostname())
+            .map_err(|e| Error::DatabaseError { error: e })?;
+
+        let mut copy_operation = CopyOperation {
+            started: Utc::now(),
+            disc_uuid: disc_uuid.clone(),
+            drive: Reference { id: drive.id, value: None },
+            host: Reference { id: host.id, value: None },
+            ..CopyOperation::from_params(params)
+        };
+
+        db::copy_operation::create(&conn, &mut copy_operation)
+            .map_err(|e| Error::DatabaseError { error: e })?;
+
+        // Don't check for cancellation until now because we want there to be a database entry.
+        if ct.is_cancelled() {
+            // TODO: Update database.
+            return Ok(());
+        }
+
+        // TODO: MakeMKV
+        //       - SUCCESS - Update DB 
+        //                 - Process Messages
+        //       - FAIL    - Update DB
+
+        Ok(())
     }
 
     /// Updates the copy service configuration.
@@ -200,10 +307,21 @@ impl CopyService {
     }
 }
 
+/// Returns the hostname of the system.
+fn get_hostname() -> String {
+    // Don't expect a computer's hostname to contain invalid unicode characters. If it does, then 
+    // something likely went very wrong with fetching the hostname to the point where we would 
+    // prefer an application crash anyways. 
+    gethostname::gethostname()
+        .into_string()
+        .unwrap()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    use fs::utils::TempFile;
     use optical_drive::{DiscState, OpticalDrive};
 
     // NOTE: The following depends on the 'faux_drives' feature being enabled for the optical_drive
@@ -232,9 +350,12 @@ mod tests {
     }
 
     #[test]
-    fn copy_service_new() {
+    fn test_copy_service_new() {
+        let temp_dir = TempFile::new("artie.copy_srv.test_copy_service_new");
+        let db = Rc::new(Database::new(temp_dir.path()));
+
         // FAUX0000 doesn't exist, so the service should initialize
-        let service = CopyService::new("TestDrive", "FAUX0000")
+        let service = CopyService::new("TestDrive", "FAUX0000", &db)
             .expect("Unexpected error when creating copy service");
 
         assert_eq!(service.name(), "TestDrive");
@@ -243,7 +364,7 @@ mod tests {
         assert_eq!(service.state(), &State::Disconnected);
 
         // FAUX0001 is an empty drive.
-        let service = CopyService::new("TestDrive", "FAUX0001")
+        let service = CopyService::new("TestDrive", "FAUX0001", &db)
             .expect("Unexpected error when creating copy service");
 
         assert_eq!(service.name(), "TestDrive");
@@ -252,7 +373,7 @@ mod tests {
         assert_eq!(service.state(), &State::Idle);
 
         // FAUX0002 has a disc inserted.
-        let service = CopyService::new("TestDrive", "FAUX0002")
+        let service = CopyService::new("TestDrive", "FAUX0002", &db)
             .expect("Unexpected error when creating copy service");
 
         assert_eq!(service.name(), "TestDrive");
@@ -263,7 +384,10 @@ mod tests {
 
     #[test]
     fn copy_service_update() {
-        let mut service = CopyService::new("TestDrive 0", "FAUX0000")
+        let temp_dir = TempFile::new("artie.copy_srv.test_copy_service_new");
+        let db = Rc::new(Database::new(temp_dir.path()));
+
+        let mut service = CopyService::new("TestDrive 0", "FAUX0000", &db)
             .expect("Unexpected error when creating copy service");
 
         service.update_config("TestDrive 1", "FAUX0001")

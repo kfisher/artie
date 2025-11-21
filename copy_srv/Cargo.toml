@@ -6,8 +6,26 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[dependencies.chrono]
+workspace = true
+
+[dependencies.db]
+path = "../db"
+
+[dependencies.gethostname]
+workspace = true
+
+[dependencies.fs]
+path = "../fs"
+
+[dependencies.model]
+path = "../model"
+
 [dependencies.optical_drive]
 path = "../optical_drive"
+
+[dependencies.tracing]
+workspace = true
 
 [dev-dependencies.optical_drive]
 path = "../optical_drive"

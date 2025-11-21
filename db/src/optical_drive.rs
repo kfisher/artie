@@ -10,8 +10,17 @@ use model::OpticalDrive;
 use crate::{Error, Operation, Result};
 
 
+/// Gets an [`OpticalDrive`] from the database using its serial number if it exists or creates a 
+/// new instance if it does not exist.
+pub fn get_or_create(conn: &Connection, serial_number: &str) -> Result<OpticalDrive> {
+    match get_by_serial_number(conn, serial_number)? {
+        Some(drive) => Ok(drive),
+        None => create(conn, serial_number),
+    }
+}
+
 /// Creates a new [`OpticalDrive`] instance in the database.
-pub fn create(conn: &Connection, serial_number: &str) -> Result<OpticalDrive> {
+pub(crate) fn create(conn: &Connection, serial_number: &str) -> Result<OpticalDrive> {
     if serial_number.trim().is_empty() {
         return Err(Error::EmptyString { arg: String::from("serial_number") });
     }
@@ -37,12 +46,12 @@ pub fn create(conn: &Connection, serial_number: &str) -> Result<OpticalDrive> {
         serial_number: serial_number.to_owned(),
     };
 
-    tracing::info!(id=id, serial_number=serial_number, "create optical_drive entry");
+    tracing::info!(id=id, "create optical_drive entry");
     Ok(drive)
 }
 
 /// Gets an [`OpticalDrive`] from the database using its serial number if it exists.
-pub fn get_by_serial_number(
+pub(crate) fn get_by_serial_number(
     conn: &Connection,
     serial_number: &str
 ) -> Result<Option<OpticalDrive>> {
@@ -69,15 +78,6 @@ pub fn get_by_serial_number(
     })?;
 
     Ok(drive)
-}
-
-/// Gets an [`OpticalDrive`] from the database using its serial number if it exists or creates a 
-/// new instance if it does not exist.
-pub fn get_or_create(conn: &Connection, serial_number: &str) -> Result<OpticalDrive> {
-    match get_by_serial_number(conn, serial_number)? {
-        Some(drive) => Ok(drive),
-        None => create(conn, serial_number),
-    }
 }
 
 /// Creates the database table for storing optical drive data if it does not exist.

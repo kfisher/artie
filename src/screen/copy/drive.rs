@@ -11,6 +11,7 @@ use iced::widget::container::Style as ContainerStyle;
 
 use copy_srv::{CopyService, State};
 
+use model::CopyParameters;
 use optical_drive::DiscState;
 
 use crate::Message;
@@ -433,7 +434,12 @@ fn idle_header<'a>(component: &'a DriveComponent, service: &'a CopyService) -> E
     }
 
     let message = if component.form.valid() {
-        Some(Message::CopyDisc { index: component.index })
+        Some(
+            Message::CopyDisc { 
+                index: component.index,
+                params: component.form.copy_parameters(),
+            }
+        )
     } else {
         None
     };
