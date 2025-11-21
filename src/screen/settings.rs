@@ -238,8 +238,11 @@ impl SettingsScreen {
     pub fn view(&self, ctx: &Context) -> Element<'_> {
         let rows = Column::with_capacity(3)
             .push(self.appearance_view(ctx))
-            .push(self.path_view(ctx))
-            .push(self.copy_service_view(ctx))
+            // TODO: The following will need gaurds against making modifications while a copy or
+            //       transcode operations being performed. Can get by modifying the config file 
+            //       for development.
+            // .push(self.path_view(ctx))
+            // .push(self.copy_service_view(ctx))
             .max_width(1080)
             .spacing(16);
 

@@ -24,6 +24,12 @@ path = "../model"
 [dependencies.optical_drive]
 path = "../optical_drive"
 
+[dependencies.makemkv]
+path = "../makemkv"
+
+[dependencies.tokio]
+workspace = true
+
 [dependencies.tracing]
 workspace = true
 

@@ -673,8 +673,10 @@ dependencies = [
  "db",
  "fs",
  "gethostname",
+ "makemkv",
  "model",
  "optical_drive",
+ "tokio",
  "tracing",
 ]
 

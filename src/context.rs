@@ -33,7 +33,7 @@ pub struct Context {
     pub db: Rc<Database>,
 
     /// Provides utilities for interfacing with the file system.
-    pub fs: FileSystem,
+    pub fs: Rc<FileSystem>,
 
     /// The application settings.
     ///
@@ -48,7 +48,7 @@ impl Context {
         Self {
             copy_services: Vec::new(),
             db: Rc::new(Database::default()),
-            fs: FileSystem::default(),
+            fs: Rc::new(FileSystem::default()),
             settings: Settings::default(),
         }
     }
@@ -94,12 +94,12 @@ impl Context {
             return Err(Error::InvalidLibraryPath { path: settings.fs.library.clone() });
         }
 
-        let fs = FileSystem::new(&settings.fs);
+        let fs = Rc::new(FileSystem::new(&settings.fs));
 
         let db = Rc::new(Database::new(settings.fs.data.as_ref()));
 
         let copy_services: Vec<CopyService> = settings.copy_services.iter()
-            .map(|config| CopyService::new(&config.name, &config.serial_number, &db)
+            .map(|config| CopyService::new(&config.name, &config.serial_number, &fs, &db)
                 // FIXME: Handle this error once the copy service can support having drives in a 
                 //        disconnected state.
                 .expect("Failed to create copy service!"))

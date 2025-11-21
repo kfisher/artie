@@ -16,6 +16,12 @@ use serde::{Deserialize, Serialize};
 
 use model::{CopyOperation, MediaLocation};
 
+/// Name of the file that is used to log MakeMKV output when running the info command.
+pub const MAKEMKV_INFO_LOG_FILENAME: &str = "makemkv-info.log";
+
+/// Name of the file that is used to log MakeMKV output when running the copy (mkv) command.
+pub const MAKEMKV_COPY_LOG_FILENAME: &str = "makemkv-copy.log";
+
 /// Result type for `fs` crate functions.
 pub type Result<T> = std::result::Result<T, Error>;
 

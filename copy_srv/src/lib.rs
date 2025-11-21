@@ -3,16 +3,24 @@
 
 //! Crate that provides a service for copying titles from DVDs and Blu-rays.
 
-use std::rc::Rc;
+pub mod actor;
+
+
+use std::{path::PathBuf, rc::Rc};
 use std::time::Duration;
 
 use chrono::prelude::Utc;
 
+use fs::FileSystem;
+
 use db::Database;
+
+use makemkv::Observe;
 
 use model::{CopyOperation, CopyParameters, Reference};
 
 use optical_drive::{self, OpticalDrive};
+
 
 /// Result type for the `copy_srv` crate functions.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -32,6 +40,12 @@ pub enum Error {
     /// does not contain a disc.
     EmptyOpticalDrive,
 
+    /// Error emitted when the copy service cannot start a copy operation because the inbox folder
+    /// already exists.
+    InboxFolderAlreadyExists {
+        path: PathBuf,
+    },
+
     /// Error emitted when the copy service cannot find or get information about an optical drive.
     InvalidOpticalDrive {
         error: Option<optical_drive::Error>,
@@ -45,6 +59,12 @@ pub enum Error {
     /// Error emitted when attempting a copy operation when the service is in an invalid state for 
     /// starting a copy operation.
     InvalidState,
+
+    /// Error emitted when an I/O operation on a file or directory fails.
+    IoFile {
+        error: std::io::Error,
+        path: PathBuf,
+    },
 
     /// Error emitted when the copy service fails to complete an action because a copy operation
     /// is currently in progress.
@@ -129,6 +149,9 @@ pub struct CopyService {
     /// The current state of the service.
     state: State,
 
+    /// Provides utilities for interfacing with the file system.
+    fs: Rc<FileSystem>,
+
     /// Interface to the application's database.
     db: Rc<Database>,
 }
@@ -171,12 +194,18 @@ impl CopyService {
     ///
     /// [`Error::DriveLocked`] will be returned if another service instance already has the lock
     /// for the target drive.
-    pub fn new(name: &str, serial_number: &str, db: &Rc<Database>) -> Result<Self> {
+    pub fn new(
+        name: &str,
+        serial_number: &str,
+        fs: &Rc<FileSystem>,
+        db: &Rc<Database>
+    ) -> Result<Self> {
         let mut service = Self {
             name: name.to_owned(),
             serial_number: serial_number.to_owned(),
             drive: None,
             state: State::Disconnected,
+            fs: fs.clone(),
             db: db.clone(),
         };
 
@@ -187,8 +216,12 @@ impl CopyService {
 
     /// Copies a disc to the media inbox folder using the provided parameters.
     ///
-    /// This is a very long running process, so it should not be run in the UI thread. To cancel
-    /// the operation, use the provided cancellation token.
+    /// <div class="warning">
+    ///
+    /// Calling this function will block until the command completes. This can take a long time
+    /// depending on the options and the system its being run on.
+    ///
+    /// </div>
     pub fn copy_disc(&self, params: &CopyParameters, ct: &CancellationToken) -> Result<()> {
         let span = tracing::info_span!("copy_disc", sn=self.serial_number());
         let _guard = span.enter();
@@ -240,6 +273,33 @@ impl CopyService {
             // TODO: Update database.
             return Ok(());
         }
+
+        let inbox_folder = self.fs.inbox_folder(&copy_operation);
+
+        // The folder name should almost guaranteed to be unique. Even so, if it does, exit because
+        // something has gone wrong so we don't override stuff we don't intend to.
+        if inbox_folder.exists() {
+            return Err(Error::InboxFolderAlreadyExists { path: inbox_folder.clone() });
+        }
+
+        std::fs::create_dir(&inbox_folder)
+            .map_err(|e| Error::IoFile { error: e, path: inbox_folder.to_owned() })?;
+
+        tracing::info!(path=?inbox_folder, "created inbox folder");
+        
+        let _log_path = inbox_folder.join(fs::MAKEMKV_INFO_LOG_FILENAME);
+
+        let mut _observer = CopyObserver{};
+
+        // TODO: Add tracing to underlying makemkv library.
+
+        // TODO: Pass cancellation token and integrate with makemkv library.
+
+        // let (_exit_status, _disc_info) = makemkv::get_disc_info(
+        //     &self.drive.as_ref().unwrap().path,
+        //     &mut observer,
+        //     &log_path
+        // ).unwrap();
 
         // TODO: MakeMKV
         //       - SUCCESS - Update DB 
@@ -317,10 +377,17 @@ fn get_hostname() -> String {
         .unwrap()
 }
 
+struct CopyObserver {
+}
+
+impl Observe for CopyObserver {
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    use fs::Settings;
     use fs::utils::TempFile;
     use optical_drive::{DiscState, OpticalDrive};
 
@@ -349,13 +416,35 @@ mod tests {
         }
     }
 
+    fn setup_file_system(temp: &TempFile, make_dirs: bool) -> Rc<FileSystem> {
+        let base = temp.path();
+
+        let settings = Settings {
+            inbox: base.join("inbox"),
+            library: base.join("library"),
+            archive: base.join("archive"),
+            data: base.join("data"),
+        };
+
+        let file_system = Rc::new(FileSystem::new(&settings));
+
+        if make_dirs {
+            let result = file_system.make_dirs();
+            assert!(result.is_ok());
+        }
+
+        file_system
+    }
+
     #[test]
     fn test_copy_service_new() {
         let temp_dir = TempFile::new("artie.copy_srv.test_copy_service_new");
-        let db = Rc::new(Database::new(temp_dir.path()));
+
+        let fs = setup_file_system(&temp_dir, true);
+        let db = Rc::new(Database::new(&fs.settings.data));
 
         // FAUX0000 doesn't exist, so the service should initialize
-        let service = CopyService::new("TestDrive", "FAUX0000", &db)
+        let service = CopyService::new("TestDrive", "FAUX0000", &fs, &db)
             .expect("Unexpected error when creating copy service");
 
         assert_eq!(service.name(), "TestDrive");
@@ -364,7 +453,7 @@ mod tests {
         assert_eq!(service.state(), &State::Disconnected);
 
         // FAUX0001 is an empty drive.
-        let service = CopyService::new("TestDrive", "FAUX0001", &db)
+        let service = CopyService::new("TestDrive", "FAUX0001", &fs, &db)
             .expect("Unexpected error when creating copy service");
 
         assert_eq!(service.name(), "TestDrive");
@@ -373,7 +462,7 @@ mod tests {
         assert_eq!(service.state(), &State::Idle);
 
         // FAUX0002 has a disc inserted.
-        let service = CopyService::new("TestDrive", "FAUX0002", &db)
+        let service = CopyService::new("TestDrive", "FAUX0002", &fs, &db)
             .expect("Unexpected error when creating copy service");
 
         assert_eq!(service.name(), "TestDrive");
@@ -384,10 +473,12 @@ mod tests {
 
     #[test]
     fn copy_service_update() {
-        let temp_dir = TempFile::new("artie.copy_srv.test_copy_service_new");
-        let db = Rc::new(Database::new(temp_dir.path()));
+        let temp_dir = TempFile::new("artie.copy_srv.copy_service_update");
 
-        let mut service = CopyService::new("TestDrive 0", "FAUX0000", &db)
+        let fs = setup_file_system(&temp_dir, true);
+        let db = Rc::new(Database::new(&fs.settings.data));
+
+        let mut service = CopyService::new("TestDrive 0", "FAUX0000", &fs, &db)
             .expect("Unexpected error when creating copy service");
 
         service.update_config("TestDrive 1", "FAUX0001")
@@ -414,5 +505,7 @@ mod tests {
 
     // TODO: Need to verify that attempting to update the service while a copy operation is in 
     //       progress correctly fails.
+
+    // TODO: Need to test copy operation.
 }
 
