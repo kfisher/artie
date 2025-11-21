@@ -669,7 +669,13 @@ checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
 name = "copy_srv"
 version = "0.1.0"
 dependencies = [
+ "chrono",
+ "db",
+ "fs",
+ "gethostname",
+ "model",
  "optical_drive",
+ "tracing",
 ]
 
 [[package]]
@@ -1286,12 +1292,12 @@ dependencies = [
 
 [[package]]
 name = "gethostname"
-version = "1.0.2"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc257fdb4038301ce4b9cd1b3b51704509692bb3ff716a410cbd07925d9dae55"
+checksum = "1bd49230192a3797a9a4d6abe9b3eed6f7fa4c8a8a4947977c6f80025f92cbd8"
 dependencies = [
  "rustix 1.0.8",
- "windows-targets 0.52.6",
+ "windows-link 0.2.1",
 ]
 
 [[package]]
