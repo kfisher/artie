@@ -27,6 +27,16 @@ static FAUX_DRIVES: LazyLock<Vec<OpticalDrive>> = LazyLock::new(|| {
     ]
 });
 
+/// Gets the optical drive information for all available optical drives.
+///
+/// This is a fake implementation only meant for development and testing where the development
+/// system may not have optical drives or when it might not be desireable to use actual drives
+/// such as automated tests.
+pub fn get_optical_drives() -> Vec<OpticalDrive> {
+    let drives = &*FAUX_DRIVES;
+    drives.clone()
+}
+
 /// Gets the optical drive information for an optical drive with serial number
 /// `serial_number`.
 ///
@@ -34,14 +44,16 @@ static FAUX_DRIVES: LazyLock<Vec<OpticalDrive>> = LazyLock::new(|| {
 /// number. Returns an error if something goes wrong when querying the operating
 /// system.
 ///
-/// This is the Linux specific implementation.
-pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
+/// This is a fake implementation only meant for development and testing where the development
+/// system may not have optical drives or when it might not be desireable to use actual drives
+/// such as automated tests.
+pub fn get_optical_drive(serial_number: &str) -> Option<OpticalDrive> {
     for drive in &*FAUX_DRIVES {
         if drive.serial_number == serial_number {
-            return Ok(Some(drive.clone()));
+            return Some(drive.clone());
         }
     }
 
-    Ok(None)
+    None
 }
 

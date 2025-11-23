@@ -12,6 +12,23 @@ use crate::error;
 
 use super::{DiscState, OpticalDrive};
 
+/// Gets the optical drive information for all available optical drives.
+///
+/// This is the Linux specific implementation.
+pub fn get_optical_drives() -> Result<Vec<OpticalDrive>> {
+    get_optical_drives_impl(run_lsblk_command)
+}
+
+/// Gets the optical drive information for an optical drive with serial number `serial_number`.
+///
+/// Returns `None` if an optical drive cannot be found with the provided serial number. Returns an
+/// error if something goes wrong when querying the operating system.
+///
+/// This is the Linux specific implementation.
+pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
+    get_optical_drive_impl(serial_number, run_lsblk_command)
+}
+
 /// Represents the information returned by the `lsblk` command for an individual
 /// block device.
 #[derive(Debug, Deserialize)]
@@ -129,19 +146,32 @@ fn run_lsblk_command() -> Result<String> {
     String::from_utf8(output.stdout).map_err(|e| Error::ConversionError { error: e })
 }
 
-// NOTE: The internal implementation allows for the bulk of the function to be
-//       tested without having to make an actual call to the OS.
+// NOTE: The internal implementations allows for the bulk of the function to be tested without
+//       having to make an actual call to the OS.
+
+/// Internal implementation of [`get_optical_drives`].
+fn get_optical_drives_impl<F>(run_cmd: F) -> Result<Vec<OpticalDrive>> 
+where 
+    F: Fn() -> Result<String>
+{
+    let json = run_cmd()?;
+
+    let block_device_data = serde_json::from_str::<BlockDeviceData>(&json)
+        .map_err(error::json_deserialize)?;
+
+    let drives = block_device_data.block_devices.into_iter()
+        .filter(|bd| bd.is_optical_drive())
+        .map(|bd| bd.to_optical_drive())
+        .collect();
+
+    Ok(drives)
+}
 
 /// Internal implementation of [`get_optical_drive`].
-///
-/// This method gets the optional drive information from the operating system
-/// for a drive with serial number `serial_number`. Returns `None` if an optical
-/// drive cannot be found or an error if the command fails or its results cannot
-/// be processed.
-fn get_optical_drive_impl<F: Fn() -> Result<String>>(
-    serial_number: &str,
-    run_cmd: F,
-) -> Result<Option<OpticalDrive>> {
+fn get_optical_drive_impl<F>(serial_number: &str, run_cmd: F) -> Result<Option<OpticalDrive>> 
+where 
+    F: Fn() -> Result<String>
+{
     let json = run_cmd()?;
 
     let block_device_data = serde_json::from_str::<BlockDeviceData>(&json)
@@ -157,18 +187,6 @@ fn get_optical_drive_impl<F: Fn() -> Result<String>>(
     }
 
     Ok(None)
-}
-
-/// Gets the optical drive information for an optical drive with serial number
-/// `serial_number`.
-///
-/// Returns `None` if an optical drive cannot be found with the provided serial
-/// number. Returns an error if something goes wrong when querying the operating
-/// system.
-///
-/// This is the Linux specific implementation.
-pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
-    get_optical_drive_impl(serial_number, run_lsblk_command)
 }
 
 #[cfg(test)]
@@ -317,6 +335,60 @@ mod tests {
             };
             let _ = device.to_optical_drive();
         }
+    }
+
+    #[test]
+    fn test_get_optical_drives() {
+        let json = r###"
+        {
+            "blockdevices": [
+                {
+                    "name": "/dev/loop0",
+                    "serial": null,
+                    "type": "loop",
+                    "label": null,
+                    "uuid": null
+                },
+                {
+                    "name": "/dev/sr0",
+                    "serial": "SN0001",
+                    "type": "rom",
+                    "label": null,
+                    "uuid": null
+                },
+                {
+                    "name": "/dev/sr1",
+                    "serial": "SN0002",
+                    "type": "rom",
+                    "label": "MOVIE",
+                    "uuid": "4-8-15-16-23-42"
+                },
+                {
+                    "name": "/dev/sda",
+                    "serial": "SN0003",
+                    "type": "disk",
+                    "label": null,
+                    "uuid": null
+                }
+            ]
+        }"###;
+
+        let cmd = || -> Result<String> { Ok(json.to_string()) };
+
+        let drives = get_optical_drives_impl(cmd).unwrap();
+        assert_eq!(drives.len(), 2);
+        assert_eq!(drives[0].path, String::from("/dev/sr0"));
+        assert_eq!(drives[0].serial_number, String::from("SN0001"));
+        assert_eq!(drives[0].disc, DiscState::None);
+        assert_eq!(drives[1].path, String::from("/dev/sr1"));
+        assert_eq!(drives[1].serial_number, String::from("SN0002"));
+        assert_eq!(
+            drives[1].disc,
+            DiscState::Inserted { 
+                label: String::from("MOVIE"),
+                uuid: String::from("4-8-15-16-23-42"),
+            }
+        );
     }
 
     #[test]
