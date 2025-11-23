@@ -5,9 +5,8 @@
 
 use std::path::PathBuf;
 
-use copy_srv::CopyService;
-
-use crate::error::{Error, Result};
+use crate::{Error, Result};
+use crate::copy_srv::CopyService;
 use crate::settings::Settings;
 
 // NOTE: Context is meant to store things that may need to be shared across various parts of the 

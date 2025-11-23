@@ -8,11 +8,12 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 
-use copy_srv::CopyService;
 use serde::{Deserialize, Serialize};
 
-use crate::error::{Error, Result, SerializationError};
-use crate::theme::Theme;
+use crate::copy_srv::CopyService;
+use crate::{Error, Result};
+use crate::error::SerializationError;
+use crate::ui::theme::Theme;
 
 /// Settings for a copy service instance.
 #[derive(Clone, Serialize, Deserialize)]
@@ -35,6 +36,7 @@ impl CopyServiceSettings {
 }
 
 /// Represents the display scaling factor of the application.
+// TODO: Move to UI module?
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub struct ScaleFactor(f32);
 

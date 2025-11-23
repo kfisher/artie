@@ -7,7 +7,7 @@ version.workspace = true
 
 [workspace]
 resolver = "3"
-members = [ "copy_srv", "db", "fs", "handbrake", "makemkv", "model", "optical_drive" ]
+members = [ "handbrake", "makemkv" ]
 
 [workspace.package]
 authors = [ "Kevin Fisher" ]
@@ -15,6 +15,9 @@ edition = "2024"
 license = "GPL-3.0-only"
 version = "0.1.0"
 
+# TODO: With the project being consolidated, could these be moved to the
+#       non-workspace dependencies with the exception of the few used by makemkv
+#       and handbrake libraries.
 [workspace.dependencies]
 blake3 = "1.8.2"
 chrono = "0.4.42"
@@ -25,25 +28,29 @@ toml = "0.9.7"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 
-[dependencies.db]
-path = "./db"
+# TODO: Revisit faux drives once release is ready.
+[features]
+default = ["faux_drives"]
+faux_drives = []
 
-[dependencies.copy_srv]
-path = "./copy_srv"
+[dependencies.blake3]
+workspace = true
+
+[dependencies.chrono]
+workspace = true
 
 [dependencies.iced]
 git = "https://github.com/iced-rs/iced.git"
 rev = "ebe223cb5d9dfdd20e0978969807d6944d670742"
 features = ["advanced", "svg", "tokio"]
 
-[dependencies.model]
-path = "./model"
-
-[dependencies.optical_drive]
-path = "./optical_drive"
-features = ["faux_drives"]
+[dependencies.rusqlite ]
+workspace = true
 
 [dependencies.serde]
+workspace = true
+
+[dependencies.serde_json]
 workspace = true
 
 [dependencies.toml]
