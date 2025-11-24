@@ -7,16 +7,16 @@ use std::sync::LazyLock;
 
 use crate::Result;
 
-use super::{DiscState, OpticalDrive};
+use super::{DiscState, OsDrive};
 
-static FAUX_DRIVES: LazyLock<Vec<OpticalDrive>> = LazyLock::new(|| {
+static FAUX_DRIVES: LazyLock<Vec<OsDrive>> = LazyLock::new(|| {
     vec![
-        OpticalDrive {
+        OsDrive {
             path: String::from("/dev/fx0"),
             serial_number: String::from("FAUX0001"),
             disc: DiscState::None,
         },
-        OpticalDrive {
+        OsDrive {
             path: String::from("/dev/fx1"),
             serial_number: String::from("FAUX0002"),
             disc: DiscState::Inserted {
@@ -32,9 +32,9 @@ static FAUX_DRIVES: LazyLock<Vec<OpticalDrive>> = LazyLock::new(|| {
 /// This is a fake implementation only meant for development and testing where the development
 /// system may not have optical drives or when it might not be desireable to use actual drives
 /// such as automated tests.
-pub fn get_optical_drives() -> Vec<OpticalDrive> {
+pub fn get_optical_drives() -> Result<Vec<OsDrive>> {
     let drives = &*FAUX_DRIVES;
-    drives.clone()
+    Ok(drives.clone())
 }
 
 /// Gets the optical drive information for an optical drive with serial number
@@ -47,13 +47,13 @@ pub fn get_optical_drives() -> Vec<OpticalDrive> {
 /// This is a fake implementation only meant for development and testing where the development
 /// system may not have optical drives or when it might not be desireable to use actual drives
 /// such as automated tests.
-pub fn get_optical_drive(serial_number: &str) -> Option<OpticalDrive> {
+pub fn get_optical_drive(serial_number: &str) -> Result<Option<OsDrive>> {
     for drive in &*FAUX_DRIVES {
         if drive.serial_number == serial_number {
-            return Some(drive.clone());
+            return Ok(Some(drive.clone()));
         }
     }
 
-    None
+    Ok(None)
 }
 

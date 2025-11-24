@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 mod context;
-mod copy_srv;
 mod db;
 mod drive;
 mod error;

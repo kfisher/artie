@@ -13,11 +13,17 @@ mod faux;
 
 /// Platform specific code.
 mod platform {
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(feature = "faux_drives")))]
     pub use super::linux::get_optical_drives;
 
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", not(feature = "faux_drives")))]
     pub use super::linux::get_optical_drive;
+
+    #[cfg(feature = "faux_drives")]
+    pub use super::faux::get_optical_drives;
+
+    #[cfg(feature = "faux_drives")]
+    pub use super::faux::get_optical_drive;
 }
 
 use std::time::Duration;
@@ -50,10 +56,7 @@ pub enum DriveState {
     Disconnected,
 
     /// The drive is waiting to begin a copy operation.
-    Idle {
-        /// Information about the disc currently inserted into the drive.
-        disc: DiscState,
-    },
+    Idle,
 
     /// The drive is in the process of copying a disc.
     Copying {
@@ -93,8 +96,77 @@ pub enum DriveState {
 }
 
 /// Represents an optical drive.
-#[derive(Clone, Debug, PartialEq)]
-struct OpticalDrive {
+#[derive(Clone, Debug)]
+pub struct Drive {
+    /// The name assigned to the drive.
+    ///
+    /// This will be set to the serial number by default, but can be overwritten by the user.
+    pub name: String,
+
+    /// The device path of the drive, such as "/dev/sr0".
+    pub path: String,
+
+    /// The serial number of the optical drive.
+    ///
+    /// This may be a shortened version of the serial number assigned by the
+    /// manufacturer.
+    pub serial_number: String,
+
+    /// The state of the disc in the optical drive.
+    pub disc: DiscState,
+
+    /// The state of the drive.
+    pub status: DriveState,
+}
+
+impl From<OsDrive> for Drive {
+    fn from(value: OsDrive) -> Self {
+        Self {
+            name: value.serial_number.clone(),
+            path: value.path,
+            serial_number: value.serial_number,
+            disc: value.disc,
+            status: DriveState::Idle,
+        }
+    }
+}
+
+/// The current status of the optical drive.
+///
+/// The status includes the state of the drive and the state of the disc inserted into the drive.
+#[derive(Debug)]
+pub struct DriveStatus {
+    /// The state of the disc in the optical drive.
+    pub disc: DiscState,
+
+    /// The state of the drive.
+    pub drive: DriveState,
+}
+
+impl DriveStatus {
+    /// Create a [`DriveStatus`] instance.
+    fn new(disc: DiscState, drive: DriveState) -> Self {
+        Self { disc, drive, }
+    }
+}
+
+/// Initialize the optical drive information for all available drives reported by the OS.
+///
+/// # Errors
+///
+/// - [`crate::Error::CommandIo`] or [`crate::Error::CommandReturnedErrorCode`] if the command to
+///   to get the optical drive from the OS fails, or
+/// - [`crate::Error::Serialization`] if the output from the OS cannot be parsed
+pub fn init() -> Result<Vec<Drive>> {
+    let drives = get_optical_drives()?.into_iter()
+        .map(|d| d.into())
+        .collect();
+    Ok(drives)
+}
+
+/// Information about an optical drive as reported by the OS.
+#[derive(Clone, Debug)]
+struct OsDrive {
     /// The device path of the drive, such as "/dev/sr0".
     pub path: String,
 
@@ -109,34 +181,19 @@ struct OpticalDrive {
 }
 
 /// Gets the optical drive information for all available optical drives.
-fn get_optical_drives() -> Result<Vec<OpticalDrive>> {
-    #[cfg(feature = "faux_drives")]
-    {
-        let mut drives = platform::get_optical_drives()?;
-        drives.extend(faux::get_optical_drives());
-        Ok(drives)
-    }
-
-    // FIXME: Commenting out so that a warning isn't displayed in neovim. I'm sure there is a way
-    //        to disable, but this is quicker for now.
-    // #[cfg(not(feature = "faux_drives"))]
-    // {
-    //     let drives = platform::get_optical_drives()?;
-    //     Ok(drives)
-    // }
+#[tracing::instrument]
+fn get_optical_drives() -> Result<Vec<OsDrive>> {
+    tracing::info!("Hello Friend!");
+    let drives = platform::get_optical_drives()?;
+    Ok(drives)
 }
 
 /// Gets the optical drive information for an optical drive with serial number `serial_number`.
 ///
 /// Returns `None` if an optical drive cannot be found with the provided serial number. Returns an
 /// error if something goes wrong when querying the operating system.
-fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
+fn get_optical_drive(serial_number: &str) -> Result<Option<OsDrive>> {
     let drive = platform::get_optical_drive(serial_number)?;
-
-    #[cfg(feature = "faux_drives")]
-    if drive.is_none() {
-        return Ok(faux::get_optical_drive(serial_number));
-    }
-
     Ok(drive)
 }
+

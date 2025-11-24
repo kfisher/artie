@@ -11,7 +11,7 @@ use tracing::instrument;
 use crate::{Error, Result};
 use crate::error::ChannelError;
 
-use super::DriveState;
+use super::{DiscState, Drive, DriveState, DriveStatus};
 
 /// Specifies the messages and responses for the optical drive actor.
 ///
@@ -20,9 +20,9 @@ use super::DriveState;
 /// operation process information.
 #[derive(Debug)]
 pub enum DriveMessage {
-    /// Request the current state of the optical drive.
-    GetState {
-        response: oneshot::Sender<DriveState>,
+    /// Request the current status of the optical drive.
+    GetStatus {
+        response: oneshot::Sender<DriveStatus>,
     },
 }
 
@@ -39,11 +39,11 @@ impl DriveActorHandle {
         Self { tx }
     }
 
-    /// Get the current state of the optical drive.
-    pub async fn get_state(&self) -> Result<DriveState> {
+    /// Get the current status of the optical drive.
+    pub async fn get_state(&self) -> Result<DriveStatus> {
         let (tx, rx) = oneshot::channel();
 
-        let msg = DriveMessage::GetState { response: tx };
+        let msg = DriveMessage::GetStatus { response: tx };
 
         self.tx.send(msg).await
             .map_err(send_error)?;
@@ -63,6 +63,9 @@ struct DriveActor {
     /// The serial number of the optical drive this actor is associated with.
     serial_number: String,
 
+    /// The current state of the drive.
+    state: DriveState,
+
     /// Receiving end of the channel used to send requests to the actor.
     rx: mpsc::Receiver<DriveMessage>,
 }
@@ -70,7 +73,7 @@ struct DriveActor {
 impl DriveActor {
     /// Create a [`DriveActor`] instance.
     fn new(serial_number: String, rx: mpsc::Receiver<DriveMessage>) -> Self {
-        Self { serial_number, rx }
+        Self { serial_number, state: DriveState::Idle, rx }
     }
 
     /// Create a [`DriveActor`] instance, start it, and return its handle.
@@ -86,20 +89,18 @@ impl DriveActor {
     /// Process a message that was received from the actor's communication channel.
     fn handle_message(&mut self, msg: DriveMessage) -> Result<()> {
         match msg {
-            DriveMessage::GetState { response } => self.get_state(response),
+            DriveMessage::GetStatus { response } => self.get_state(response),
         }
     }
 
     /// Process the request for getting the current state of the actor.
-    fn get_state(&self, tx: oneshot::Sender<DriveState>) -> Result<()> {
-        // TODO: For now, we assume always in an idle state. Once copying is implemented, will 
-        //       need to account for that. When copying we done't want to make an OS call.
-        let state = match super::get_optical_drive(&self.serial_number)? {
-            Some(drive) => DriveState::Idle { disc: drive.disc },
-            None => DriveState::Disconnected,
+    fn get_state(&self, tx: oneshot::Sender<DriveStatus>) -> Result<()> {
+        let status = match super::get_optical_drive(&self.serial_number)? {
+            Some(drive) => DriveStatus::new(drive.disc, self.state.clone()),
+            None => DriveStatus::new(DiscState::None, DriveState::Disconnected),
         };
 
-        tx.send(state).map_err(|_| Error::DriveChannel { error: ChannelError::OneShotSend })?;
+        tx.send(status).map_err(|_| Error::DriveChannel { error: ChannelError::OneShotSend })?;
 
         Ok(())
     }

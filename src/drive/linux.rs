@@ -10,12 +10,12 @@ use serde::Deserialize;
 use crate::{Error, Result};
 use crate::error;
 
-use super::{DiscState, OpticalDrive};
+use super::{DiscState, OsDrive};
 
 /// Gets the optical drive information for all available optical drives.
 ///
 /// This is the Linux specific implementation.
-pub fn get_optical_drives() -> Result<Vec<OpticalDrive>> {
+pub fn get_optical_drives() -> Result<Vec<OsDrive>> {
     get_optical_drives_impl(run_lsblk_command)
 }
 
@@ -25,7 +25,7 @@ pub fn get_optical_drives() -> Result<Vec<OpticalDrive>> {
 /// error if something goes wrong when querying the operating system.
 ///
 /// This is the Linux specific implementation.
-pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
+pub fn get_optical_drive(serial_number: &str) -> Result<Option<OsDrive>> {
     get_optical_drive_impl(serial_number, run_lsblk_command)
 }
 
@@ -85,12 +85,12 @@ impl BlockDevice {
     /// Panics if called on a block device that is not a valid optical drive
     /// block device. Use [`BlockDevice::is_optical_drive`] to check if the
     /// device is a valid optical drive.
-    fn to_optical_drive(&self) -> OpticalDrive {
+    fn to_optical_drive(&self) -> OsDrive {
         let Some(sn) = &self.serial_number else {
             panic!("Block device is not a valid optical drive.");
         };
 
-        let mut drive = OpticalDrive {
+        let mut drive = OsDrive {
             path: self.name.clone(),
             serial_number: sn.clone(),
             disc: DiscState::None,
@@ -150,7 +150,7 @@ fn run_lsblk_command() -> Result<String> {
 //       having to make an actual call to the OS.
 
 /// Internal implementation of [`get_optical_drives`].
-fn get_optical_drives_impl<F>(run_cmd: F) -> Result<Vec<OpticalDrive>> 
+fn get_optical_drives_impl<F>(run_cmd: F) -> Result<Vec<OsDrive>> 
 where 
     F: Fn() -> Result<String>
 {
@@ -168,7 +168,7 @@ where
 }
 
 /// Internal implementation of [`get_optical_drive`].
-fn get_optical_drive_impl<F>(serial_number: &str, run_cmd: F) -> Result<Option<OpticalDrive>> 
+fn get_optical_drive_impl<F>(serial_number: &str, run_cmd: F) -> Result<Option<OsDrive>> 
 where 
     F: Fn() -> Result<String>
 {

@@ -6,6 +6,7 @@
 use std::path::PathBuf;
 
 use crate::{Error, Result};
+use crate::drive::{self, Drive};
 use crate::settings::Settings;
 
 // NOTE: Context is meant to store things that may need to be shared across various parts of the 
@@ -16,6 +17,9 @@ use crate::settings::Settings;
 /// Contains all of the application state data.
 #[derive(Default)]
 pub struct Context {
+    /// List of optical drives.
+    pub drives: Vec<Drive>,
+
     /// The application settings.
     ///
     /// The application settings are saved to a TOML file. See [`get_config_path`] for more
@@ -27,7 +31,7 @@ impl Context {
     /// Creates a new [`Context`] instance with default values.
     pub fn new() -> Self {
         Self {
-            //-] copy_services: Vec::new(),
+            drives: Vec::new(),
             settings: Settings::default(),
         }
     }
@@ -51,6 +55,7 @@ impl Context {
         let settings = Settings::from_file(&path)?;
 
         let context = Self {
+            drives: drive::init()?,
             settings,
         };
 
