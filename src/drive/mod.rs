@@ -116,7 +116,7 @@ pub struct Drive {
     pub disc: DiscState,
 
     /// The state of the drive.
-    pub status: DriveState,
+    pub state: DriveState,
 }
 
 impl From<OsDrive> for Drive {
@@ -126,7 +126,7 @@ impl From<OsDrive> for Drive {
             path: value.path,
             serial_number: value.serial_number,
             disc: value.disc,
-            status: DriveState::Idle,
+            state: DriveState::Idle,
         }
     }
 }
@@ -181,9 +181,7 @@ struct OsDrive {
 }
 
 /// Gets the optical drive information for all available optical drives.
-#[tracing::instrument]
 fn get_optical_drives() -> Result<Vec<OsDrive>> {
-    tracing::info!("Hello Friend!");
     let drives = platform::get_optical_drives()?;
     Ok(drives)
 }

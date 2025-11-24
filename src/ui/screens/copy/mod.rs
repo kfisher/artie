@@ -133,11 +133,9 @@ impl CopyScreen {
 
     /// Generates the view for the screen.
     pub fn view<'a>(&'a self, _ctx: &'a Context) -> Element<'a> {
-        // FIXME
-        let widgets: Vec<Element<'_>> = Vec::new();
-        // let widgets: Vec<Element<'_>> = self.drive_components.iter()
-        //     .map(|component| component.view(service))
-        //     .collect();
+        let widgets: Vec<Element<'_>> = self.drive_components.iter()
+            .map(|component| component.view())
+            .collect();
 
         Column::with_children(widgets)
             .align_x(Alignment::Center)
@@ -162,11 +160,9 @@ impl CopyScreen {
 }
 
 /// Generates the list of drive widgets from the provided context.
-fn create_drive_widgets(_ctx: &Context) -> Vec<DriveComponent> {
-    // FIXME
-    Vec::new()
-    // ctx.copy_services.iter().enumerate()
-    //     .map(|(index, service)| DriveComponent::from_service(index, service))
-    //     .collect()
+fn create_drive_widgets(ctx: &Context) -> Vec<DriveComponent> {
+    ctx.drives.iter().enumerate()
+        .map(|(index, drive)| DriveComponent::new(drive, index))
+        .collect()
 }
 

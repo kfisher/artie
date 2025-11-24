@@ -4,6 +4,7 @@
 //! Application context and related utilities.
 
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use crate::{Error, Result};
 use crate::drive::{self, Drive};
@@ -18,7 +19,7 @@ use crate::settings::Settings;
 #[derive(Default)]
 pub struct Context {
     /// List of optical drives.
-    pub drives: Vec<Drive>,
+    pub drives: Vec<Rc<Drive>>,
 
     /// The application settings.
     ///
@@ -55,7 +56,9 @@ impl Context {
         let settings = Settings::from_file(&path)?;
 
         let context = Self {
-            drives: drive::init()?,
+            drives: drive::init()?.into_iter()
+                .map(|d| Rc::new(d))
+                .collect(),
             settings,
         };
 
