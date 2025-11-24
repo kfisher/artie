@@ -5,9 +5,19 @@
 
 use std::path::PathBuf;
 
+use tokio::sync::mpsc;
+use tokio::sync::oneshot;
+
+use crate::drive::DriveMessage;
+
 /// Error type for the application
 #[derive(Debug)]
 pub enum Error {
+    /// Error raised when attempting to send or receive a message to or from a drive actor.
+    DriveChannel {
+        error: ChannelError<DriveMessage>
+    },
+
     /// Error raised when a command (external subprocess) fails.
     CommandIo {
         command: String,
@@ -76,6 +86,14 @@ pub enum Error {
         path: Option<PathBuf>,
         error: SerializationError,
     },
+}
+
+/// Error subtype relating to channel communications to/from actors.
+#[derive(Debug)]
+pub enum ChannelError<T> {
+    Send(mpsc::error::SendError<T>),
+    OneShotSend,
+    OneShotRecv(oneshot::error::RecvError),
 }
 
 /// Error subtype to encapsulate various serialization errors.
