@@ -89,14 +89,6 @@ impl CopyScreen {
         }
     }
 
-    /// Callback when a copy service's configuration changes so that the screen can update any
-    /// internal data effected.
-    pub fn copy_service_updated(&mut self, ctx: &Context) {
-        // TODO: Currently we'll just recreate the internal data. In the future, this will need to 
-        //       be smarter once there is data that should not be cleared.
-        self.drive_components = create_drive_widgets(ctx);
-    }
-
     /// Processes a copy screen message.
     pub fn process_message(&mut self, _ctx: &Context, message: CopyScreenMessage) {
         match message {
@@ -140,10 +132,12 @@ impl CopyScreen {
     }
 
     /// Generates the view for the screen.
-    pub fn view<'a>(&'a self, ctx: &'a Context) -> Element<'a> {
-        let widgets: Vec<Element<'_>> = self.drive_components.iter().zip(ctx.copy_services.iter())
-            .map(|(component, service)| component.view(service))
-            .collect();
+    pub fn view<'a>(&'a self, _ctx: &'a Context) -> Element<'a> {
+        // FIXME
+        let widgets: Vec<Element<'_>> = Vec::new();
+        // let widgets: Vec<Element<'_>> = self.drive_components.iter()
+        //     .map(|component| component.view(service))
+        //     .collect();
 
         Column::with_children(widgets)
             .align_x(Alignment::Center)
@@ -168,9 +162,11 @@ impl CopyScreen {
 }
 
 /// Generates the list of drive widgets from the provided context.
-fn create_drive_widgets(ctx: &Context) -> Vec<DriveComponent> {
-    ctx.copy_services.iter().enumerate()
-        .map(|(index, service)| DriveComponent::from_service(index, service))
-        .collect()
+fn create_drive_widgets(_ctx: &Context) -> Vec<DriveComponent> {
+    // FIXME
+    Vec::new()
+    // ctx.copy_services.iter().enumerate()
+    //     .map(|(index, service)| DriveComponent::from_service(index, service))
+    //     .collect()
 }
 

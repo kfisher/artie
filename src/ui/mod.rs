@@ -27,34 +27,14 @@ pub type Element<'a> = iced::Element<'a, Message, Theme>;
 /// interacts with the application, the interaction will trigger an application update.
 #[derive(Clone, Debug)]
 pub enum Message {
-    /// Cancels an active copy operation.
-    CancelCopyDisc {
-        index: usize,
-    },
-
     /// Close the open dialog cancelling any pending actions.
     CloseDialog,
-
-    /// Message to initiate a copy operation.
-    CopyDisc {
-        index: usize,
-    },
 
     /// Message specific to the copy screen only.
     CopyScreen(CopyScreenMessage),
 
-    /// Deletes a copy service configuration.
-    DeleteCopyService {
-        index: usize,
-    },
-
     /// User interface event (e.g. keyboard, mouse, touch, etc.)
     Event(Event),
-
-    /// Resets the copy service after a successful or failed copy operation.
-    ResetCopyService {
-        index: usize,
-    },
 
     /// Changes the application's scale factor.
     SetScaleFactor(ScaleFactor),
@@ -70,13 +50,6 @@ pub enum Message {
 
     /// Toggles the application's theme between light and dark modes.
     ToggleTheme,
-
-    /// Updates an existing copy service's configuration.
-    UpdateCopyService {
-        index: usize,
-        name: String,
-        serial_number: String,
-    },
 
     /// View the screen used to copy media.
     ViewCopyScreen,

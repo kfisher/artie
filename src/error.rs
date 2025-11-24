@@ -45,11 +45,6 @@ pub enum Error {
         error: std::string::FromUtf8Error,
     },
 
-    /// Error raised when a copy service cannot be initialized.
-    CopyServiceInit {
-        error: crate::copy_srv::Error,
-    },
-
     /// Error raised when performing a database operation.
     Db {
         operation: crate::db::Operation,

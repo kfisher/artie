@@ -10,7 +10,6 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::copy_srv::CopyService;
 use crate::{Error, Result};
 use crate::error::SerializationError;
 use crate::ui::theme::Theme;
@@ -139,19 +138,6 @@ impl Settings {
         file.write_all(toml_string.as_bytes())
             .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
         Ok(())
-    }
-
-    /// Updates the copy service settings based on the provided service instances.
-    ///
-    /// This will completely overwrite all existing copy service settings. It is also assumed that
-    /// the provided data is valid.
-    pub fn update_copy_services(&mut self, services: &[CopyService]) {
-        self.copy_services = services.iter()
-            .map(|service| CopyServiceSettings::new(
-                service.name().to_owned(),
-                service.serial_number().to_owned(),
-            ))
-            .collect();
     }
 }
 

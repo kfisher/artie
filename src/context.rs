@@ -6,7 +6,6 @@
 use std::path::PathBuf;
 
 use crate::{Error, Result};
-use crate::copy_srv::CopyService;
 use crate::settings::Settings;
 
 // NOTE: Context is meant to store things that may need to be shared across various parts of the 
@@ -17,12 +16,6 @@ use crate::settings::Settings;
 /// Contains all of the application state data.
 #[derive(Default)]
 pub struct Context {
-    /// List of copy service instance.
-    ///
-    /// Each instance corresponds to an optical drive and is responsible for performing the copy 
-    /// operations to copy titles from a disc.
-    pub copy_services: Vec<CopyService>,
-
     /// The application settings.
     ///
     /// The application settings are saved to a TOML file. See [`get_config_path`] for more
@@ -34,7 +27,7 @@ impl Context {
     /// Creates a new [`Context`] instance with default values.
     pub fn new() -> Self {
         Self {
-            copy_services: Vec::new(),
+            //-] copy_services: Vec::new(),
             settings: Settings::default(),
         }
     }
@@ -57,15 +50,7 @@ impl Context {
 
         let settings = Settings::from_file(&path)?;
 
-        let copy_services: Vec<CopyService> = settings.copy_services.iter()
-            .map(|config| CopyService::new(&config.name, &config.serial_number)
-                // FIXME: Handle this error once the copy service can support having drives in a 
-                //        disconnected state.
-                .expect("Failed to create copy service!"))
-            .collect();
-
         let context = Self {
-            copy_services,
             settings,
         };
 

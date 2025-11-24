@@ -15,7 +15,6 @@ use iced::time;
 use iced::widget::{Column, Row, Space};
 
 use crate::{Context, Error, Result};
-use crate::copy_srv::CopyService;
 use crate::ui::{Element, Message};
 use crate::ui::theme::Theme;
 use crate::ui::widgets::button;
@@ -80,28 +79,6 @@ impl Artie {
             Screen::Settings(screen) => screen.dialog_closed(),
             Screen::Transcode(_) => (),
         }
-    }
-
-    /// Updates and saves the copy service settings and notifies the current screen if it could be 
-    /// effected by the change.
-    fn copy_service_changed(&mut self) -> Result<()> {
-        // Update the settings. To keep things easy, simply recreate the settings data.
-        self.context.settings.update_copy_services(&self.context.copy_services);
-
-        // Save the settings to the config file.
-        self.context.save_settings()?;
-
-        // If the settings changed, notify it that the configuration for one or more copy 
-        // services has changed.
-        // Notify the screens that may have been effected by the change so taht they can update
-        // internal data if required.
-        match &mut self.screen {
-            Screen::Copy(screen) => screen.copy_service_updated(&self.context),
-            Screen::Settings(screen) => screen.copy_service_updated(),
-            _ => (),
-        }
-
-        Ok(())
     }
 
     /// Handles keyboard events.
@@ -184,16 +161,8 @@ impl Artie {
     fn update(&mut self, message: Message) -> Task<Message> {
         // TODO: Consider adding logging output to each branch.
         let task: Result<Task<Message>> = match message {
-            Message::CancelCopyDisc { index } => {
-                tracing::info!(index=index, "cancel copy");
-                Ok(Task::none())
-            },
             Message::CloseDialog => {
                 self.close_dialog();
-                Ok(Task::none())
-            },
-            Message::CopyDisc { index } => { 
-                tracing::info!(index=index, "copy disc");
                 Ok(Task::none())
             },
             Message::CopyScreen(message) => {
@@ -202,18 +171,9 @@ impl Artie {
                 }
                 Ok(Task::none())
             },
-            Message::DeleteCopyService { index } => {
-                self.close_dialog();
-                self.context.copy_services.remove(index);
-                self.copy_service_changed().map(|_| Task::none())
-            },
             Message::Event(event) => match event {
                 Event::Keyboard(event) => Ok(self.key_event(&event)),
                 _ => Ok(Task::none())
-            },
-            Message::ResetCopyService { index } => {
-                tracing::info!(index=index, "reset copy service");
-                Ok(Task::none())
             },
             Message::SetScaleFactor(factor) => {
                 if self.context.settings.general.scale_factor != factor {
@@ -248,25 +208,6 @@ impl Artie {
             Message::ToggleTheme => {
                 self.context.settings.general.toggle_theme();
                 self.context.save_settings().map(|_| Task::none())
-            },
-            Message::UpdateCopyService { index, name, serial_number } => {
-                if index < self.context.copy_services.len() {
-                    self.context.copy_services[index].update_config(&name, &serial_number)
-                        .map_err(|error| Error::CopyServiceInit { error })
-                        .and_then(|_| self.copy_service_changed())
-                        .map(|_| Task::none())
-                } else {
-                    let service = CopyService::new(&name, &serial_number);
-                    match service {
-                        Ok(service) => {
-                            self.context.copy_services.push(service);
-                            self.copy_service_changed().map(|_| Task::none())
-                        },
-                        Err(error) => {
-                            Err(Error::CopyServiceInit { error })
-                        },
-                    }
-                }
             },
             Message::ViewCopyScreen => {
                 self.show_copy_screen();
