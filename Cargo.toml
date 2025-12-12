@@ -39,10 +39,10 @@ workspace = true
 [dependencies.chrono]
 workspace = true
 
-[dependencies.iced]
-git = "https://github.com/iced-rs/iced.git"
-rev = "ebe223cb5d9dfdd20e0978969807d6944d670742"
-features = ["advanced", "svg", "tokio"]
+[dependencies.gtk]
+version = "0.10.3"
+package = "gtk4"
+features = ["v4_6"]
 
 [dependencies.rusqlite ]
 workspace = true

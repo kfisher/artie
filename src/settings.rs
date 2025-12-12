@@ -13,7 +13,6 @@ use serde::{Deserialize, Serialize};
 use crate::copy_srv::CopyService;
 use crate::{Error, Result};
 use crate::error::SerializationError;
-use crate::ui::theme::Theme;
 
 /// Settings for a copy service instance.
 #[derive(Clone, Serialize, Deserialize)]
@@ -70,17 +69,17 @@ pub struct GeneralSettings {
     /// The display scale factor the application.
     pub scale_factor: ScaleFactor,
 
-    /// The color theme (light or dark).
-    pub theme: Theme,
+    //-- FIXME ] /// The color theme (light or dark).
+    //-- FIXME ] pub theme: Theme,
 }
 
 impl GeneralSettings {
     /// Toggles the theme between light and dark themes.
     pub fn toggle_theme(&mut self) {
-        self.theme = match self.theme {
-            Theme::Dark => Theme::Light,
-            Theme::Light => Theme::Dark,
-        }
+        //-- FIXME ] self.theme = match self.theme {
+        //-- FIXME ]     Theme::Dark => Theme::Light,
+        //-- FIXME ]     Theme::Light => Theme::Dark,
+        //-- FIXME ] }
     }
 }
 
@@ -88,7 +87,7 @@ impl Default for GeneralSettings {
     fn default() -> Self {
         Self {
             scale_factor: ScaleFactor::OPTIONS[0],
-            theme: Theme::Dark,
+            //-- FIXME ] theme: Theme::Dark,
         }
     }
 }
@@ -197,7 +196,7 @@ mod tests {
         let settings = Settings {
             general: GeneralSettings {
                 scale_factor: ScaleFactor(1.5),
-                theme: Theme::Dark,
+                //-- FIXME ] theme: Theme::Dark,
             },
             copy_services: vec![
                 CopyServiceSettings::new(
@@ -212,7 +211,7 @@ mod tests {
         let loaded_settings = Settings::from_file(path.path()).unwrap();
 
         assert_eq!(settings.general.scale_factor.0, loaded_settings.general.scale_factor.0);
-        assert_eq!(settings.general.theme, loaded_settings.general.theme);
+        //-- FIXME ] assert_eq!(settings.general.theme, loaded_settings.general.theme);
 
         // TODO: Missing Copy Service Settings Test
     }

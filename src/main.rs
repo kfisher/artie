@@ -11,14 +11,26 @@ mod models;
 mod settings;
 mod ui;
 
+use gtk::{prelude::*, Button};
+use gtk::{glib, Application, ApplicationWindow};
+
 pub use crate::context::Context;
 pub use crate::error::Error;
 
 /// Result type for the application.
 pub type Result<T> = std::result::Result<T, Error>;
 
-fn main() -> iced::Result {
-    tracing_subscriber::fmt::init();
-    ui::app::run()
+const APP_ID: &str = "org.example.Artie";
+
+
+fn main() -> glib::ExitCode {
+    // Create a new application
+    let app = Application::builder().application_id(APP_ID).build();
+
+    // Connect to "activate" signal of `app`
+    app.connect_activate(ui::build);
+
+    // Run the application
+    app.run()
 }
 
