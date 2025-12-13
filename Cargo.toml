@@ -66,3 +66,6 @@ workspace = true
 # TODO: Remove these once initial development has completed!
 unused_imports = "allow"
 dead_code = "allow"
+
+[build-dependencies]
+glib-build-tools = "0.21.0"
