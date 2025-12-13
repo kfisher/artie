@@ -8,14 +8,19 @@ use std::path::PathBuf;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use crate::drive::DriveMessage;
+use crate::drive::{DriveActorMessage, DriveDirectorMessage};
 
 /// Error type for the application
 #[derive(Debug)]
 pub enum Error {
     /// Error raised when attempting to send or receive a message to or from a drive actor.
-    DriveChannel {
-        error: ChannelError<DriveMessage>
+    DriveActorChannel {
+        error: ChannelError<DriveActorMessage>
+    },
+
+    /// Error raised when attempting to send or receive a message to or from the drive director.
+    DriveDirectorChannel {
+        error: ChannelError<DriveDirectorMessage>
     },
 
     /// Error raised when a command (external subprocess) fails.

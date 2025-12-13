@@ -21,6 +21,7 @@ version = "0.1.0"
 [workspace.dependencies]
 blake3 = "1.8.2"
 chrono = "0.4.42"
+futures = "0.3"
 rusqlite = { version = "0.37.0", features = ["bundled"] }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.142"
@@ -43,7 +44,10 @@ workspace = true
 [dependencies.iced]
 git = "https://github.com/iced-rs/iced.git"
 rev = "ebe223cb5d9dfdd20e0978969807d6944d670742"
-features = ["advanced", "svg", "tokio"]
+features = ["advanced", "sipper", "svg", "tokio"]
+
+[dependencies.futures]
+workspace = true
 
 [dependencies.rusqlite ]
 workspace = true

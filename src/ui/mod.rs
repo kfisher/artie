@@ -7,10 +7,9 @@ pub mod app;
 pub mod screens;
 pub mod theme;
 pub mod widgets;
+pub mod workers;
 
 use std::time::Instant;
-
-use iced::{self, Event};
 
 use crate::settings::ScaleFactor;
 
@@ -34,7 +33,7 @@ pub enum Message {
     CopyScreen(CopyScreenMessage),
 
     /// User interface event (e.g. keyboard, mouse, touch, etc.)
-    Event(Event),
+    Event(iced::Event),
 
     /// Changes the application's scale factor.
     SetScaleFactor(ScaleFactor),
@@ -59,5 +58,8 @@ pub enum Message {
 
     /// View the screen used to transcode video titles.
     ViewTranscodeScreen,
+
+    /// Event from one of the worker routines.
+    WorkerEvent(workers::Event),
 }
 

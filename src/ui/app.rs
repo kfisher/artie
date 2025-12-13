@@ -15,14 +15,16 @@ use iced::time;
 use iced::widget::{Column, Row, Space};
 
 use crate::{Context, Error, Result};
-use crate::ui::{Element, Message};
-use crate::ui::theme::Theme;
-use crate::ui::widgets::button;
-use crate::ui::widgets::container::{Container, ContainerClass};
-use crate::ui::widgets::dialog;
-use crate::ui::screens::copy::CopyScreen;
-use crate::ui::screens::transcode::TranscodeScreen;
-use crate::ui::screens::settings::SettingsScreen;
+
+use super::{Element, Message};
+use super::theme::Theme;
+use super::screens::copy::CopyScreen;
+use super::screens::transcode::TranscodeScreen;
+use super::screens::settings::SettingsScreen;
+use super::widgets::button;
+use super::widgets::container::{Container, ContainerClass};
+use super::widgets::dialog;
+use super::workers;
 
 /// Runs the application.
 pub fn run() -> iced::Result {
@@ -131,9 +133,18 @@ impl Artie {
 
     /// Subscribes to events.
     fn subscription(&self) -> Subscription<Message> {
-        let mut subscriptions = Vec::with_capacity(2);
+        let mut subscriptions = Vec::with_capacity(3);
+
+        // Runtime events. Used for responding to key presses for the purposes of keyboard
+        // shortcuts.
         subscriptions.push(event::listen().map(Message::Event));
 
+        let subscription = Subscription::run(workers::drive_director)
+            .map(Message::WorkerEvent);
+        subscriptions.push(subscription);
+
+        // Tick the UI if enabled. Will generally only be enabled when there is at least one 
+        // active animation.
         if self.tick_enabled {
             subscriptions.push(
                 time::every(Duration::from_secs_f32(1.0 / 60.0)).map(Message::Tick)
@@ -221,6 +232,7 @@ impl Artie {
                 self.show_transcode_screen();
                 Ok(Task::none())
             },
+            _ => Ok(Task::none()) // FIXME
         };
 
         self.tick_enabled = match &self.screen {

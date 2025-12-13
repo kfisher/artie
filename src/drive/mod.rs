@@ -30,7 +30,8 @@ use std::time::Duration;
 
 use crate::Result;
 
-pub use actor::{DriveActorHandle, DriveMessage};
+pub use actor::{DriveActorHandle, DriveActorMessage, DriveDirectorMessage};
+
 
 /// Represents the state of the optical drive's disc.
 #[derive(Clone, Debug, PartialEq)]
@@ -117,11 +118,18 @@ pub struct Drive {
 
     /// The state of the drive.
     pub state: DriveState,
+
+    /// Interface for communicating with the actor responsible for this drive instance.
+    pub handle: DriveActorHandle,
 }
 
-impl From<OsDrive> for Drive {
-    fn from(value: OsDrive) -> Self {
+// TODO: Need to protect against multiple actors being created for the same optical drive.
+
+impl Drive {
+    /// Create a [`Drive`] instance from OS provided optical drive information.
+    fn from_os(value: OsDrive) -> Self {
         Self {
+            handle: actor::create_actor(&value.serial_number),
             name: value.serial_number.clone(),
             path: value.path,
             serial_number: value.serial_number,
@@ -159,7 +167,7 @@ impl DriveStatus {
 /// - [`crate::Error::Serialization`] if the output from the OS cannot be parsed
 pub fn init() -> Result<Vec<Drive>> {
     let drives = get_optical_drives()?.into_iter()
-        .map(|d| d.into())
+        .map(|d| Drive::from_os(d))
         .collect();
     Ok(drives)
 }
