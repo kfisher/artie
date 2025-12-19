@@ -4,63 +4,36 @@
 //! Provides the graphical user interface.
 
 mod page;
+mod widget;
 
-use gtk::{
-    Application,
-    ApplicationWindow,
-    Box,
-    Button,
-    HeaderBar,
-    Orientation,
-    MenuButton,
-    PopoverMenu,
-    Stack,
-    StackSwitcher,
-};
+use gtk::prelude::GtkWindowExt;
+use gtk::{Application, CssProvider};
+use gtk::gdk::Display;
 
-use gtk::prelude::{BoxExt, GtkWindowExt, WidgetExt};
-
+use widget::window::Window;
 
 /// Builds the application window.
 pub fn build(app: &Application) {
-    let stack = Stack::builder()
-        .build();
+    let css_provider = CssProvider::new();
+    css_provider.load_from_resource("org/example/artie/css/app.css");
 
-    let copy_page = page::copy::build();
-    stack.add_titled(&copy_page, None, "Copy");
+    gtk::style_context_add_provider_for_display(
+        &Display::default().expect("Could not connect to a display."),
+        &css_provider,
+        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
 
-    let transcode_page = page::transcode::build();
-    stack.add_titled(&transcode_page, None, "Transcode");
-
-    let catalog_page = page::catalog::build();
-    stack.add_titled(&catalog_page, None, "Catalog");
-
-    let stack_switcher = StackSwitcher::builder()
-        .stack(&stack)
-        .build();
-
-    let menu_popover = PopoverMenu::builder()
-        .build();
-
-    let menu_button = MenuButton::builder()
-        .icon_name("open-menu-symbolic")
-        .popover(&menu_popover)
-        .build();
-
-    let header_bar = HeaderBar::builder()
-        .build();
-    header_bar.pack_start(&stack_switcher);
-    header_bar.pack_end(&menu_button);
-
-    let window = ApplicationWindow::builder()
-        .application(app)
-        .child(&stack)
-        .default_width(1080)
-        .default_height(920)
-        .title("Artie")
-        .titlebar(&header_bar)
-        .build();
-
+    let window = Window::new(app);
     window.present();
+
+    //--] let menu_popover = PopoverMenu::builder()
+    //--]     .build();
+
+    //--] let menu_button = MenuButton::builder()
+    //--]     .icon_name("open-menu-symbolic")
+    //--]     .popover(&menu_popover)
+    //--]     .build();
+
+    //--] header_bar.pack_end(&menu_button);
 }
 

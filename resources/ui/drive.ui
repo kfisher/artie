@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+    <template class="ArtieDriveWidget" parent="GtkBox">
+        <property name="drive-name">Drive A</property>
+        <property name="css-classes">drive-widget</property>
+        <property name="orientation">vertical</property>
+        <property name="spacing">0</property>
+        <child>
+            <object class="GtkBox">
+                <property name="css-classes">drive-widget-header</property>
+                <property name="margin-bottom">8</property>
+                <property name="margin-end">8</property>
+                <property name="margin-start">8</property>
+                <property name="margin-top">8</property>
+                <property name="orientation">horizontal</property>
+                <child>
+                    <object class="GtkLabel">
+                        <property name="css-classes">drive-widget-label</property>
+                        <property name="halign">start</property>
+                        <property name="hexpand">true</property>
+
+                        <property name="label">
+                        <binding source="template" property="drive-name"/>
+                        </property>
+
+                    </object>
+                </child>
+            </object>
+        </child>
+        <child>
+            <object class="GtkBox">
+                <property name="css-classes">drive-widget-content</property>
+                <property name="orientation">horizontal</property>
+                <property name="width-request">400</property>
+                <child>
+                    <object class="GtkLabel">
+                        <property name="hexpand">true</property>
+                        <property name="label">PLACEHOLDER</property>
+                    </object>
+                </child>
+            </object>
+        </child>
+        <child>
+            <object class="GtkBox">
+                <property name="css-classes">drive-widget-footer</property>
+                <property name="orientation">horizontal</property>
+                <property name="margin-bottom">4</property>
+                <property name="margin-end">8</property>
+                <property name="margin-start">8</property>
+                <property name="margin-top">4</property>
+                <child>
+                    <object class="GtkLabel">
+                        <property name="halign">start</property>
+                        <property name="hexpand">true</property>
+                        <property name="label">FAUX_MOVIE</property>
+                    </object>
+                </child>
+                <child>
+                    <object class="GtkLabel">
+                        <property name="hexpand">false</property>
+                        <property name="label">[ /dev/fx1 ]</property>
+                    </object>
+                </child>
+                <child>
+                    <object class="GtkLabel">
+                        <property name="hexpand">false</property>
+                        <property name="label">[ FAUX0002 ]</property>
+                    </object>
+                </child>
+            </object>
+        </child>
+    </template>
+</interface>
+

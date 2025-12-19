@@ -1,0 +1,132 @@
+/* Copyright 2025 Kevin Fisher. All rights reserved. *
+ * SPDX-License-Identifier: GPL-3.0-only             */
+
+/* 
+ * COLORS
+ *
+ * NOTE: The following is based of the Nord color palette.
+ *       https://www.nordtheme.com/
+ *
+ *************************************************************************************************/
+
+@define-color nord-00 #2E3440;
+@define-color nord-01 #3B4252;
+@define-color nord-02 #434C5E;
+@define-color nord-03 #4C566A;
+@define-color nord-04 #D8DEE9;
+@define-color nord-05 #E5E9F0;
+@define-color nord-06 #ECEFF4;
+@define-color nord-07 #8FBCBB;
+@define-color nord-08 #88C0D0;
+@define-color nord-09 #81A1C1;
+@define-color nord-10 #5E81AC;
+@define-color nord-11 #BF616A;
+@define-color nord-12 #D08770;
+@define-color nord-13 #EBCB8B;
+@define-color nord-14 #A3BE8C;
+@define-color nord-15 #B48EAD;
+
+@define-color color-accent-base   #8FBCBB;
+@define-color color-accent-text   #144040;
+@define-color color-accent-border #699594;
+@define-color color-accent-hover  #719D9C;
+
+@define-color color-background-base   #2E3440;
+@define-color color-background-text   #00FF00;
+@define-color color-background-border #111620;
+@define-color color-background-hover  #00FF00;
+
+@define-color color-danger-base   #BF616A;
+@define-color color-danger-text   #380002;
+@define-color color-danger-border #963C47;
+@define-color color-danger-hover  #9E434E;
+
+@define-color color-primary-base   #88C0D0;
+@define-color color-primary-text   #034351;
+@define-color color-primary-border #6299A8;
+@define-color color-primary-hover  #69A0B0;
+
+@define-color color-secondary-base   #81A1C1;
+@define-color color-secondary-text   #0D2A44;
+@define-color color-secondary-border #5C7B9A;
+@define-color color-secondary-hover  #6483A1;
+
+@define-color color-selection-base   #5E81AC;
+@define-color color-selection-text   #ECEFF4;
+@define-color color-selection-border #00FF00;
+@define-color color-selection-hover  #00FF00;
+
+@define-color color-subtext-base   #D8DEE9;
+@define-color color-subtext-text   #00FF00;
+@define-color color-subtext-border #00FF00;
+@define-color color-subtext-hover  #00FF00;
+
+@define-color color-success-base   #A3BE8C;
+@define-color color-success-text   #2C4214;
+@define-color color-success-border #7D9767;
+@define-color color-success-hover  #859F6E;
+
+@define-color color-surface-0-base   #2E3440;
+@define-color color-surface-0-text   #A5ACBB;
+@define-color color-surface-0-border #111620;
+@define-color color-surface-0-hover  #161C26;
+
+@define-color color-surface-1-base   #3B4252;
+@define-color color-surface-1-text   #B5BDD1;
+@define-color color-surface-1-border #1C2231;
+@define-color color-surface-1-hover  #222837;
+
+@define-color color-surface-2-base   #434C5E;
+@define-color color-surface-2-text   #BFC9DF;
+@define-color color-surface-2-border #232B3C;
+@define-color color-surface-2-hover  #293243;
+
+@define-color color-surface-3-base   #4C566A;
+@define-color color-surface-3-text   #C9D5ED;
+@define-color color-surface-3-border #2C3547;
+@define-color color-surface-3-hover  #323B4E;
+
+@define-color color-text-base   #ECEFF4;
+@define-color color-text-text   #00FF00;
+@define-color color-text-border #00FF00;
+@define-color color-text-hover  #00FF00;
+
+* {
+    color: @color-text-base;
+}
+
+/* 
+ * GTK (built-in widgets)
+ *
+ *************************************************************************************************/
+
+window.background {
+    background-color: @color-surface-0-base;
+}
+
+/* 
+ * APP (custom widgets)
+ *
+ *************************************************************************************************/
+
+.drive-widget {
+    background-color: @color-surface-1-base;
+    border:           1px solid @color-surface-1-border;
+    border-radius:    2px;
+}
+
+.drive-widget-header {
+}
+
+.drive-widget-content {
+    border-bottom: 1px solid @color-surface-1-border;
+    border-top:    1px solid @color-surface-1-border;
+}
+
+.drive-widget-footer {
+}
+
+.drive-widget-label {
+    font-size: 16px;
+    font-weight: bold;
+}
