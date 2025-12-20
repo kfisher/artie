@@ -3,7 +3,6 @@
 
 //! Provides the graphical user interface.
 
-mod page;
 mod widget;
 
 use gtk::prelude::GtkWindowExt;

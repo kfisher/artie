@@ -1,7 +1,9 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! TODO
+//! Defines the optical drive widget.
+//!
+//! The optical drive widget is used to initiate, monitor, and terminate copy operations.
 
 use glib::Object;
 use gtk::glib;
@@ -25,7 +27,7 @@ impl DriveWidget {
 mod imp {
     use std::cell::RefCell;
 
-    use gtk::{Box, CompositeTemplate};
+    use gtk::{Box, CompositeTemplate, Label};
     use gtk::glib;
     use gtk::glib::Properties;
     use gtk::glib::subclass::InitializingObject;
@@ -37,7 +39,28 @@ mod imp {
     #[properties(wrapper_type = super::DriveWidget)]
     pub struct DriveWidget {
         #[property(get, set)]
-        drive_name: RefCell<String>,
+        name: RefCell<String>,
+
+        #[property(get, set)]
+        device: RefCell<String>,
+
+        #[property(get, set)]
+        serial_number: RefCell<String>,
+
+        #[property(get, set)]
+        disc: RefCell<String>,
+
+        #[template_child]
+        pub name_label: TemplateChild<Label>,
+
+        #[template_child]
+        pub device_label: TemplateChild<Label>,
+
+        #[template_child]
+        pub serial_number_label: TemplateChild<Label>,
+
+        #[template_child]
+        pub disc_label: TemplateChild<Label>,
     }
 
     #[glib::object_subclass]
@@ -59,7 +82,26 @@ mod imp {
     impl ObjectImpl for DriveWidget {
         fn constructed(&self) {
             self.parent_constructed();
-            // self.drive_name.set_text("HELLO FRIEND");
+
+            let obj = self.obj();
+            obj.bind_property("name", &*self.name_label, "label")
+                .sync_create()
+                .build();
+            obj.bind_property("device", &*self.device_label, "label")
+                .transform_to(|_, d: String| {
+                    Some(format!("[ {} ]", d).to_value())
+                })
+                .sync_create()
+                .build();
+            obj.bind_property("serial_number", &*self.serial_number_label, "label")
+                .transform_to(|_, d: String| {
+                    Some(format!("[ {} ]", d).to_value())
+                })
+                .sync_create()
+                .build();
+            obj.bind_property("disc", &*self.disc_label, "label")
+                .sync_create()
+                .build();
         }
     }
 

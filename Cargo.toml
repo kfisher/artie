@@ -42,7 +42,7 @@ workspace = true
 [dependencies.gtk]
 version = "0.10.3"
 package = "gtk4"
-features = ["v4_6"]
+features = ["v4_14"]
 
 [dependencies.rusqlite ]
 workspace = true

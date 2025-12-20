@@ -124,6 +124,7 @@ window.background {
 }
 
 .drive-widget-footer {
+    font-family: monospace;
 }
 
 .drive-widget-label {

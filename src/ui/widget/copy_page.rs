@@ -1,7 +1,10 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! TODO
+//! Defines the widget for the copy page.
+//!
+//! The copy page is used to copy media from connected optical drives. Each drive will have a 
+//! [`super::drive::DriveWidget`] instance created.
 
 use glib::Object;
 use gtk::glib;

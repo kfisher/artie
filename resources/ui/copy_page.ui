@@ -8,14 +8,18 @@
         <property name="spacing">16</property>
         <child>
             <object class="ArtieDriveWidget">
+                <property name="name">Drive A</property>
+                <property name="device">/dev/fx0</property>
+                <property name="serial_number">FAUX001</property>
+                <property name="disc">No Disc</property>
             </object>
         </child>
         <child>
             <object class="ArtieDriveWidget">
-            </object>
-        </child>
-        <child>
-            <object class="ArtieDriveWidget">
+                <property name="name">Drive B</property>
+                <property name="device">/dev/fx1</property>
+                <property name="serial_number">FAUX002</property>
+                <property name="disc">FAUX_MOVIE</property>
             </object>
         </child>
     </template>

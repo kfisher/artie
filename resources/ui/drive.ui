@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
     <template class="ArtieDriveWidget" parent="GtkBox">
-        <property name="drive-name">Drive A</property>
         <property name="css-classes">drive-widget</property>
         <property name="orientation">vertical</property>
         <property name="spacing">0</property>
@@ -14,15 +13,10 @@
                 <property name="margin-top">8</property>
                 <property name="orientation">horizontal</property>
                 <child>
-                    <object class="GtkLabel">
+                    <object class="GtkLabel" id="name_label">
                         <property name="css-classes">drive-widget-label</property>
                         <property name="halign">start</property>
                         <property name="hexpand">true</property>
-
-                        <property name="label">
-                        <binding source="template" property="drive-name"/>
-                        </property>
-
                     </object>
                 </child>
             </object>
@@ -31,7 +25,7 @@
             <object class="GtkBox">
                 <property name="css-classes">drive-widget-content</property>
                 <property name="orientation">horizontal</property>
-                <property name="width-request">400</property>
+                <property name="width-request">600</property>
                 <child>
                     <object class="GtkLabel">
                         <property name="hexpand">true</property>
@@ -49,22 +43,19 @@
                 <property name="margin-start">8</property>
                 <property name="margin-top">4</property>
                 <child>
-                    <object class="GtkLabel">
+                    <object class="GtkLabel" id="disc_label">
                         <property name="halign">start</property>
                         <property name="hexpand">true</property>
-                        <property name="label">FAUX_MOVIE</property>
                     </object>
                 </child>
                 <child>
-                    <object class="GtkLabel">
+                    <object class="GtkLabel" id="device_label">
                         <property name="hexpand">false</property>
-                        <property name="label">[ /dev/fx1 ]</property>
                     </object>
                 </child>
                 <child>
-                    <object class="GtkLabel">
+                    <object class="GtkLabel" id="serial_number_label">
                         <property name="hexpand">false</property>
-                        <property name="label">[ FAUX0002 ]</property>
                     </object>
                 </child>
             </object>
