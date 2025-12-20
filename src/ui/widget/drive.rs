@@ -7,6 +7,11 @@
 
 use glib::Object;
 use gtk::glib;
+use gtk::glib::object::ObjectExt;
+use gtk::prelude::*;
+use gtk::subclass::prelude::*;
+
+use crate::ui::data::drive::DriveObject;
 
 glib::wrapper! {
     pub struct DriveWidget(ObjectSubclass<imp::DriveWidget>)
@@ -22,6 +27,50 @@ impl DriveWidget {
     pub fn new() -> Self {
         Object::builder().build()
     }                      
+
+    pub fn bind(&self, drive_object: &DriveObject) {
+        let mut bindings = self.imp().bindings.borrow_mut();
+
+        let name = self.imp().name.get();
+        let name_binding = drive_object
+            .bind_property("name", &name, "label")
+            .sync_create()
+            .build();
+        bindings.push(name_binding);
+
+        let path = self.imp().path.get();
+        let path_binding = drive_object
+            .bind_property("path", &path, "label")
+            .transform_to(|_, d: String| {
+                Some(format!("[ {} ]", d).to_value())
+            })
+            .sync_create()
+            .build();
+        bindings.push(path_binding);
+
+        let serial_number = self.imp().serial_number.get();
+        let serial_number_binding = drive_object
+            .bind_property("serial_number", &serial_number, "label")
+            .transform_to(|_, d: String| {
+                Some(format!("[ {} ]", d).to_value())
+            })
+            .sync_create()
+            .build();
+        bindings.push(serial_number_binding);
+
+        let disc = self.imp().disc.get();
+        let disc_binding = drive_object
+            .bind_property("disc", &disc, "label")
+            .sync_create()
+            .build();
+        bindings.push(disc_binding);
+    }
+
+    pub fn unbind(&self) {
+        for binding in self.imp().bindings.borrow_mut().drain(..) {
+            binding.unbind();
+        }
+    }
 }
 
 mod imp {
@@ -29,38 +78,27 @@ mod imp {
 
     use gtk::{Box, CompositeTemplate, Label};
     use gtk::glib;
-    use gtk::glib::Properties;
+    use gtk::glib::{Binding, Properties};
     use gtk::glib::subclass::InitializingObject;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
-    #[derive(CompositeTemplate, Default, Properties)]
+    #[derive(CompositeTemplate, Default)]
     #[template(resource = "/org/example/artie/ui/drive.ui")]
-    #[properties(wrapper_type = super::DriveWidget)]
     pub struct DriveWidget {
-        #[property(get, set)]
-        name: RefCell<String>,
-
-        #[property(get, set)]
-        device: RefCell<String>,
-
-        #[property(get, set)]
-        serial_number: RefCell<String>,
-
-        #[property(get, set)]
-        disc: RefCell<String>,
+        #[template_child]
+        pub name: TemplateChild<Label>,
 
         #[template_child]
-        pub name_label: TemplateChild<Label>,
+        pub path: TemplateChild<Label>,
 
         #[template_child]
-        pub device_label: TemplateChild<Label>,
+        pub serial_number: TemplateChild<Label>,
 
         #[template_child]
-        pub serial_number_label: TemplateChild<Label>,
+        pub disc: TemplateChild<Label>,
 
-        #[template_child]
-        pub disc_label: TemplateChild<Label>,
+        pub bindings: RefCell<Vec<Binding>>,
     }
 
     #[glib::object_subclass]
@@ -78,32 +116,7 @@ mod imp {
         }
     }
 
-    #[glib::derived_properties]
-    impl ObjectImpl for DriveWidget {
-        fn constructed(&self) {
-            self.parent_constructed();
-
-            let obj = self.obj();
-            obj.bind_property("name", &*self.name_label, "label")
-                .sync_create()
-                .build();
-            obj.bind_property("device", &*self.device_label, "label")
-                .transform_to(|_, d: String| {
-                    Some(format!("[ {} ]", d).to_value())
-                })
-                .sync_create()
-                .build();
-            obj.bind_property("serial_number", &*self.serial_number_label, "label")
-                .transform_to(|_, d: String| {
-                    Some(format!("[ {} ]", d).to_value())
-                })
-                .sync_create()
-                .build();
-            obj.bind_property("disc", &*self.disc_label, "label")
-                .sync_create()
-                .build();
-        }
-    }
+    impl ObjectImpl for DriveWidget {}
 
     impl WidgetImpl for DriveWidget {}
 

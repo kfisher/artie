@@ -13,7 +13,7 @@
                 <property name="margin-top">8</property>
                 <property name="orientation">horizontal</property>
                 <child>
-                    <object class="GtkLabel" id="name_label">
+                    <object class="GtkLabel" id="name">
                         <property name="css-classes">drive-widget-label</property>
                         <property name="halign">start</property>
                         <property name="hexpand">true</property>
@@ -43,18 +43,18 @@
                 <property name="margin-start">8</property>
                 <property name="margin-top">4</property>
                 <child>
-                    <object class="GtkLabel" id="disc_label">
+                    <object class="GtkLabel" id="disc">
                         <property name="halign">start</property>
                         <property name="hexpand">true</property>
                     </object>
                 </child>
                 <child>
-                    <object class="GtkLabel" id="device_label">
+                    <object class="GtkLabel" id="path">
                         <property name="hexpand">false</property>
                     </object>
                 </child>
                 <child>
-                    <object class="GtkLabel" id="serial_number_label">
+                    <object class="GtkLabel" id="serial_number">
                         <property name="hexpand">false</property>
                     </object>
                 </child>
