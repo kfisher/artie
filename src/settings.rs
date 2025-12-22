@@ -14,26 +14,6 @@ use crate::copy_srv::CopyService;
 use crate::{Error, Result};
 use crate::error::SerializationError;
 
-/// Settings for a copy service instance.
-#[derive(Clone, Serialize, Deserialize)]
-pub struct CopyServiceSettings {
-    /// The label for the service instance.
-    pub name: String,
-
-    /// The serial number of the drive.
-    pub serial_number: String,
-}
-
-impl CopyServiceSettings {
-    /// Creates a new [`CopyServiceSettings`] instance.
-    pub fn new(name: String, serial_number: String) -> Self {
-        Self {
-            name,
-            serial_number,
-        }
-    }
-}
-
 /// Represents the display scaling factor of the application.
 // TODO: Move to UI module?
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
@@ -68,18 +48,11 @@ impl From<ScaleFactor> for f32 {
 pub struct GeneralSettings {
     /// The display scale factor the application.
     pub scale_factor: ScaleFactor,
-
-    //-- FIXME ] /// The color theme (light or dark).
-    //-- FIXME ] pub theme: Theme,
 }
 
 impl GeneralSettings {
     /// Toggles the theme between light and dark themes.
     pub fn toggle_theme(&mut self) {
-        //-- FIXME ] self.theme = match self.theme {
-        //-- FIXME ]     Theme::Dark => Theme::Light,
-        //-- FIXME ]     Theme::Light => Theme::Dark,
-        //-- FIXME ] }
     }
 }
 
@@ -87,7 +60,6 @@ impl Default for GeneralSettings {
     fn default() -> Self {
         Self {
             scale_factor: ScaleFactor::OPTIONS[0],
-            //-- FIXME ] theme: Theme::Dark,
         }
     }
 }
@@ -97,10 +69,6 @@ impl Default for GeneralSettings {
 pub struct Settings {
     /// General application settings.
     pub general: GeneralSettings,
-
-    /// List of configured copy service instances.
-    #[serde(default)]
-    pub copy_services: Vec<CopyServiceSettings>,
 }
 
 impl Settings {
@@ -138,19 +106,6 @@ impl Settings {
         file.write_all(toml_string.as_bytes())
             .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
         Ok(())
-    }
-
-    /// Updates the copy service settings based on the provided service instances.
-    ///
-    /// This will completely overwrite all existing copy service settings. It is also assumed that
-    /// the provided data is valid.
-    pub fn update_copy_services(&mut self, services: &[CopyService]) {
-        self.copy_services = services.iter()
-            .map(|service| CopyServiceSettings::new(
-                service.name().to_owned(),
-                service.serial_number().to_owned(),
-            ))
-            .collect();
     }
 }
 
@@ -196,14 +151,7 @@ mod tests {
         let settings = Settings {
             general: GeneralSettings {
                 scale_factor: ScaleFactor(1.5),
-                //-- FIXME ] theme: Theme::Dark,
             },
-            copy_services: vec![
-                CopyServiceSettings::new(
-                    String::from("Test Service A"),
-                    String::from("TEST0001"),
-                ),
-            ],
         };
 
         settings.save(path.path()).unwrap();
@@ -211,10 +159,5 @@ mod tests {
         let loaded_settings = Settings::from_file(path.path()).unwrap();
 
         assert_eq!(settings.general.scale_factor.0, loaded_settings.general.scale_factor.0);
-        //-- FIXME ] assert_eq!(settings.general.theme, loaded_settings.general.theme);
-
-        // TODO: Missing Copy Service Settings Test
     }
-
-    // TODO: test update_copy_services
 }
