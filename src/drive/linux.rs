@@ -10,7 +10,7 @@ use serde::Deserialize;
 use crate::{Error, Result};
 use crate::error;
 
-use super::{DiscState, OpticalDrive};
+use super::{DiscState, OsOpticalDrive};
 
 /// Represents the information returned by the `lsblk` command for an individual
 /// block device.
@@ -68,12 +68,12 @@ impl BlockDevice {
     /// Panics if called on a block device that is not a valid optical drive
     /// block device. Use [`BlockDevice::is_optical_drive`] to check if the
     /// device is a valid optical drive.
-    fn to_optical_drive(&self) -> OpticalDrive {
+    fn to_optical_drive(&self) -> OsOpticalDrive {
         let Some(sn) = &self.serial_number else {
             panic!("Block device is not a valid optical drive.");
         };
 
-        let mut drive = OpticalDrive {
+        let mut drive = OsOpticalDrive {
             path: self.name.clone(),
             serial_number: sn.clone(),
             disc: DiscState::None,
@@ -141,7 +141,7 @@ fn run_lsblk_command() -> Result<String> {
 fn get_optical_drive_impl<F: Fn() -> Result<String>>(
     serial_number: &str,
     run_cmd: F,
-) -> Result<Option<OpticalDrive>> {
+) -> Result<Option<OsOpticalDrive>> {
     let json = run_cmd()?;
 
     let block_device_data = serde_json::from_str::<BlockDeviceData>(&json)
@@ -167,7 +167,7 @@ fn get_optical_drive_impl<F: Fn() -> Result<String>>(
 /// system.
 ///
 /// This is the Linux specific implementation.
-pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
+pub fn get_optical_drive(serial_number: &str) -> Result<Option<OsOpticalDrive>> {
     get_optical_drive_impl(serial_number, run_lsblk_command)
 }
 
