@@ -11,7 +11,7 @@ use gtk::glib;
 use gtk::subclass::prelude::*;
 use gtk::prelude::*;
 
-use crate::context::ContextRef;
+use crate::ui::context::ContextObject;
 use crate::ui::widget::copy_page::CopyPageWidget;
 
 glib::wrapper! {
@@ -32,9 +32,10 @@ glib::wrapper! {
 
 impl Window {
     /// Creates a new [`Window`] widget.
-    pub fn new(app: &Application) -> Self {
+    pub fn new(app: &Application, context: &ContextObject) -> Self {
         Object::builder()
             .property("application", app)
+            .property("context", context)
             .build()
     }
 
@@ -43,7 +44,9 @@ impl Window {
     /// It is expected that this will be called as part of the underlying widget's construction.
     /// See [`imp::Window::constructed`].
     fn build_ui(&self) {
-        let copy_page = CopyPageWidget::new();
+        let context = self.context().expect("context not set");
+
+        let copy_page = CopyPageWidget::new(&context);
 
         let transcode_page = gtk::Label::builder()
             .label("Transcode Page")
@@ -78,14 +81,30 @@ impl Window {
 mod imp {
     //! Implemenation for the application window.
 
+    use std::cell::RefCell;
+
     use gtk::ApplicationWindow;
     use gtk::glib;
+    use gtk::glib::Properties;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
+    use crate::ui::context::ContextObject;
+
     /// Implemenation for [`super::Window`].
-    #[derive(Default)]
+    #[derive(Default, Properties)]
+    #[properties(wrapper_type = super::Window)]
     pub struct Window {
+        /// The application context.
+        #[property(get, set = Self::set_context, construct_only)]
+        pub(super) context: RefCell<Option<ContextObject>>,
+    }
+
+    impl Window {
+        /// Sets the application context.
+        fn set_context(&self, context: Option<ContextObject>) {
+            self.context.replace(context);
+        }
     }
 
     #[glib::object_subclass]
@@ -95,6 +114,7 @@ mod imp {
         type ParentType = ApplicationWindow;
     }
 
+    #[glib::derived_properties]
     impl ObjectImpl for Window {
         fn constructed(&self) {
             self.parent_constructed();

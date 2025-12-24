@@ -100,6 +100,10 @@
  *
  *************************************************************************************************/
 
+listview {
+    background-color: transparent;
+}
+
 window.background {
     background-color: @color-surface-0-base;
 }

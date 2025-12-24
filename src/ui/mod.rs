@@ -3,14 +3,16 @@
 
 //! Provides the graphical user interface.
 
-mod data;
-mod widget;
+pub mod context;
+pub mod widget;
 
 use gtk::prelude::GtkWindowExt;
 use gtk::{Application, CssProvider};
 use gtk::gdk::Display;
 
-use widget::window::Window;
+use widget::Window;
+
+pub use context::ContextObject;
 
 /// Builds the application window.
 pub fn build(app: &Application) {
@@ -23,7 +25,11 @@ pub fn build(app: &Application) {
         gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
     );
 
-    let window = Window::new(app);
+    let context = ContextObject::builder()
+        .build()
+        .expect("Failed to create application context");
+
+    let window = Window::new(app, &context);
     window.present();
 
     //--] let menu_popover = PopoverMenu::builder()

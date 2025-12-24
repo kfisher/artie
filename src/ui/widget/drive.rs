@@ -12,7 +12,7 @@ use gtk::glib::Object;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
-use crate::drive::glib::optical_drive::OpticalDriveObject;
+use crate::drive::glib::OpticalDriveObject;
 
 glib::wrapper! {
     /// Widget used to initiate, monitor, and terminate copy operations for an optical drive.
@@ -20,8 +20,7 @@ glib::wrapper! {
         @extends gtk::Box,
                  gtk::Widget,
         @implements gtk::Accessible,
-                    gtk::Buildable,
-                    gtk::ConstraintTarget,
+                    gtk::Buildable, gtk::ConstraintTarget,
                     gtk::Orientable;
 }
 
@@ -41,6 +40,7 @@ impl DriveWidget {
         let name_label = imp.name_label
             .borrow()
             .clone();
+        name_label.add_css_class("drive-widget-label");
 
         let header_row = Box::builder()
             .margin_bottom(8)

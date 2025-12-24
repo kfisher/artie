@@ -152,7 +152,10 @@ impl OpticalDrive {
 /// - [`crate::Error::Serialization`] if the output from the OS cannot be parsed
 pub fn init() -> Result<Vec<OpticalDrive>> {
     let drives = get_optical_drives()?.into_iter()
-        .map(|d| OpticalDrive::from_os(d))
+        .map(|drive| {
+            tracing::info!(sn=drive.serial_number, path=drive.path, "found optical drive");
+            OpticalDrive::from_os(drive)
+        })
         .collect();
     Ok(drives)
 }

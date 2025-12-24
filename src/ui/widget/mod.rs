@@ -3,6 +3,10 @@
 
 //! Custom UI widgets.
 
-pub mod copy_page;
-pub mod drive;
-pub mod window;
+mod copy_page;
+mod drive;
+mod window;
+
+pub use copy_page::CopyPageWidget;
+pub use drive::DriveWidget;
+pub use window::Window;

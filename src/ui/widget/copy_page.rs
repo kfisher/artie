@@ -23,9 +23,9 @@ use gtk::glib::Object;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
-use crate::drive::glib::optical_drive::OpticalDriveObject;
-
-use super::drive::DriveWidget;
+use crate::drive::glib::OpticalDriveObject;
+use crate::ui::widget::DriveWidget;
+use crate::ui::ContextObject;
 
 glib::wrapper! {
     /// Widget used to initiate, monitor, and terminate copy operations.
@@ -40,8 +40,10 @@ glib::wrapper! {
 
 impl CopyPageWidget {
     /// Creates a new [`CopyPageWidget`] instance.
-    pub fn new() -> Self {
-        Object::builder().build()
+    pub fn new(context: &ContextObject) -> Self {
+        Object::builder()
+            .property("context", context)
+            .build()
     }                      
 
     /// Builds the user interface.
@@ -77,22 +79,12 @@ impl CopyPageWidget {
     /// It is expected that this will be called as part of the underlying widget's construction.
     /// See [`imp::CopyPageWidget::constructed`]. 
     fn setup_model(&self) {
-        let drive_list_store = ListStore::new::<OpticalDriveObject>();
-
-        // FIXME
-        let drives = crate::drive::init().unwrap();
-        for d in drives.into_iter() {
-            let d0 = OpticalDriveObject::new(d);
-            drive_list_store.append(&d0);
-        }
-        
-        let imp = self.imp();
-        imp.drive_list_view
+        let context = self.context().expect("context not set");
+        self.imp().drive_list_view
             .borrow()
             .as_ref()
             .expect("drive_list_view is should not be None")
-            .set_model(Some(&NoSelection::new(Some(drive_list_store.clone()))));
-        imp.drive_list_store.replace(Some(drive_list_store));
+            .set_model(Some(&NoSelection::new(context.drives_store())));
     }
 
     /// Configures the factory used in the drive list view.
@@ -160,17 +152,29 @@ mod imp {
     use gtk::{Box, ListView};
     use gtk::gio::ListStore;
     use gtk::glib;
+    use gtk::glib::Properties;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
+    use crate::ui::ContextObject;
+
     /// Implemenation for [`super::CopyPageWidget`].
-    #[derive(Default)]
+    #[derive(Default, Properties)]
+    #[properties(wrapper_type = super::CopyPageWidget)]
     pub struct CopyPageWidget {
         /// List view for displaying a list of available drives.
         pub(super) drive_list_view: RefCell<Option<ListView>>,
 
-        /// Data model for [`CopyPageWidget::drive_list_view`].
-        pub(super) drive_list_store: RefCell<Option<ListStore>>,
+        /// The application context.
+        #[property(get, set = Self::set_context, construct_only)]
+        pub(super) context: RefCell<Option<ContextObject>>,
+    }
+
+    impl CopyPageWidget {
+        /// Sets the application context.
+        fn set_context(&self, context: Option<ContextObject>) {
+            self.context.replace(context);
+        }
     }
 
     #[glib::object_subclass]
@@ -180,6 +184,7 @@ mod imp {
         type ParentType = Box;
     }
 
+    #[glib::derived_properties]
     impl ObjectImpl for CopyPageWidget {
         fn constructed(&self) {
             self.parent_constructed();

@@ -3,4 +3,6 @@
 
 //! Defines the GObject wrappers the drive module.
 
-pub mod optical_drive;
+mod optical_drive;
+
+pub use optical_drive::OpticalDriveObject;
