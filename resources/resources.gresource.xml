@@ -2,8 +2,5 @@
 <gresources>
     <gresource prefix="/org/example/artie">
         <file>css/app.css</file>
-        <file>ui/copy_page.ui</file>
-        <file>ui/drive.ui</file>
-        <file>ui/window.ui</file>
     </gresource>
 </gresources>

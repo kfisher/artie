@@ -5,11 +5,17 @@
 
 use glib::Object;
 
-use gtk::Application;
+use gtk::{Application, HeaderBar, Stack, StackSwitcher};
 use gtk::gio;
 use gtk::glib;
+use gtk::subclass::prelude::*;
+use gtk::prelude::*;
+
+use crate::context::ContextRef;
+use crate::ui::widget::copy_page::CopyPageWidget;
 
 glib::wrapper! {
+    /// Application window widget.
     pub struct Window(ObjectSubclass<imp::Window>)
         @extends gtk::ApplicationWindow,
                  gtk::Window,
@@ -25,22 +31,60 @@ glib::wrapper! {
 }
 
 impl Window {
+    /// Creates a new [`Window`] widget.
     pub fn new(app: &Application) -> Self {
-        Object::builder().property("application", app).build()
+        Object::builder()
+            .property("application", app)
+            .build()
+    }
+
+    /// Builds the user interface.
+    ///
+    /// It is expected that this will be called as part of the underlying widget's construction.
+    /// See [`imp::Window::constructed`].
+    fn build_ui(&self) {
+        let copy_page = CopyPageWidget::new();
+
+        let transcode_page = gtk::Label::builder()
+            .label("Transcode Page")
+            .build();
+
+        let catalog_page = gtk::Label::builder()
+            .label("Catalog Page")
+            .build();
+
+        let stack = Stack::builder()
+            .build();
+        stack.add_titled(&copy_page, None, "Copy");
+        stack.add_titled(&transcode_page, None, "Transcode");
+        stack.add_titled(&catalog_page, None, "Catalog");
+
+        let stack_switcher = StackSwitcher::builder()
+            .stack(&stack)
+            .build();
+
+        let header_bar = HeaderBar::builder()
+            .build();
+        header_bar.pack_start(&stack_switcher);
+
+        self.set_title(Some("Artie"));
+        self.set_titlebar(Some(&header_bar));
+        self.set_default_width(1080);
+        self.set_default_height(920);
+        self.set_child(Some(&stack));
     }
 }
 
 mod imp {
-    use gtk::{ ApplicationWindow, Button, CompositeTemplate };
+    //! Implemenation for the application window.
+
+    use gtk::ApplicationWindow;
     use gtk::glib;
-    use gtk::glib::subclass::InitializingObject;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
-    use crate::ui::widget::copy_page::CopyPageWidget;
-
-    #[derive(CompositeTemplate, Default)]
-    #[template(resource = "/org/example/artie/ui/window.ui")]
+    /// Implemenation for [`super::Window`].
+    #[derive(Default)]
     pub struct Window {
     }
 
@@ -49,22 +93,12 @@ mod imp {
         const NAME: &'static str = "ArtieApplicationWindow";
         type Type = super::Window;
         type ParentType = ApplicationWindow;
-
-        fn class_init(klass: &mut Self::Class) {
-            CopyPageWidget::ensure_type();
-
-            klass.bind_template();
-            // klass.bind_template_callbacks();
-        }
-
-        fn instance_init(obj: &InitializingObject<Self>) {
-            obj.init_template();
-        }
     }
 
     impl ObjectImpl for Window {
         fn constructed(&self) {
             self.parent_constructed();
+            self.obj().build_ui();
         }
     }
 

@@ -3,6 +3,8 @@
 
 //! Handles interactions with optical drives.
 
+pub mod glib;
+
 #[cfg(target_os = "linux")]
 mod linux;
 
@@ -119,6 +121,15 @@ pub struct OpticalDrive {
 }
 
 impl OpticalDrive {
+    /// Returns the disc label if a disc is inserted in the optical drive or an empty string
+    /// otherwise.
+    pub fn disc_label(&self) -> String {
+        match &self.disc {
+            DiscState::None => String::default(),
+            DiscState::Inserted { label, uuid: _ } => label.clone()
+        }
+    }
+
     /// Create a [`OpticalDrive`] instance from OS provided optical drive information.
     fn from_os(value: OsOpticalDrive) -> Self {
         Self {
@@ -146,7 +157,7 @@ pub fn init() -> Result<Vec<OpticalDrive>> {
     Ok(drives)
 }
 
-/// Represents an optical drive.
+/// Information reported by the operating system for the optical drive.
 #[derive(Clone, Debug, PartialEq)]
 struct OsOpticalDrive {
     /// The device path of the drive, such as "/dev/sr0".
