@@ -121,15 +121,6 @@ pub struct OpticalDrive {
 }
 
 impl OpticalDrive {
-    /// Returns the disc label if a disc is inserted in the optical drive or an empty string
-    /// otherwise.
-    pub fn disc_label(&self) -> String {
-        match &self.disc {
-            DiscState::None => String::default(),
-            DiscState::Inserted { label, uuid: _ } => label.clone()
-        }
-    }
-
     /// Create a [`OpticalDrive`] instance from OS provided optical drive information.
     fn from_os(value: OsOpticalDrive) -> Self {
         Self {
@@ -139,6 +130,18 @@ impl OpticalDrive {
             serial_number: value.serial_number,
             disc: value.disc,
             state: OpticalDriveState::Idle,
+        }
+    }
+}
+
+impl Default for OpticalDrive {
+    fn default() -> Self {
+        Self { 
+            name: Default::default(),
+            path: Default::default(),
+            serial_number: Default::default(),
+            disc: DiscState::None,
+            state: OpticalDriveState::Disconnected,
         }
     }
 }

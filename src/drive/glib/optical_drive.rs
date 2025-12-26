@@ -5,6 +5,7 @@
 
 use gtk::glib;
 use gtk::glib::Object;
+use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
 use crate::drive::OpticalDrive;
@@ -17,12 +18,9 @@ glib::wrapper! {
 impl OpticalDriveObject {
     /// Creates new [`OpticalDriveObject`] instance from the provided optical drive.
     pub fn new(drive: OpticalDrive) -> Self {
-        let obj = Object::builder()
-            .property("name", &drive.name)
-            .property("path", &drive.path)
-            .property("serial_number", &drive.serial_number)
-            .property("disc_label", &drive.disc_label())
+        let obj: Self = Object::builder()
             .build();
+        obj.imp().inner.replace(drive);
         obj
     }
 }
@@ -38,35 +36,29 @@ mod imp {
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
-    use crate::drive::OpticalDrive;
+    use crate::drive::{DiscState, OpticalDrive};
 
     /// Implementation for [`super::OpticalDriveObject`].
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::OpticalDriveObject)]
     pub struct OpticalDriveObject {
-        /// Name assigned to the optical drive.
-        ///
-        /// See Also: [`crate::drive::OpticalDrive::name`].
-        #[property(get, set)]
-        pub(super) name: RefCell<String>,
+        #[property(name = "name", get, type = String, member = name)]
+        #[property(name = "path", get, type = String, member = path)]
+        #[property(name = "serial-number", get, type = String, member = serial_number)]
+        #[property(name = "disc-label", get = OpticalDriveObject::disc_label, type = String)]
+        pub(super) inner: RefCell<OpticalDrive>,
+    }
 
-        /// The device path of the drive, such as "/dev/sr0".
-        ///
-        /// See Also: [`crate::drive::OpticalDrive::path`].
-        #[property(get, set)]
-        pub(super) path: RefCell<String>,
-
-        /// The serial number of the optical drive.
-        ///
-        /// See Also: [`crate::drive::OpticalDrive::serial_number`].
-        #[property(get, set)]
-        pub(super) serial_number: RefCell<String>,
-
-        /// The state of the disc in the optical drive.
-        ///
-        /// See Also: [`crate::drive::OpticalDrive::disc_label`].
-        #[property(get, set)]
-        pub(super) disc_label: RefCell<String>,
+    impl OpticalDriveObject {
+        /// Returns the disc label if a disc is inserted into the drive or an empty string if the
+        /// optical drive is empty.
+        pub fn disc_label(&self) -> String {
+            let drive = self.inner.borrow();
+            match &drive.disc {
+                DiscState::None => String::default(),
+                DiscState::Inserted { label, uuid: _ } => label.clone(),
+            }
+        }
     }
 
     #[glib::object_subclass]
@@ -76,5 +68,6 @@ mod imp {
     }
 
     #[glib::derived_properties]
-    impl ObjectImpl for OpticalDriveObject {}
+    impl ObjectImpl for OpticalDriveObject {
+    }
 }
