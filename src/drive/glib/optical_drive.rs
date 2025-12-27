@@ -8,7 +8,8 @@ use gtk::glib::Object;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
-use crate::drive::OpticalDrive;
+use crate::Result;
+use crate::drive::{OpticalDrive, OpticalDriveStatus};
 
 glib::wrapper! {
     /// GObject implementation for [`OpticalDrive`].
@@ -22,6 +23,24 @@ impl OpticalDriveObject {
             .build();
         obj.imp().inner.replace(drive);
         obj
+    }
+
+    /// Updates the status of the drive.
+    ///
+    /// This will request the current status from the drive's actor instance and then send the
+    /// property change notifications if required.
+    pub async fn update_status(&self) {
+        let result = self.imp().inner.borrow_mut().update_status().await;
+        match result {
+            Ok(modified) => {
+                if modified {
+                    self.notify_disc_label();
+                }
+            },
+            Err(error) => {
+                tracing::error!(?error, "failed to update status");
+            },
+        }
     }
 }
 
@@ -53,8 +72,8 @@ mod imp {
         /// Returns the disc label if a disc is inserted into the drive or an empty string if the
         /// optical drive is empty.
         pub fn disc_label(&self) -> String {
-            let drive = self.inner.borrow();
-            match &drive.disc {
+            let disc = &self.inner.borrow().disc;
+            match disc {
                 DiscState::None => String::default(),
                 DiscState::Inserted { label, uuid: _ } => label.clone(),
             }

@@ -6,6 +6,9 @@
 //! The copy page is the page used to initiate, monitor, and terminate copy operations for all 
 //! connected optical drives.
 
+use std::thread;
+use std::time::Duration;
+
 use gtk::{
     Align,
     ListItem,
@@ -19,11 +22,13 @@ use gtk::{
 use gtk::gio;
 use gtk::gio::ListStore;
 use gtk::glib;
+use gtk::glib::clone;
 use gtk::glib::Object;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
 use crate::drive::glib::OpticalDriveObject;
+use crate::task;
 use crate::ui::widget::DriveWidget;
 use crate::ui::ContextObject;
 
@@ -105,26 +110,26 @@ impl CopyPageWidget {
         factory.connect_bind(move |_, list_item| {
             let drive_object = list_item
                 .downcast_ref::<ListItem>()
-                .expect("list_item needs to be a ListItem")
+                .expect("list_item not a ListItem")
                 .item()
                 .and_downcast::<OpticalDriveObject>()
-                .expect("list_item needs to be a DriveObject");
+                .expect("list_item not a OpticalDriveObject");
             let drive_widget = list_item
                 .downcast_ref::<ListItem>()
-                .expect("list_item needs to be a ListItem")
+                .expect("list_item not a ListItem")
                 .child()
                 .and_downcast::<DriveWidget>()
-                .expect("list_item child needs to be a DriveWidget");
+                .expect("list_item child not a DriveWidget");
             drive_widget.bind(&drive_object);
         });
 
         factory.connect_unbind(move |_, list_item| {
             let drive_widget = list_item
                 .downcast_ref::<ListItem>()
-                .expect("list_item needs to be a ListItem")
+                .expect("list_item not a ListItem")
                 .child()
                 .and_downcast::<DriveWidget>()
-                .expect("list_item child needs to be a DriveWidget");
+                .expect("list_item child not a DriveWidget");
             drive_widget.unbind();
         });
 
@@ -132,7 +137,7 @@ impl CopyPageWidget {
         imp.drive_list_view
             .borrow()
             .as_ref()
-            .expect("drive_list_view should not be None")
+            .expect("drive_list_view was None")
             .set_factory(Some(&factory));
     }
 
@@ -141,6 +146,34 @@ impl CopyPageWidget {
     /// It is expected that this will be called as part of the underlying widget's construction.
     /// See [`imp::CopyPageWidget::constructed`]. 
     fn setup_callbacks(&self) {
+    }
+
+    /// Starts the future that will be responsible for monitoring the status of the optical drives
+    /// and updating their status.
+    fn start_drive_monitor(&self) {
+        let drives_store = self.context()
+            .expect("context not set")
+            .drives_store()
+            .expect("drives_store not set");
+
+        glib::spawn_future_local(async move {
+            loop {
+                update_drive_status(&drives_store).await;
+                glib::timeout_future(Duration::from_millis(1000)).await;
+            }
+        });
+    }
+}
+
+/// Iterates over all drives in the provided drive store and updates their current status.
+async fn update_drive_status(drives_store: &ListStore) {
+    let n_items = drives_store.n_items();
+    for i in 0..n_items {
+        if let Some(item) = drives_store.item(i) {
+            let drive = item.downcast::<OpticalDriveObject>()
+                .expect("item not a OpticalDriveObject");
+            drive.update_status().await;
+        }
     }
 }
 
@@ -194,6 +227,7 @@ mod imp {
             obj.setup_model();
             obj.setup_factory();
             obj.setup_callbacks();
+            obj.start_drive_monitor();
         }
     }
 

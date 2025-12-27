@@ -3,6 +3,7 @@
 
 //! Handles interactions with optical drives.
 
+pub mod actor;
 pub mod glib;
 
 #[cfg(target_os = "linux")]
@@ -28,7 +29,10 @@ mod platform {
 
 use std::time::Duration;
 
-use crate::Result;
+use crate::{Error, Result};
+use crate::error::ChannelError;
+
+use actor::{DriveActorHandle, DriveActorMessage};
 
 /// Represents the state of the optical drive's disc.
 #[derive(Clone, Debug, PartialEq)]
@@ -94,7 +98,7 @@ pub enum OpticalDriveState {
 }
 
 /// Represents an optical drive.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct OpticalDrive {
     /// The name assigned to the drive.
     ///
@@ -116,15 +120,58 @@ pub struct OpticalDrive {
     /// The state of the drive.
     pub state: OpticalDriveState,
 
-    //-]/// Interface for communicating with the actor responsible for this drive instance.
-    //-]pub handle: DriveActorHandle,
+    /// Interface for communicating with the actor responsible for this drive instance.
+    handle: Option<DriveActorHandle>,
 }
 
 impl OpticalDrive {
+    /// Updates the status of the drive.
+    ///
+    /// This will make a request to the drive's actor instance and then update its status based
+    /// on the result.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::DriveActorChannel`] will be raised if the actor handle is invalid or an error
+    ///   occurs when requesting the status.
+    pub async fn update_status(&mut self) -> Result<bool> {
+        // Request the current status from the drive's actor instance.
+        let status = self.get_status().await?;
+
+        let mut modified = false;
+
+        if status.disc != self.disc {
+            tracing::info!(old=?self.disc, new=?status.disc, "disc state changed");
+            self.disc = status.disc;
+            modified = true;
+        }
+
+        if status.drive != self.state {
+            tracing::info!(old=?self.state, new=?status.drive, "drive state changed");
+            self.state = status.drive;
+            modified = true;
+        }
+
+        Ok(modified)
+    }
+
+    /// Get the current status of the drive.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::DriveActorChannel`] will be raised if the actor handle is invalid or an error
+    ///   occurs when requesting the status.
+    async fn get_status(&self) -> Result<OpticalDriveStatus> {
+        let Some(handle) = &self.handle else {
+            return Err(Error::DriveActorChannel { error: ChannelError::InvalidChannel });
+        };
+        handle.get_status().await
+    }
+
     /// Create a [`OpticalDrive`] instance from OS provided optical drive information.
     fn from_os(value: OsOpticalDrive) -> Self {
         Self {
-            //-]handle: actor::create_actor(&value.serial_number),
+            handle: Some(actor::create_actor(&value.serial_number)),
             name: value.serial_number.clone(),
             path: value.path,
             serial_number: value.serial_number,
@@ -137,6 +184,7 @@ impl OpticalDrive {
 impl Default for OpticalDrive {
     fn default() -> Self {
         Self { 
+            handle: None,
             name: Default::default(),
             path: Default::default(),
             serial_number: Default::default(),
@@ -144,6 +192,23 @@ impl Default for OpticalDrive {
             state: OpticalDriveState::Disconnected,
         }
     }
+}
+
+/// The current status of the optical drive.
+#[derive(Debug)]
+pub struct OpticalDriveStatus {
+  /// The state of the disc in the optical drive.
+  pub disc: DiscState,
+
+  /// The state of the drive.
+  pub drive: OpticalDriveState,
+}
+
+impl OpticalDriveStatus {
+  /// Create a [`DriveStatus`] instance.
+  fn new(disc: DiscState, drive: OpticalDriveState) -> Self {
+      Self { disc, drive, }
+  }
 }
 
 /// Initialize the optical drive information for all available drives reported by the OS.

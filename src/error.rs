@@ -5,6 +5,11 @@
 
 use std::path::PathBuf;
 
+use tokio::sync::mpsc;
+use tokio::sync::oneshot;
+
+use crate::drive::actor::DriveActorMessage;
+
 /// Error type for the application
 #[derive(Debug)]
 pub enum Error {
@@ -46,6 +51,11 @@ pub enum Error {
         error: rusqlite::Error,
     },
 
+    /// Error raised when attempting to send or receive a message to or from a drive actor.
+    DriveActorChannel {
+        error: ChannelError<DriveActorMessage>
+    },
+
     /// Error raised when a string argument provided to a database operation is empty when the 
     /// operation expects a non-empty string.
     ///
@@ -76,6 +86,15 @@ pub enum Error {
         path: Option<PathBuf>,
         error: SerializationError,
     },
+}
+
+/// Error subtype relating to channel communications to/from actors.
+#[derive(Debug)]
+pub enum ChannelError<T> {
+    Send(mpsc::error::SendError<T>),
+    OneShotSend,
+    OneShotRecv(oneshot::error::RecvError),
+    InvalidChannel,
 }
 
 /// Error subtype to encapsulate various serialization errors.

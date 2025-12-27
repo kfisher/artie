@@ -53,6 +53,10 @@ workspace = true
 [dependencies.serde_json]
 workspace = true
 
+[dependencies.tokio]
+version = "1"
+features = ["full"]
+
 [dependencies.toml]
 workspace = true
 

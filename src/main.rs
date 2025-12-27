@@ -17,12 +17,12 @@ use gtk::glib;
 
 pub use crate::error::Error;
 
-/// Result type for the application.
-pub type Result<T> = std::result::Result<T, Error>;
-
 // TODO: Need to determine the actual ID. Make sure to update the resources configuration as well
 //       to match.
-const APP_ID: &str = "org.example.Artie";
+pub const APP_ID: &str = "org.example.Artie";
+
+/// Result type for the application.
+pub type Result<T> = std::result::Result<T, Error>;
 
 fn main() -> glib::ExitCode {
     tracing_subscriber::fmt::init();
@@ -39,3 +39,33 @@ fn main() -> glib::ExitCode {
     app.run()
 }
 
+pub mod task {
+    //! Utilities for running asynchronous tasks.
+
+    use std::sync::OnceLock;
+
+    use tokio::runtime::Runtime;
+    use tokio::task::JoinHandle;
+
+    /// Spawns a new asynchronous task returning the join handle for it.
+    ///
+    /// This is essentially just a drop-in for the tokio::spawn method which can't be used because
+    /// the runtime is manually setup instead of using `tokio::main` macro.
+    pub fn spawn<F>(future: F) -> JoinHandle<F::Output>
+    where
+        F: Future + Send + 'static,
+        F::Output: Send + 'static,
+    {
+        runtime().spawn(future)
+    }
+
+    /// Gets the tokio runtime.
+    ///
+    /// On the first call, the runtime will be initialized.
+    fn runtime() -> &'static Runtime {
+        static RUNTIME: OnceLock<Runtime> = OnceLock::new();
+        RUNTIME.get_or_init(|| {
+            Runtime::new().expect("Failed to init runtime")
+        })
+    }
+}
