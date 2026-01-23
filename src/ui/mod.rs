@@ -1,90 +1,78 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Provides the user interface.
+//! Provides the graphical user interface.
 
-pub mod app;
-pub mod screens;
-pub mod theme;
-pub mod widgets;
+pub mod context;
+pub mod widget;
 
-use std::time::Instant;
+use gtk::prelude::GtkWindowExt;
+use gtk::{Application, CssProvider, IconTheme};
+use gtk::gdk::Display;
 
-use iced::{self, Event};
+use widget::Window;
 
-use crate::settings::ScaleFactor;
+pub use context::ContextObject;
 
-use screens::copy::CopyScreenMessage;
-use screens::settings::SettingsScreenMessage;
-use theme::Theme;
+/// Builds the application window.
+pub fn build(app: &Application) {
+    let css_provider = CssProvider::new();
+    css_provider.load_from_resource("org/example/artie/css/app.css");
 
-/// The base generic widget that all other widgets used in the application can be converted into.
-pub type Element<'a> = iced::Element<'a, Message, Theme>;
+    gtk::style_context_add_provider_for_display(
+        &Display::default().expect("Could not connect to a display."),
+        &css_provider,
+        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
 
-/// Specifies the application messages.
-///
-/// Application messages are essentially the interactions of the application. Whenever the user 
-/// interacts with the application, the interaction will trigger an application update.
-#[derive(Clone, Debug)]
-pub enum Message {
-    /// Cancels an active copy operation.
-    CancelCopyDisc {
-        index: usize,
-    },
+    let icon_theme = IconTheme::for_display(&Display::default().unwrap());
+    icon_theme.add_resource_path("/org/example/artie/icons");
 
-    /// Close the open dialog cancelling any pending actions.
-    CloseDialog,
+    let context = ContextObject::builder()
+        .build()
+        .expect("Failed to create application context");
 
-    /// Message to initiate a copy operation.
-    CopyDisc {
-        index: usize,
-    },
+    let window = Window::new(app, &context);
+    window.present();
 
-    /// Message specific to the copy screen only.
-    CopyScreen(CopyScreenMessage),
+    //--] let menu_popover = PopoverMenu::builder()
+    //--]     .build();
 
-    /// Deletes a copy service configuration.
-    DeleteCopyService {
-        index: usize,
-    },
+    //--] let menu_button = MenuButton::builder()
+    //--]     .icon_name("open-menu-symbolic")
+    //--]     .popover(&menu_popover)
+    //--]     .build();
 
-    /// User interface event (e.g. keyboard, mouse, touch, etc.)
-    Event(Event),
-
-    /// Resets the copy service after a successful or failed copy operation.
-    ResetCopyService {
-        index: usize,
-    },
-
-    /// Changes the application's scale factor.
-    SetScaleFactor(ScaleFactor),
-
-    /// Changes the application's theme.
-    SetTheme(Theme),
-
-    /// Message specific to the settings screen only.
-    SettingsScreen(SettingsScreenMessage),
-
-    /// Emitted at a regular interval when tick is enabled.
-    Tick(Instant),
-
-    /// Toggles the application's theme between light and dark modes.
-    ToggleTheme,
-
-    /// Updates an existing copy service's configuration.
-    UpdateCopyService {
-        index: usize,
-        name: String,
-        serial_number: String,
-    },
-
-    /// View the screen used to copy media.
-    ViewCopyScreen,
-
-    /// View the screen used to configuration the application.
-    ViewSettingsScreen,
-
-    /// View the screen used to transcode video titles.
-    ViewTranscodeScreen,
+    //--] header_bar.pack_end(&menu_button);
 }
 
+pub mod helpers {
+    use gtk::Entry;
+    use gtk::prelude::*;
+
+    pub const INVALID_CSS_CLASS: &str = "invalid";
+
+    // TODO
+    pub fn update_validity_style(entry: &Entry, valid: bool) {
+        if valid {
+            entry_valid(entry);
+        } else {
+            entry_invalid(entry);
+        }
+    }
+
+    /// Marks the entry as valid.
+    ///
+    /// This will remove the invalid css class (see: [`INVALID_CSS_CLASS`])
+    pub fn entry_valid(entry: &Entry) {
+        entry.remove_css_class(INVALID_CSS_CLASS);
+    }
+
+    /// Marks the entry as invalid.
+    ///
+    /// This will add the invalid css class (see: [`INVALID_CSS_CLASS`])
+    pub fn entry_invalid(entry: &Entry) {
+        entry.add_css_class(INVALID_CSS_CLASS);
+    }
+
+}

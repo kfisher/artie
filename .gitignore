@@ -4,5 +4,6 @@ target/
 # Editors
 .vscode/
 
-# Ignore the configuration file being used for initial development.
+# Ignore the configuration files being used for initial development.
 artie.toml
+faux_drives/

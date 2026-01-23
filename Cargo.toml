@@ -39,10 +39,10 @@ workspace = true
 [dependencies.chrono]
 workspace = true
 
-[dependencies.iced]
-git = "https://github.com/iced-rs/iced.git"
-rev = "ebe223cb5d9dfdd20e0978969807d6944d670742"
-features = ["advanced", "svg", "tokio"]
+[dependencies.gtk]
+version = "0.10.3"
+package = "gtk4"
+features = ["v4_14"]
 
 [dependencies.rusqlite ]
 workspace = true
@@ -52,6 +52,10 @@ workspace = true
 
 [dependencies.serde_json]
 workspace = true
+
+[dependencies.tokio]
+version = "1"
+features = ["full"]
 
 [dependencies.toml]
 workspace = true
@@ -66,3 +70,6 @@ workspace = true
 # TODO: Remove these once initial development has completed!
 unused_imports = "allow"
 dead_code = "allow"
+
+[build-dependencies]
+glib-build-tools = "0.21.0"

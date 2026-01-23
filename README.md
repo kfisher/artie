@@ -1,3 +1,5 @@
+![icon](./resources/icons/original/app-icon.no-text.cropped.png)
+
 # Artie
 
 Artie is a project whose goal is to create an application for orchestrating the

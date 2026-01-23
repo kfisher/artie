@@ -1,0 +1,318 @@
+/* Copyright 2025 Kevin Fisher. All rights reserved. *
+ * SPDX-License-Identifier: GPL-3.0-only             */
+
+/* 
+ * COLORS
+ *
+ * NOTE: The following is based of the Nord color palette.
+ *       https://www.nordtheme.com/
+ *
+ *************************************************************************************************/
+
+@define-color nord-00 #2E3440;
+@define-color nord-01 #3B4252;
+@define-color nord-02 #434C5E;
+@define-color nord-03 #4C566A;
+@define-color nord-04 #D8DEE9;
+@define-color nord-05 #E5E9F0;
+@define-color nord-06 #ECEFF4;
+@define-color nord-07 #8FBCBB;
+@define-color nord-08 #88C0D0;
+@define-color nord-09 #81A1C1;
+@define-color nord-10 #5E81AC;
+@define-color nord-11 #BF616A;
+@define-color nord-12 #D08770;
+@define-color nord-13 #EBCB8B;
+@define-color nord-14 #A3BE8C;
+@define-color nord-15 #B48EAD;
+
+@define-color color-accent-base   #8FBCBB;
+@define-color color-accent-text   #144040;
+@define-color color-accent-border #699594;
+@define-color color-accent-hover  #719D9C;
+
+@define-color color-background-base   #2E3440;
+@define-color color-background-text   #00FF00;
+@define-color color-background-border #111620;
+@define-color color-background-hover  #00FF00;
+
+@define-color color-danger-base   #BF616A;
+@define-color color-danger-text   #380002;
+@define-color color-danger-border #963C47;
+@define-color color-danger-hover  #9E434E;
+
+@define-color color-primary-base   #88C0D0;
+@define-color color-primary-text   #034351;
+@define-color color-primary-border #6299A8;
+@define-color color-primary-hover  #69A0B0;
+
+@define-color color-secondary-base   #81A1C1;
+@define-color color-secondary-text   #0D2A44;
+@define-color color-secondary-border #5C7B9A;
+@define-color color-secondary-hover  #6483A1;
+
+@define-color color-selection-base   #5E81AC;
+@define-color color-selection-text   #ECEFF4;
+@define-color color-selection-border #00FF00;
+@define-color color-selection-hover  #00FF00;
+
+@define-color color-subtext-base   #D8DEE9;
+@define-color color-subtext-text   #00FF00;
+@define-color color-subtext-border #00FF00;
+@define-color color-subtext-hover  #00FF00;
+
+@define-color color-success-base   #A3BE8C;
+@define-color color-success-text   #2C4214;
+@define-color color-success-border #7D9767;
+@define-color color-success-hover  #859F6E;
+
+@define-color color-surface-0-base   #2E3440;
+@define-color color-surface-0-text   #A5ACBB;
+@define-color color-surface-0-border #111620;
+@define-color color-surface-0-hover  #161C26;
+
+@define-color color-surface-1-base   #3B4252;
+@define-color color-surface-1-text   #B5BDD1;
+@define-color color-surface-1-border #1C2231;
+@define-color color-surface-1-hover  #222837;
+
+@define-color color-surface-2-base   #434C5E;
+@define-color color-surface-2-text   #BFC9DF;
+@define-color color-surface-2-border #232B3C;
+@define-color color-surface-2-hover  #293243;
+
+@define-color color-surface-3-base   #4C566A;
+@define-color color-surface-3-text   #C9D5ED;
+@define-color color-surface-3-border #2C3547;
+@define-color color-surface-3-hover  #323B4E;
+
+@define-color color-text-base   #ECEFF4;
+@define-color color-text-text   #00FF00;
+@define-color color-text-border #00FF00;
+@define-color color-text-hover  #00FF00;
+
+* {
+    color: @color-text-base;
+}
+
+/* 
+ * GTK (built-in widgets)
+ *
+ *************************************************************************************************/
+
+entry {
+}
+
+entry:focus-within {
+    outline-color: @color-primary-base;
+}
+
+entry.invalid {
+    outline-color: @color-danger-base;
+    outline-offset: -2px;
+    outline-width: 2px;
+}
+
+entry.invalid:focus-within {
+    outline-color: @color-primary-base;
+    border: 0;
+}
+
+listview {
+    background-color: transparent;
+}
+
+window.background {
+    background-color: @color-surface-0-base;
+}
+
+progressbar {
+}
+
+progressbar > trough {
+    background-color: @color-surface-2-base;
+    border:           1px solid @color-surface-2-border;
+    min-height:       16px;
+}
+
+progressbar > trough > progress {
+    background-color: @color-secondary-base;
+    border-width:     0;
+    min-height:       16px;
+}
+
+button.danger {
+    background-color: @color-danger-base;
+    border:           @color-danger-border;
+}
+
+button.danger:active {
+    background-color: @color-danger-base;
+}
+
+button.danger:hover {
+    background-color: @color-danger-hover;
+}
+
+button.danger label, button.danger image {
+    color: @color-danger-text;
+}
+
+button.default {
+    background-color: @color-surface-3-base;
+    border:           @color-surface-3-border;
+}
+
+button.default:hover  {
+    background-color: @color-surface-3-hover;
+}
+
+button.default:hover:active {
+    background-color: @color-surface-3-base;
+}
+
+button.default label, button.default image {
+    color: @color-surface-3-text;
+}
+
+button.primary  {
+    background-color: @color-primary-base;
+    border:           @color-primary-border;
+}
+
+button.primary:hover {
+    background-color: @color-primary-hover;
+}
+
+button.primary:hover:active {
+    background-color: @color-primary-base;
+}
+
+button.primary label, button.primary image {
+    color: @color-primary-text;
+}
+
+button.secondary  {
+    background-color: @color-secondary-base;
+    border:           @color-secondary-border;
+}
+
+button.secondary:hover {
+    background-color: @color-secondary-hover;
+}
+
+button.secondary:hover:active {
+    background-color: @color-secondary-base;
+}
+
+button.secondary label, button.secondary image {
+    color: @color-secondary-text;
+}
+
+button.success  {
+    background-color: @color-success-base;
+    border:           @color-success-border;
+}
+
+button.success:hover {
+    background-color: @color-success-hover;
+}
+
+button.success:hover:active {
+    background-color: @color-success-base;
+}
+
+button.success label, button.success image {
+    color: @color-success-text;
+}
+
+/* 
+ * APP (custom widgets)
+ *
+ *************************************************************************************************/
+
+@keyframes rotateAnimation {
+    to {
+        -gtk-icon-transform: rotate(1turn);
+    }
+}
+
+.drive-widget {
+    background-color: @color-surface-1-base;
+    border:           1px solid @color-surface-1-border;
+}
+
+.drive-widget-error-message {
+    background-color: @color-surface-3-base;
+    border: 1px solid @color-surface-3-border;
+}
+
+.drive-widget-icon-container {
+    border-right: 1px solid @color-surface-1-border;
+}
+
+.drive-widget-icon-container.failed {
+    background-color: @color-danger-base;
+}
+
+.drive-widget-icon-container.idle,
+.drive-widget-icon-container.copying {
+    background-color: @color-secondary-base;
+}
+
+.drive-widget-icon-container.success {
+    background-color: @color-success-base;
+}
+
+.drive-widget-icon.failed {
+    color: @color-danger-text;
+}
+
+.drive-widget-icon.idle,
+.drive-widget-icon.copying {
+    color: @color-secondary-text;
+}
+
+.drive-widget-icon.copying {
+    animation: rotateAnimation 1s infinite;
+    animation-timing-function: linear;
+}
+
+.drive-widget-icon.success {
+    color: @color-success-text;
+}
+
+.drive-widget-content {
+    border-bottom: 1px solid @color-surface-1-border;
+    border-top:    1px solid @color-surface-1-border;
+}
+
+.drive-widget-footer {
+    font-family: monospace;
+}
+
+.drive-widget-task-label {
+    font-family:    monospace;
+    font-size:      10px;
+    text-transform: uppercase;
+}
+
+.drive-widget-label {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.temp {
+    background-color: yellow;
+}
+
+.temp label, .temp image {
+    color: red;
+}
+
+
+
+
+
+
+

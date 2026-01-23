@@ -118,19 +118,33 @@ pub enum MediaType {
 }
 
 impl MediaType {
-    /// All available themes.
+    /// All available types.
     pub const ALL: &'static [Self] = &[
         Self::Movie,
         Self::Show,
     ];
+
+    /// Create a [`MediaType`] from an index value.
+    pub fn from_index(index: u32) -> Option<Self> {
+        match index {
+            0 => Some(MediaType::Movie),
+            1 => Some(MediaType::Show),
+            _ => None,
+        }
+    }
+
+    /// Convert enum to string.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MediaType::Movie => "Movie",
+            MediaType::Show => "Show",
+        }
+    }
 }
 
 impl Display for MediaType {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        match self {
-            MediaType::Movie => write!(f, "Movie"),
-            MediaType::Show => write!(f, "Show"),
-        }
+        f.write_str(self.as_str())
     }
 }
 
