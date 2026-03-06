@@ -1,22 +1,108 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Database operations for [`CopyOperation`] data.
 
+use chrono::{DateTime, Utc};
+
 use rusqlite::Connection;
 
 use crate::{Error, Result};
+use crate::models::{CopyOperation, OperationState};
 
 use super::Operation;
+use super::conv;
+
+/// Creates a new [`CopyOperation`] instance in the database.
+pub fn create(conn: &Connection, copy_operation: &mut CopyOperation) -> Result<()> {
+    let sql = "
+        INSERT INTO copy_operation ( started
+                                   , completed
+                                   , state
+                                   , media_type
+                                   , title
+                                   , year
+                                   , disc
+                                   , disc_uuid
+                                   , season
+                                   , location
+                                   , memo
+                                   , metadata
+                                   , drive_id
+                                   , info_log
+                                   , copy_log
+                                   , host_id
+                                   , error
+                                   )
+             VALUES ( ?1 -- started
+                    , ?2 -- completed
+                    , ?3 -- state
+                    , ?4 -- media_type
+                    , ?5 -- title
+                    , ?6 -- year
+                    , ?7 -- disc
+                    , ?8 -- disc_uuid
+                    , ?9 -- season
+                    , ?10 -- location
+                    , ?11 -- memo
+                    , ?12 -- metadata
+                    , ?13 -- drive_id
+                    , ?14 -- info_log
+                    , ?15 -- copy_log
+                    , ?16 -- host_id
+                    , ?17 -- error
+                    )
+          RETURNING id
+    ";
+
+    let mut stmt = conn.prepare(sql)
+        .map_err(|error| Error::Db {
+            operation: Operation::Prepare,
+            error,
+        })?;
+
+    let (state, error) = conv::operation_state_to_sql(&copy_operation.state);
+
+    let params = rusqlite::params![
+        copy_operation.started.timestamp(),
+        copy_operation.completed.timestamp(),
+        state,
+        conv::media_type_to_sql(&copy_operation.media_type),
+        copy_operation.title,
+        copy_operation.year,
+        copy_operation.disc,
+        copy_operation.disc_uuid,
+        copy_operation.season,
+        copy_operation.location,
+        copy_operation.memo,
+        copy_operation.metadata.as_bytes(),
+        copy_operation.drive.id,
+        copy_operation.info_log.as_bytes(),
+        copy_operation.copy_log.as_bytes(),
+        copy_operation.host.id,
+        error,
+    ];
+
+    let id = stmt.query_row(params, |r| r.get::<_, u32>(0)).map_err(|error| Error::Db {
+        operation: Operation::Query,
+        error,
+    })?;
+
+    copy_operation.id = id;
+
+    tracing::trace!(?copy_operation, "create copy_operation entry");
+    Ok(())
+}
 
 /// Creates the database table for storing copy operation data if it does not exist.
-pub(crate) fn create_table(conn: &Connection) -> Result<()> {
+pub fn create_table(conn: &Connection) -> Result<()> {
     let sql = "
         CREATE TABLE copy_operation (
             id          INTEGER  PRIMARY KEY AUTOINCREMENT,
             started     INTEGER  NOT NULL,
             completed   INTEGER  NOT NULL,
             state       INTEGER  NOT NULL,
+            error       TEXT     NOT NULL,
             media_type  INTEGER  NOT NULL,
             title       TEXT     NOT NULL,
             year        INTEGER  NOT NULL,
@@ -35,12 +121,123 @@ pub(crate) fn create_table(conn: &Connection) -> Result<()> {
         ) STRICT
     ";
 
-    let _ = conn.execute(sql, ()).map_err(|error| Error::Db { 
+    let _ = conn.execute(sql, ()).map_err(|error| Error::Db {
             operation: Operation::Execute,
             error,
         })?;
 
     tracing::info!("create copy_operation table");
+    Ok(())
+}
+
+// TODO: Should try to compress the COPY and INFO logs. They won't be modified once added.
+
+/// Set the copy log of the copy operation update the database record.
+pub fn set_copy_log(
+    conn: &Connection,
+    copy_operation: &mut CopyOperation,
+    copy_log: &str,
+) -> Result<()> {
+    let sql = "
+        UPDATE copy_operation
+           SET copy_log=?1
+         WHERE id=?2
+    ";
+
+    let bytes = copy_log.as_bytes();
+
+    let _ = conn.execute(sql, (bytes, copy_operation.id)).map_err(|error| Error::Db {
+        operation: Operation::Execute,
+        error,
+    })?;
+
+    copy_operation.copy_log = copy_log.to_owned();
+
+    tracing::trace!(id=copy_operation.id, "set copy_operation copy log");
+    Ok(())
+}
+
+/// Set the info log of the copy operation update the database record.
+pub fn set_info_log(
+    conn: &Connection,
+    copy_operation: &mut CopyOperation,
+    info_log: &str,
+) -> Result<()> {
+    let sql = "
+        UPDATE copy_operation
+           SET info_log=?1
+         WHERE id=?2
+    ";
+
+    let bytes = info_log.as_bytes();
+
+    let _ = conn.execute(sql, (bytes, copy_operation.id)).map_err(|error| Error::Db {
+        operation: Operation::Execute,
+        error,
+    })?;
+
+    tracing::trace!(id=copy_operation.id, "set copy_operation info log");
+    Ok(())
+}
+
+/// Set the info log of the copy operation update the database record.
+pub fn set_metadata(
+    conn: &Connection,
+    copy_operation: &mut CopyOperation,
+    metadata: &str,
+) -> Result<()> {
+    let sql = "
+        UPDATE copy_operation
+           SET metadata=?1
+         WHERE id=?2
+    ";
+
+    let bytes = metadata.as_bytes();
+
+    let _ = conn.execute(sql, (bytes, copy_operation.id)).map_err(|error| Error::Db {
+        operation: Operation::Execute,
+        error,
+    })?;
+
+    tracing::trace!(id=copy_operation.id, "set copy_operation metadata");
+    Ok(())
+}
+
+/// Sets the state of the copy operation and update the database record.
+/// 
+/// This will also set the completed and error fields if applicable based of the state.
+pub fn set_state(
+    conn: &Connection,
+    copy_operation: &mut CopyOperation,
+    operation_state: OperationState,
+) -> Result<()> {
+    let sql = "
+        UPDATE copy_operation
+           SET state=?1,
+               completed=?2,
+               error=?3
+         WHERE id=?4
+    ";
+
+    let (state, error) = conv::operation_state_to_sql(&operation_state);
+
+    let completed = match operation_state {
+        OperationState::Completed | OperationState::Cancelled | OperationState::Failed { .. } => {
+            Utc::now()
+        },
+        _ => DateTime::<Utc>::default(),
+    };
+
+    let _ = conn.execute(sql, (state, completed.timestamp(), error, copy_operation.id))
+        .map_err(|error| Error::Db {
+            operation: Operation::Execute,
+            error,
+        })?;
+
+    copy_operation.state = operation_state;
+    copy_operation.completed = completed;
+
+    tracing::trace!(id=copy_operation.id, "set copy_operation state, completed, error");
     Ok(())
 }
 
@@ -61,9 +258,12 @@ mod tests {
     #[test]
     fn test_create_table() {
         let conn = Connection::open_in_memory().unwrap();
-        
+
         // Should succeed
         let result = create_table(&conn);
         assert!(result.is_ok());
     }
+
+    // TODO: More Testing
 }
+

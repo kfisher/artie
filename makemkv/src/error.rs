@@ -1,4 +1,4 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Result and error types.
@@ -13,6 +13,11 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Error type for `makemkv` crate functions.
 #[derive(Debug)]
 pub enum Error {
+    /// Error raised when an attribute cannot be found.
+    AttributeNotFound {
+        attr: Attribute,
+    },
+
     /// Error raised when the MakeMKV failed to start because it was already running.
     CommandAlreadyRunning,
 
@@ -31,19 +36,19 @@ pub enum Error {
         attr: Attribute
     },
 
-    /// Error raised from the standard error processing thread.
-    ErrThreadIoError {
-        error: std::io::Error,
+    /// Error raised from the standard error processing task.
+    ErrTaskIoError {
+        error: tokio::io::Error,
     },
 
-    /// Error raised when the standard error thread panics.
-    ErrThreadPanicked {
+    /// Error raised when the standard error process panics.
+    ErrTaskPanicked {
         error: String,
     },
 
-    /// Error raised when the standard error processing thread fails to send on its data channel.
-    ErrThreadSendError {
-        error: std::sync::mpsc::SendError<crate::commands::ChannelData>,
+    /// Error raised when the standard error processing task fails to send on its data channel.
+    ErrTaskSendError {
+        error: tokio::sync::mpsc::error::SendError<crate::commands::ChannelData>,
     },
 
     /// Error raised when checking for existing MKV files.
@@ -60,6 +65,17 @@ pub enum Error {
     /// Error raised when one or more MKV files already exist in the provided output directory.
     FoundExistingMkvFiles {
         path: PathBuf
+    },
+
+    /// Error raised when a channel count value cannot be parsed from attribute data.
+    InvalidChannelCount {
+        text: String,
+    },
+
+    /// Error raised when a duration value cannot be parsed from attribute data.
+    InvalidDuration {
+        error: String,
+        text: String,
     },
 
     /// Error raised when parsing a message from MakeMKV when the data within the message cannot be
@@ -117,19 +133,24 @@ pub enum Error {
         error: std::io::Error,
     },
 
-    /// Error raised from the standard output processing thread.
-    OutThreadIoError {
-        error: std::io::Error,
+    /// Error raised when sending data to the observer fails.
+    ObserverSendError {
+        error: tokio::sync::mpsc::error::SendError<crate::commands::CommandOutput>,
     },
 
-    /// Error raised when the standard output thread panics.
-    OutThreadPanicked {
+    /// Error raised from the standard output processing task.
+    OutTaskIoError {
+        error: tokio::io::Error,
+    },
+
+    /// Error raised when the standard output task panics.
+    OutTaskPanicked {
         error: String,
     },
 
-    /// Error raised when the standard output processing thread fails to send on its data channel.
-    OutThreadSendError {
-        error: std::sync::mpsc::SendError<crate::commands::ChannelData>,
+    /// Error raised when the standard output processing task fails to send on its data channel.
+    OutTaskSendError {
+        error: tokio::sync::mpsc::error::SendError<crate::commands::ChannelData>,
     },
 
     /// Error raised when parsing a message and the message type is unknown to the parser and

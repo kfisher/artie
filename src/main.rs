@@ -1,19 +1,27 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-mod copy_srv;
 mod db;
 mod drive;
 mod error;
 mod fs;
+mod library;
 mod models;
 mod settings;
 mod ui;
+
+#[cfg(test)]
+pub(crate) mod test_utils;
 
 use gtk::Application;
 use gtk::gio;
 use gtk::gio::prelude::{ApplicationExt, ApplicationExtManual};
 use gtk::glib;
+
+use tracing::Level;
+use tracing_subscriber::Layer;
+use tracing_subscriber::filter::Targets;
+use tracing_subscriber::prelude::*;
 
 pub use crate::error::Error;
 
@@ -25,7 +33,15 @@ pub const APP_ID: &str = "org.example.Artie";
 pub type Result<T> = std::result::Result<T, Error>;
 
 fn main() -> glib::ExitCode {
-    tracing_subscriber::fmt::init();
+
+    let filter = Targets::new()
+        .with_target("artie", Level::DEBUG)
+        .with_target("handbrake", Level::DEBUG)
+        .with_target("makemkv", Level::DEBUG);
+
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::fmt::layer().with_filter(filter))
+        .init();
 
     gio::resources_register_include!("compiled.gresource")
         .expect("Failed to register resources.");
@@ -57,6 +73,26 @@ pub mod task {
         F::Output: Send + 'static,
     {
         runtime().spawn(future)
+    }
+
+    /// Runs the provided closure on a thread where blocking is acceptable.
+    ///
+    /// This is essentially just a drop-in for the `tokio::spawn_blocking` method which can't be
+    /// used because the runtime is manually setup instead of using `tokio::main` macro.
+    pub fn spawn_blocking<F, R>(func: F) -> JoinHandle<R>
+    where
+        F: FnOnce() -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        runtime().spawn_blocking(func)
+    }
+
+    /// Runs a future blocking until it completes.
+    pub fn block_on<F>(future: F) -> F::Output 
+    where
+        F: Future,
+    {
+        Runtime::new().expect("Failed to create blocking runtime").block_on(future)
     }
 
     /// Gets the tokio runtime.

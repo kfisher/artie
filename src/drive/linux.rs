@@ -1,4 +1,4 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Linux implementation for OS specific code for interfacing with the optical drives.
@@ -10,7 +10,24 @@ use serde::Deserialize;
 use crate::{Error, Result};
 use crate::error;
 
-use super::{DiscState, OsOpticalDrive};
+use super::{DiscState, OpticalDrive};
+
+/// Gets the optical drive information for all available optical drives.
+pub fn get_optical_drives() -> Result<Vec<OpticalDrive>> {
+    get_optical_drives_impl(run_lsblk_command)
+}
+
+/// Gets the optical drive information for an optical drive with serial number
+/// `serial_number`.
+///
+/// Returns `None` if an optical drive cannot be found with the provided serial
+/// number. Returns an error if something goes wrong when querying the operating
+/// system.
+///
+/// This is the Linux specific implementation.
+pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
+    get_optical_drive_impl(serial_number, run_lsblk_command)
+}
 
 /// Represents the information returned by the `lsblk` command for an individual
 /// block device.
@@ -68,12 +85,12 @@ impl BlockDevice {
     /// Panics if called on a block device that is not a valid optical drive
     /// block device. Use [`BlockDevice::is_optical_drive`] to check if the
     /// device is a valid optical drive.
-    fn to_optical_drive(&self) -> OsOpticalDrive {
+    fn to_optical_drive(&self) -> OpticalDrive {
         let Some(sn) = &self.serial_number else {
             panic!("Block device is not a valid optical drive.");
         };
 
-        let mut drive = OsOpticalDrive {
+        let mut drive = OpticalDrive {
             path: self.name.clone(),
             serial_number: sn.clone(),
             disc: DiscState::None,
@@ -132,6 +149,21 @@ fn run_lsblk_command() -> Result<String> {
 // NOTE: The internal implementation allows for the bulk of the function to be
 //       tested without having to make an actual call to the OS.
 
+/// Internal implementation of [`get_optical_drives`].
+fn get_optical_drives_impl<F: Fn() -> Result<String>>(run_cmd: F) -> Result<Vec<OpticalDrive>> {
+    let json = run_cmd()?;
+
+    let block_device_data = serde_json::from_str::<BlockDeviceData>(&json)
+        .map_err(error::json_deserialize)?;
+
+    let drives = block_device_data.block_devices.iter()
+        .filter(|bd| bd.is_optical_drive())
+        .map(|bd| bd.to_optical_drive())
+        .collect();
+
+    Ok(drives)
+}
+
 /// Internal implementation of [`get_optical_drive`].
 ///
 /// This method gets the optional drive information from the operating system
@@ -141,7 +173,7 @@ fn run_lsblk_command() -> Result<String> {
 fn get_optical_drive_impl<F: Fn() -> Result<String>>(
     serial_number: &str,
     run_cmd: F,
-) -> Result<Option<OsOpticalDrive>> {
+) -> Result<Option<OpticalDrive>> {
     let json = run_cmd()?;
 
     let block_device_data = serde_json::from_str::<BlockDeviceData>(&json)
@@ -157,18 +189,6 @@ fn get_optical_drive_impl<F: Fn() -> Result<String>>(
     }
 
     Ok(None)
-}
-
-/// Gets the optical drive information for an optical drive with serial number
-/// `serial_number`.
-///
-/// Returns `None` if an optical drive cannot be found with the provided serial
-/// number. Returns an error if something goes wrong when querying the operating
-/// system.
-///
-/// This is the Linux specific implementation.
-pub fn get_optical_drive(serial_number: &str) -> Result<Option<OsOpticalDrive>> {
-    get_optical_drive_impl(serial_number, run_lsblk_command)
 }
 
 #[cfg(test)]

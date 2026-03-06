@@ -1,4 +1,4 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Defines the copy page widget.
@@ -6,7 +6,6 @@
 //! The copy page is the page used to initiate, monitor, and terminate copy operations for all 
 //! connected optical drives.
 
-use std::thread;
 use std::time::Duration;
 
 use gtk::{
@@ -19,16 +18,13 @@ use gtk::{
     ScrolledWindow,
     SignalListItemFactory
 };
-use gtk::gio;
 use gtk::gio::ListStore;
 use gtk::glib;
-use gtk::glib::clone;
 use gtk::glib::Object;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
 use crate::drive::glib::OpticalDriveObject;
-use crate::task;
 use crate::ui::widget::DriveWidget;
 use crate::ui::ContextObject;
 
@@ -60,6 +56,7 @@ impl CopyPageWidget {
             .halign(Align::Center)
             .valign(Align::Start)
             .build();
+        list_view.add_css_class("drive-list-widget");
 
         let scroll = ScrolledWindow::builder()
             .child(&list_view)
@@ -90,7 +87,7 @@ impl CopyPageWidget {
         self.imp().drive_list_view
             .borrow()
             .as_ref()
-            .expect("drive_list_view is should not be None")
+            .expect("drive_list_view should not be None")
             .set_model(Some(&NoSelection::new(context.drives_store())));
     }
 
@@ -161,7 +158,7 @@ impl CopyPageWidget {
         glib::spawn_future_local(async move {
             loop {
                 update_drive_status(&drives_store).await;
-                glib::timeout_future(Duration::from_millis(1000)).await;
+                glib::timeout_future(Duration::from_millis(33)).await;
             }
         });
     }
@@ -185,7 +182,7 @@ mod imp {
     use std::cell::RefCell;
 
     use gtk::{Box, ListView};
-    use gtk::gio::ListStore;
+    
     use gtk::glib;
     use gtk::glib::Properties;
     use gtk::prelude::*;

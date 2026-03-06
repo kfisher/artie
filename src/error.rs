@@ -1,4 +1,4 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Application error and result types.
@@ -40,20 +40,19 @@ pub enum Error {
         error: std::string::FromUtf8Error,
     },
 
-    /// Error raised when a copy service cannot be initialized.
-    CopyServiceInit {
-        error: crate::copy_srv::Error,
-    },
-
     /// Error raised when performing a database operation.
     Db {
         operation: crate::db::Operation,
         error: rusqlite::Error,
     },
 
+    /// Error raised when generating title and video information when the output file name is
+    /// missing from the extracted disc information.
+    DiscInfoMissingOutputFileName,
+
     /// Error raised when attempting to send or receive a message to or from a drive actor.
     DriveActorChannel {
-        error: ChannelError<DriveActorMessage>
+        error: Box<ChannelError<DriveActorMessage>>,
     },
 
     /// Error raised when a string argument provided to a database operation is empty when the 
@@ -78,6 +77,43 @@ pub enum Error {
         path: PathBuf,
     },
 
+    /// Error raised when attempting to perform an operation on an optical drive cannot be
+    /// performed because it is in an invalid state.
+    InvalidOpticalDriveState {
+        state: Box<crate::drive::OpticalDriveState>,
+        expected: Box<crate::drive::OpticalDriveState>,
+    },
+
+    /// Error raised when running a MakeMKV command.
+    MakeMKV {
+        error: makemkv::Error,
+    },
+
+    /// Error raised when an audio codec mapping cannot be found.
+    ///
+    /// Will be raised when looking up the MakeMKV audio codec and there is not a mapping for the
+    /// provided codec (short form).
+    MissingAudioCodecMapping {
+        codec_short: String,
+    },
+
+    /// Error raised when an subtitle codec mapping cannot be found.
+    ///
+    /// Will be raised when looking up the MakeMKV subtitle codec and there is not a mapping for
+    /// the provided codec (short form).
+    MissingSubtitleCodecMapping {
+        codec_short: String,
+    },
+
+    /// Error raised when an video codec mapping cannot be found.
+    ///
+    /// Will be raised when looking up the MakeMKV video codec and there is not a mapping for the
+    /// provided codec (short form).
+    MissingVideoCodecMapping {
+        codec_short: String,
+    },
+
+
     /// Error raised when serializing or deserializing data.
     ///
     /// If `path` is `Some`, its the path to the file the serialized data was read from or about to 
@@ -85,6 +121,27 @@ pub enum Error {
     Serialization {
         path: Option<PathBuf>,
         error: SerializationError,
+    },
+
+    /// Error raised when performing a synchronization operations like acquiring a mutex lock.
+    SyncError {
+        error: String,
+    },
+
+    /// Error raised when joining an tokio task fails.
+    TaskJoinError {
+        error: tokio::task::JoinError,
+    },
+
+    /// Error raised when an unexpected stream type is encountered.
+    UnexpectedStreamType {
+        stream_type: Option<String>,
+    },
+
+    /// Error raised when an unexpected file extension is encountered.
+    UnexpectedFileExtension {
+        expected: String,
+        actual: String,
     },
 }
 

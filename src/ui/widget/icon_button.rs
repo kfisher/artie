@@ -1,11 +1,10 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 use glib::Object;
-use gtk::{Box, Button, Image, Label, Orientation};
+use gtk::{Box, Image, Label, Orientation};
 use gtk::glib;
 use gtk::prelude::*;
-use gtk::subclass::prelude::*;
 
 glib::wrapper! {
     /// Button widget for displaying both an icon and a label.
@@ -61,21 +60,23 @@ impl Default for IconButton {
 mod imp {
     use std::cell::RefCell;
 
-    use gtk::{Box, Button, Image, Label};
+    use gtk::Button;
     use gtk::glib;
     use gtk::glib::Properties;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
-    // TODO
+    /// Implementation for [`super::IconButton`].
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::IconButton)]
     pub struct IconButton {
-        // TODO
+        /// The icon name.
+        ///
+        /// This is the name of the SVG file without the extension.
         #[property(get, set)]
         icon_name: RefCell<String>,
 
-        // TODO
+        /// The button's text.
         #[property(get, set)]
         label: RefCell<String>,
     }

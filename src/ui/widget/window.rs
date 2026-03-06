@@ -1,4 +1,4 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Defines the application window widget.
@@ -8,7 +8,6 @@ use glib::Object;
 use gtk::{Application, HeaderBar, Stack, StackSwitcher};
 use gtk::gio;
 use gtk::glib;
-use gtk::subclass::prelude::*;
 use gtk::prelude::*;
 
 use crate::ui::context::ContextObject;

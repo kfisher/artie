@@ -1,4 +1,4 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! File system settings and operations.
@@ -9,20 +9,32 @@
 use std::fs;
 use std::path::PathBuf;
 
+use serde::{Deserialize, Serialize};
+
 use crate::{Error, Result};
 use crate::models::{CopyOperation, MediaLocation, MediaType};
 
+/// Name of the file that is used to save the disc information extracted by MakeMKV.
+pub const DISC_INFO_FILENAME: &str = "disc_info.json";
+
+/// Name of the file that is used to log MakeMKV output when running the info command.
+pub const MAKEMKV_INFO_LOG_FILENAME: &str = "makemkv-info.log";
+
+/// Name of the file that is used to log MakeMKV output when running the copy (mkv) command.
+pub const MAKEMKV_COPY_LOG_FILENAME: &str = "makemkv-copy.log";
+
 /// Container for root directory paths.
-#[derive(Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct FileSystem {
+    /// Paths to the different directories used by the application.
     settings: Settings,
 }
 
 impl FileSystem {
     /// Creates a [`FileSystem`] instance.
-    pub fn new(settings: Settings) -> Self {
+    pub fn new(settings: &Settings) -> Self {
         Self {
-            settings,
+            settings: settings.clone(),
         }
     }
 
@@ -38,6 +50,16 @@ impl FileSystem {
         self.settings.data.is_dir()
     }
 
+    /// Returns the path to a file with the provided name in the data directory.
+    pub fn data_path(&self, name: &str) -> PathBuf {
+        self.settings.data.join(name)
+    }
+
+    /// Returns the path to the disc info file for a copy operation.
+    pub fn disc_info_file(&self, copy_operation: &CopyOperation) -> PathBuf {
+        self.inbox_folder(copy_operation).join(DISC_INFO_FILENAME)
+    }
+
     /// Returns `true` if the inbox directory exists, is a directory, and accessible by the user or
     /// `false` otherwise.
     pub fn inbox_exists(&self) -> bool {
@@ -46,25 +68,13 @@ impl FileSystem {
 
     /// Returns the path to the inbox folder for a copy operation.
     pub fn inbox_folder(&self, copy_operation: &CopyOperation) -> PathBuf {
-        self.settings.inbox.join(match copy_operation.media_type {
-            MediaType::Movie => {
-                PathBuf::from(format!(
-                    "0x{:08X}.{}.D{}",
-                    copy_operation.id,
-                    copy_operation.title,
-                    copy_operation.disc
-                ))
-            },
-            MediaType::Show => {
-                PathBuf::from(format!(
-                    "0x{:08X}.{}.S{}.D{}",
-                    copy_operation.id,
-                    copy_operation.title,
-                    copy_operation.season,
-                    copy_operation.disc
-                ))
-            },
-        })
+        self.settings.inbox.join(PathBuf::from(self.inbox_folder_name(copy_operation)))
+    }
+
+    /// Returns the media location for a file created by a copy operation.
+    pub fn inbox_location(&self, copy_operation: &CopyOperation, filename: &str) -> MediaLocation {
+        let path = PathBuf::from(self.inbox_folder_name(copy_operation)).join(filename);
+        MediaLocation::Inbox(path)
     }
 
     /// Returns `true` if the library directory exists, is a directory, and accessible by the user
@@ -102,6 +112,16 @@ impl FileSystem {
         Ok(())
     }
 
+    /// Returns the path to the log file created when gathering disc info during a copy operation.
+    pub fn mkv_info_log_file(&self, copy_operation: &CopyOperation) -> PathBuf {
+        self.inbox_folder(copy_operation).join(MAKEMKV_INFO_LOG_FILENAME)
+    }
+
+    /// Returns the path to the log file created when copying a disc.
+    pub fn mkv_copy_log_file(&self, copy_operation: &CopyOperation) -> PathBuf {
+        self.inbox_folder(copy_operation).join(MAKEMKV_COPY_LOG_FILENAME)
+    }
+
     /// Returns the path for a file.
     pub fn path(&self, location: &MediaLocation) -> Option<PathBuf> {
         match location {
@@ -117,9 +137,36 @@ impl FileSystem {
             MediaLocation::Deleted => None,
         }
     }
+
+    /// Returns the name of the inbox folder based off the provided copy operation.
+    fn inbox_folder_name(&self, copy_operation: &CopyOperation) -> String {
+        match copy_operation.media_type {
+            MediaType::Movie => {
+                format!(
+                    "0x{:08X}.{}.D{}",
+                    copy_operation.id,
+                    copy_operation.title,
+                    copy_operation.disc
+                )
+            },
+            MediaType::Show => {
+                format!(
+                    "0x{:08X}.{}.S{}.D{}",
+                    copy_operation.id,
+                    copy_operation.title,
+                    copy_operation.season,
+                    copy_operation.disc
+                )
+            },
+        }
+    }
 }
 
-#[derive(Debug)]
+// TODO: The default should not be empty paths. Otherwise, the class should implement the Default
+//       trait since empty paths are invalid data.
+
+/// File path settings.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Settings {
     /// Path to the media inbox directory.
     ///
@@ -148,39 +195,9 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::thread;
 
-    pub struct TempFile(pub PathBuf);
+    use crate::test_utils::TempDir;
 
-    impl TempFile {
-        fn new(file_name: &str) -> TempFile {
-            TempFile(env::temp_dir().join(file_name))
-        }
-
-        fn path(&self) -> &Path {
-            let TempFile(ref p) = *self;
-            p
-        }
-    }
-
-    impl Drop for TempFile {
-        fn drop(&mut self) {
-            let TempFile(ref p) = *self;
-            if !p.exists() {
-                return
-            }
-            let result = if p.is_dir() {
-                fs::remove_dir_all(p)
-            } else {
-                fs::remove_file(p)
-            };
-            // Avoid panicking while panicking as this causes the process to immediately abort,
-            // without displaying test results.
-            if !thread::panicking() {
-                result.unwrap();
-            }
-        }
-    }
-
-    fn setup_file_system(temp: &TempFile, make_dirs: bool) -> FileSystem {
+    fn setup_file_system(temp: &TempDir, make_dirs: bool) -> FileSystem {
         let base = temp.path();
 
         let settings = Settings {
@@ -190,7 +207,7 @@ mod tests {
             data: base.join("data"),
         };
 
-        let file_system = FileSystem::new(settings);
+        let file_system = FileSystem::new(&settings);
 
         if make_dirs {
             let result = file_system.make_dirs();
@@ -202,7 +219,7 @@ mod tests {
 
     #[test]
     fn test_archive_exists() {
-        let temp = TempFile::new("artie.test.fs.archive_exists");
+        let temp = TempDir::new("artie.test.fs.archive_exists");
         let file_system = setup_file_system(&temp, false);
 
         assert!(!file_system.archive_exists());
@@ -212,7 +229,7 @@ mod tests {
 
     #[test]
     fn test_data_exists() {
-        let temp = TempFile::new("artie.test.fs.data_exists");
+        let temp = TempDir::new("artie.test.fs.data_exists");
         let file_system = setup_file_system(&temp, false);
 
         assert!(!file_system.data_exists());
@@ -222,7 +239,7 @@ mod tests {
 
     #[test]
     fn test_inbox_exists() {
-        let temp = TempFile::new("artie.test.fs.inbox_exists");
+        let temp = TempDir::new("artie.test.fs.inbox_exists");
         let file_system = setup_file_system(&temp, false);
 
         assert!(!file_system.inbox_exists());
@@ -232,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_library_exists() {
-        let temp = TempFile::new("artie.test.fs.library_exists");
+        let temp = TempDir::new("artie.test.fs.library_exists");
         let file_system = setup_file_system(&temp, false);
 
         assert!(!file_system.library_exists());
@@ -242,7 +259,7 @@ mod tests {
 
     #[test]
     fn test_make_dirs_success() {
-        let temp = TempFile::new("artie.test.fs.make_dirs_success");
+        let temp = TempDir::new("artie.test.fs.make_dirs_success");
         let file_system = setup_file_system(&temp, false);
 
         // Create the directories
@@ -258,7 +275,7 @@ mod tests {
 
     #[test]
     fn test_make_dirs_with_nested_paths() {
-        let temp = TempFile::new("artie.test.fs.make_dirs_with_nested_paths");
+        let temp = TempDir::new("artie.test.fs.make_dirs_with_nested_paths");
         let file_system = setup_file_system(&temp, false);
 
         let result = file_system.make_dirs();
@@ -273,7 +290,7 @@ mod tests {
 
     #[test]
     fn test_make_dirs_already_exist() {
-        let temp = TempFile::new("artie.test.fs.make_dirs_already_exists");
+        let temp = TempDir::new("artie.test.fs.make_dirs_already_exists");
         let file_system = setup_file_system(&temp, false);
 
         // Create directories first time
@@ -292,7 +309,7 @@ mod tests {
 
     #[test]
     fn test_make_dirs_are_actually_directories() {
-        let temp = TempFile::new("artie.test.fs.make_dirs_actually_directories");
+        let temp = TempDir::new("artie.test.fs.make_dirs_actually_directories");
         let file_system = setup_file_system(&temp, false);
 
         file_system.make_dirs().unwrap();
@@ -306,7 +323,7 @@ mod tests {
 
     #[test]
     fn test_make_dirs_with_file_conflict() {
-        let temp = TempFile::new("artie.test.fs.make_dirs_with_file_conflict");
+        let temp = TempDir::new("artie.test.fs.make_dirs_with_file_conflict");
         let base = temp.path();
 
         let file_path = base.join("inbox");
@@ -322,7 +339,7 @@ mod tests {
             data: base.join("data"),
         };
 
-        let file_system = FileSystem::new(settings);
+        let file_system = FileSystem::new(&settings);
 
         // This should fail because inbox is a file, not a directory
         let result = file_system.make_dirs();
@@ -331,7 +348,7 @@ mod tests {
 
     #[test]
     fn test_movie_inbox_folder() {
-        let temp = TempFile::new("artie.test.fs.test_movie_inbox_folder");
+        let temp = TempDir::new("artie.test.fs.test_movie_inbox_folder");
         let file_system = setup_file_system(&temp, false);
 
         let copy_op = CopyOperation {
@@ -351,7 +368,7 @@ mod tests {
 
     #[test]
     fn test_movie_inbox_folder_with_large_id() {
-        let temp = TempFile::new("artie.test.fs.test_movie_inbox_folder_with_large_id");
+        let temp = TempDir::new("artie.test.fs.test_movie_inbox_folder_with_large_id");
         let file_system = setup_file_system(&temp, false);
 
         let copy_op = CopyOperation {
@@ -371,7 +388,7 @@ mod tests {
 
     #[test]
     fn test_show_inbox_folder() {
-        let temp = TempFile::new("artie.test.fs.test_show_inbox_folder");
+        let temp = TempDir::new("artie.test.fs.test_show_inbox_folder");
         let file_system = setup_file_system(&temp, false);
 
         let copy_op = CopyOperation {
@@ -391,7 +408,7 @@ mod tests {
 
     #[test]
     fn test_show_inbox_folder_season_zero() {
-        let temp = TempFile::new("artie.test.fs.test_show_inbox_folder_season_zero");
+        let temp = TempDir::new("artie.test.fs.test_show_inbox_folder_season_zero");
         let file_system = setup_file_system(&temp, false);
 
         let copy_op = CopyOperation {
@@ -411,7 +428,7 @@ mod tests {
 
     #[test]
     fn test_inbox_folder_with_special_characters_in_title() {
-        let temp = TempFile::new(
+        let temp = TempDir::new(
             "artie.test.fs.test_inbox_folder_with_special_characters_in_title"
         );
         let file_system = setup_file_system(&temp, false);
@@ -433,7 +450,7 @@ mod tests {
 
     #[test]
     fn test_inbox_folder_with_id_zero() {
-        let temp = TempFile::new("artie.test.fs.test_inbox_folder_with_id_zero");
+        let temp = TempDir::new("artie.test.fs.test_inbox_folder_with_id_zero");
         let file_system = setup_file_system(&temp, false);
 
         let copy_op = CopyOperation {
@@ -453,7 +470,7 @@ mod tests {
 
     #[test]
     fn test_inbox_path() {
-        let temp = TempFile::new("artie.test.fs.test_inbox_path");
+        let temp = TempDir::new("artie.test.fs.test_inbox_path");
         let file_system = setup_file_system(&temp, false);
 
         let location = MediaLocation::Inbox(PathBuf::from("movie_folder"));
@@ -465,7 +482,7 @@ mod tests {
 
     #[test]
     fn test_library_path() {
-        let temp = TempFile::new("artie.test.fs.test_library_path");
+        let temp = TempDir::new("artie.test.fs.test_library_path");
         let file_system = setup_file_system(&temp, false);
 
         let location = MediaLocation::Library(PathBuf::from("show_folder"));
@@ -477,7 +494,7 @@ mod tests {
 
     #[test]
     fn test_archive_path() {
-        let temp = TempFile::new("artie.test.fs.test_archive_path");
+        let temp = TempDir::new("artie.test.fs.test_archive_path");
         let file_system = setup_file_system(&temp, false);
 
         let location = MediaLocation::Archive(PathBuf::from("archived_content"));
@@ -489,7 +506,7 @@ mod tests {
 
     #[test]
     fn test_deleted_path() {
-        let temp = TempFile::new("artie.test.fs.test_deleted_path");
+        let temp = TempDir::new("artie.test.fs.test_deleted_path");
         let file_system = setup_file_system(&temp, false);
 
         let location = MediaLocation::Deleted;
@@ -501,7 +518,7 @@ mod tests {
 
     #[test]
     fn test_inbox_path_with_nested_structure() {
-        let temp = TempFile::new("artie.test.fs.test_inbox_path_with_nested_structure");
+        let temp = TempDir::new("artie.test.fs.test_inbox_path_with_nested_structure");
         let file_system = setup_file_system(&temp, false);
 
         let location = MediaLocation::Inbox(PathBuf::from("folder/subfolder/file"));
@@ -513,7 +530,7 @@ mod tests {
 
     #[test]
     fn test_library_path_with_empty_path() {
-        let temp = TempFile::new("artie.test.fs.test_library_path_with_empty_path");
+        let temp = TempDir::new("artie.test.fs.test_library_path_with_empty_path");
         let file_system = setup_file_system(&temp, false);
 
         let location = MediaLocation::Library(PathBuf::from(""));

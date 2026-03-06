@@ -1,4 +1,4 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Defines the optical drive widget.
@@ -8,25 +8,19 @@
 use gtk::{
     Align,
     Box,
-    Button,
-    DropDown,
-    Entry,
-    Grid,
     Image,
     Label,
     ProgressBar,
     Orientation,
-    Stack,
-    StringList
+    Stack
 };
 use gtk::glib;
 use gtk::glib::Object;
-use gtk::glib::property::PropertySet;
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
+use crate::drive::data::FormDataUpdate;
 use crate::drive::glib::{OpticalDriveObject, OpticalDriveState};
-use crate::models::MediaType;
 use crate::task;
 use crate::ui::widget::{CopyFormWidget, IconButton};
 
@@ -422,25 +416,6 @@ impl DriveWidget {
         imp.clear_button.borrow().connect_clicked(move |_| {
             copy_form.clear();
         });
-
-        let copy_form = imp.copy_form
-            .borrow()
-            .clone();
-        imp.copy_button.borrow().connect_clicked(move |_| {
-            if copy_form.validate() {
-                tracing::info!("COPY - VALID");
-            } else {
-                tracing::info!("COPY - INVALID");
-            }
-        });
-
-        imp.reset_button.borrow().connect_clicked(|_| {
-            tracing::info!("RESET CLICKED");
-        });
-
-        imp.cancel_button.borrow().connect_clicked(|_| {
-            tracing::info!("CANCEL CLICKED");
-        });
     }
 
     /// Binds the widget to the provided optical drive object.
@@ -577,6 +552,32 @@ impl DriveWidget {
             .build();
         bindings.push(copy_visibility_binding);
 
+        if let Some(form_data) = task::block_on(drive_object.get_form_data()) {
+            imp.copy_form.borrow().set_form_data(&form_data);
+        };
+
+        let copy_form = imp.copy_form
+            .borrow()
+            .clone();
+        let drive_object_clone = drive_object
+            .clone();
+        copy_button.connect_clicked(move |_| {
+            if !copy_form.validate() {
+                tracing::debug!(form=%copy_form, "copy form invalid");
+                return;
+            }
+
+            let copy_parameters = copy_form.get_copy_parameters();
+
+            glib::spawn_future_local(glib::clone!(
+                #[strong]
+                drive_object_clone,
+                async move {
+                    drive_object_clone.copy_disc(copy_parameters).await;
+                }
+            ));
+        });
+
         let reset_button = imp.reset_button.borrow();
         let reset_visibility_binding = drive_object
             .bind_property("drive-state", &reset_button.clone(), "visible")
@@ -587,6 +588,18 @@ impl DriveWidget {
             .build();
         bindings.push(reset_visibility_binding);
 
+        let drive_object_clone = drive_object
+            .clone();
+        imp.reset_button.borrow().connect_clicked(move |_| {
+            glib::spawn_future_local(glib::clone!(
+                #[strong]
+                drive_object_clone,
+                async move {
+                    drive_object_clone.reset().await;
+                }
+            ));
+        });
+
         let cancel_button = imp.cancel_button.borrow();
         let cancel_visibility_binding = drive_object
             .bind_property("drive-state", &cancel_button.clone(), "visible")
@@ -596,6 +609,118 @@ impl DriveWidget {
             .sync_create()
             .build();
         bindings.push(cancel_visibility_binding);
+
+        let drive_object_clone = drive_object
+            .clone();
+        imp.cancel_button.borrow().connect_clicked(move |_| {
+            glib::spawn_future_local(glib::clone!(
+                #[strong]
+                drive_object_clone,
+                async move {
+                    drive_object_clone.cancel_copy_disc().await;
+                }
+            ));
+        });
+
+        let copy_form = imp.copy_form.borrow();
+
+        let drive_object_clone = drive_object
+            .clone();
+        copy_form.connect_media_type_changed(move |media_type| {
+            glib::spawn_future_local(glib::clone!(
+                #[strong]
+                drive_object_clone,
+                async move {
+                    drive_object_clone.update_form_data(
+                        FormDataUpdate::media_type(media_type.as_str().to_owned())
+                    ).await;
+                }
+            ));
+        });
+
+        let drive_object_clone = drive_object
+            .clone();
+        copy_form.connect_title_changed(move |title| {
+            let title = title.to_owned();
+            glib::spawn_future_local(glib::clone!(
+                #[strong]
+                drive_object_clone,
+                async move {
+                    drive_object_clone.update_form_data(FormDataUpdate::title(title)).await;
+                }
+            ));
+        });
+
+        let drive_object_clone = drive_object
+            .clone();
+        copy_form.connect_year_changed(move |year| {
+            let year = year.to_owned();
+            glib::spawn_future_local(glib::clone!(
+                #[strong]
+                drive_object_clone,
+                async move {
+                    drive_object_clone.update_form_data(FormDataUpdate::year(year)).await;
+                }
+            ));
+        });
+
+        let drive_object_clone = drive_object
+            .clone();
+        copy_form.connect_disc_number_changed(move |disc_number| {
+            let disc_number = disc_number.to_owned();
+            glib::spawn_future_local(glib::clone!(
+                #[strong]
+                drive_object_clone,
+                async move {
+                    drive_object_clone.update_form_data(
+                        FormDataUpdate::disc_number(disc_number),
+                    ).await;
+                }
+            ));
+        });
+
+        let drive_object_clone = drive_object
+            .clone();
+        copy_form.connect_season_number_changed(move |season_number| {
+            let season_number = season_number.to_owned();
+            glib::spawn_future_local(glib::clone!(
+                #[strong]
+                drive_object_clone,
+                async move {
+                    drive_object_clone.update_form_data(
+                        FormDataUpdate::season_number(season_number)
+                    ).await;
+                }
+            ));
+        });
+
+        let drive_object_clone = drive_object
+            .clone();
+        copy_form.connect_location_changed(move |location| {
+            let location = location.to_owned();
+            glib::spawn_future_local(glib::clone!(
+                #[strong]
+                drive_object_clone,
+                async move {
+                    drive_object_clone.update_form_data(
+                        FormDataUpdate::storage_location(location)
+                    ).await;
+                }
+            ));
+        });
+
+        let drive_object_clone = drive_object
+            .clone();
+        copy_form.connect_memo_changed(move |memo| {
+            let memo = memo.to_owned();
+            glib::spawn_future_local(glib::clone!(
+                #[strong]
+                drive_object_clone,
+                async move {
+                    drive_object_clone.update_form_data(FormDataUpdate::memo(memo)).await;
+                }
+            ));
+        });
     }
 
     /// Unbinds the drive widget from the optical drive object which was bound when
@@ -617,6 +742,7 @@ mod imp {
     use gtk::glib::Binding;
     use gtk::subclass::prelude::*;
 
+    
     use crate::ui::widget::{CopyFormWidget, IconButton};
 
     /// Implementation for [`super::DriveWidget`].
@@ -696,7 +822,7 @@ mod imp {
         /// This is populated when the widget is bound to a optical drive object
         /// and cleared when unbound. See ([`super::DriveWidget::bind`]) and
         /// ([`super::DriveWidget::unbind`]) for more information.
-        pub bindings: RefCell<Vec<Binding>>,
+        pub(super) bindings: RefCell<Vec<Binding>>,
     }
 
     #[glib::object_subclass]

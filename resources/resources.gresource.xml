@@ -10,11 +10,10 @@
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.plug-circle-minus-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.rotate-left-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.xmark-circle-symbolic.svg</file>
-
-        <file preprocess="xml-stripblanks">icons/128x128/apps/app-icon.png</file>
-        <file preprocess="xml-stripblanks">icons/64x64/apps/app-icon.png</file>
-        <file preprocess="xml-stripblanks">icons/48x48/apps/app-icon.png</file>
-        <file preprocess="xml-stripblanks">icons/32x32/apps/app-icon.png</file>
-        <file preprocess="xml-stripblanks">icons/16x16/apps/app-icon.png</file>
+        <file>icons/128x128/apps/app-icon.png</file>
+        <file>icons/64x64/apps/app-icon.png</file>
+        <file>icons/48x48/apps/app-icon.png</file>
+        <file>icons/32x32/apps/app-icon.png</file>
+        <file>icons/16x16/apps/app-icon.png</file>
     </gresource>
 </gresources>

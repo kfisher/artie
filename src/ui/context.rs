@@ -1,4 +1,4 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Defines the application's context object.
@@ -10,10 +10,11 @@ use gtk::glib;
 use gtk::glib::Object;
 use gtk::subclass::prelude::*;
 
-use crate::Result;
+use crate::{Error, Result};
+use crate::db;
 use crate::drive;
-use crate::drive::OpticalDrive;
-use crate::drive::glib::OpticalDriveObject;
+use crate::fs::FileSystem;
+use crate::settings::Settings;
 
 glib::wrapper! {
     /// Application context object.
@@ -69,7 +70,8 @@ impl ContextObjectBuilder {
     ///
     /// # Errors
     ///
-    /// - [`crate::Error::FileIo`] if the config file cannot be read.
+    /// - [`crate::Error::FileIo`] if the config file cannot be read. This will also be raised when
+    ///   an I/O occurs while creating the data directories.
     /// - [`crate::Error::FileNotFound`] if the config file cannot be found.
     /// - [`crate::Error::Serialization`] if the config file's content cannot be deserialized.
     /// - See [`drive::init`] for potential errors that can occur searching for optical drives
@@ -78,19 +80,24 @@ impl ContextObjectBuilder {
         let context = ContextObject::new();
         let imp = context.imp();
 
-        //-]let path = get_config_path();
-        //-]if !path.is_file() {
-        //-]    return Err(Error::FileNotFound { path });
-        //-]}
-
-        //-]self.settings = Settings::from_file(&path)?;
-        //-]tracing::info!(?path, "loaded settings");
-
-        let optical_drives = drive::init()?;
-        let drive_store = ListStore::new::<OpticalDriveObject>();
-        for drive in optical_drives.into_iter() {
-            drive_store.append(&OpticalDriveObject::new(drive));
+        // TODO: Need to safely handle the config file not existing. Maybe create a default version
+        //       if it cannot be found.
+        let path = get_config_path();
+        if !path.is_file() {
+            return Err(Error::FileNotFound { path });
         }
+
+        let settings = Settings::from_file(&path)?;
+
+        let fs = FileSystem::new(&settings.fs);
+        fs.make_dirs()?;
+
+        let db = db::init(&fs)?;
+
+        let optical_drives = drive::init(fs, db)?;
+
+        let drive_store = ListStore::from_iter(optical_drives);
+
         imp.drive_store.replace(Some(drive_store));
 
         Ok(context)
@@ -116,6 +123,9 @@ mod imp {
     use gtk::glib;
     use gtk::gio::ListStore;
     use gtk::subclass::prelude::*;
+
+    
+    
 
     /// Implementation for [`super::ContextObject`].
     #[derive(Default)]

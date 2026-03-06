@@ -1,4 +1,4 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Database operations for [`OpticalDrive`] data.
@@ -37,7 +37,7 @@ pub fn create(conn: &Connection, serial_number: &str) -> Result<OpticalDrive> {
         serial_number: serial_number.to_owned(),
     };
 
-    tracing::info!(id=id, serial_number=serial_number, "create optical_drive entry");
+    tracing::trace!(?drive, "create optical_drive entry");
     Ok(drive)
 }
 

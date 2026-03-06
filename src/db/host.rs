@@ -1,16 +1,87 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Database operations for [`Host`] data.
 
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 
 use crate::{Error, Result};
+use crate::models::Host;
 
 use super::Operation;
 
+/// Gets an [`Host`] from the database using its hostname if it exists or creates a new instance
+/// if it does not exist.
+pub fn get_or_create(conn: &Connection, hostname: &str) -> Result<Host> {
+    match get_by_serial_number(conn, hostname)? {
+        Some(drive) => Ok(drive),
+        None => create(conn, hostname),
+    }
+}
+
+/// Creates a new [`Host`] instance in the database.
+pub fn create(conn: &Connection, hostname: &str) -> Result<Host> {
+    if hostname.trim().is_empty() {
+        return Err(Error::EmptyString { arg: String::from("hostname") });
+    }
+
+    let sql = "
+        INSERT INTO host (hostname)
+             VALUES (?1)
+          RETURNING id
+    ";
+
+    let mut stmt = conn.prepare(sql)
+        .map_err(|error| Error::Db {
+            operation: Operation::Prepare,
+            error,
+        })?;
+
+    let id = stmt.query_row((hostname,), |r| r.get::<_, u32>(0))
+        .map_err(|error| Error::Db {
+            operation: Operation::Query,
+            error,
+        })?;
+
+    let host = Host {
+        id,
+        hostname: hostname.to_owned(),
+    };
+
+    tracing::trace!(?host, "create host entry");
+    Ok(host)
+}
+
+/// Gets an [`Host`] from the database using its hostname if it exists.
+pub fn get_by_serial_number(conn: &Connection, hostname: &str) -> Result<Option<Host>> {
+    let sql = "
+        SELECT host.id, host.hostname
+          FROM host
+         WHERE hostname=:hostname
+    ";
+
+    let mut stmt = conn.prepare(sql)
+        .map_err(|error| Error::Db {
+            operation: Operation::Prepare,
+            error,
+        })?;
+
+    let host = stmt.query_one(
+        &[(":hostname", hostname)],
+        |r| Ok(Host {
+            id: r.get::<_, u32>(0)?,
+            hostname: r.get::<_, String>(1)?
+        })
+    ).optional().map_err(|error| Error::Db {
+        operation: Operation::Query,
+        error,
+    })?;
+
+    Ok(host)
+}
+
 /// Creates the database table for storing host data if it does not exist.
-pub(crate) fn create_table(conn: &Connection) -> Result<()> {
+pub fn create_table(conn: &Connection) -> Result<()> {
     let sql = "
         CREATE TABLE host (
             id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,7 +89,7 @@ pub(crate) fn create_table(conn: &Connection) -> Result<()> {
         ) STRICT
     ";
 
-    let _ = conn.execute(sql, ()).map_err(|error| Error::Db { 
+    let _ = conn.execute(sql, ()).map_err(|error| Error::Db {
             operation: Operation::Execute,
             error,
         })?;

@@ -1,21 +1,28 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Data models used throughout the application.
 
-use std::fmt::{Display, Formatter, Result};
+use std::collections::HashMap;
+use std::fmt::{Display, Formatter, Result as FormatResult};
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use blake3::Hash;
 
+use serde::{Deserialize, Serialize};
+
 use chrono::prelude::{DateTime, Utc};
+
+use crate::{Error, Result};
 
 /// Specifies the various audio codecs.
 ///
 /// This isn't meant to be an all inclusive list of audio codecs. It was generated using the 
 /// HandBrake documentation.
 #[allow(clippy::upper_case_acronyms)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub enum AudioCodec {
     /// Advanced Audio Coding (AAC)
     /// <https://en.wikipedia.org/wiki/Advanced_Audio_Coding>
@@ -72,8 +79,46 @@ pub enum AudioCodec {
     Vorbis,
 }
 
+impl AudioCodec {
+    /// Returns the audio codec based on the provided MakeMKV short form codec string.
+    pub fn from_makemkv(codec: &str) -> Result<AudioCodec> {
+        AudioCodec::makemkv_codec_map().get(codec)
+            .copied()
+            .ok_or(Error::MissingAudioCodecMapping { codec_short: codec.to_owned() })
+    }
+
+    /// Returns the mapping of MakeMKV audio codecs.
+    fn makemkv_codec_map() -> &'static HashMap<&'static str, AudioCodec> {
+        static CODEC_MAP: OnceLock<HashMap<&'static str, AudioCodec>> = OnceLock::new();
+        CODEC_MAP.get_or_init(|| HashMap::from([
+            //-------------------------------------------------------------------------------------
+            // NOTE: The commented out items are either not supported by MakeMKV or their short
+            //       codec value is unknown.
+            //-------------------------------------------------------------------------------------
+            // ("", AudioCodec::AAC),
+            ("DD", AudioCodec::AC3),
+            // ("", AudioCodec::ALAC16),
+            // ("", AudioCodec::ALAC24),
+            ("DTS", AudioCodec::DTS),
+            ("DTS-HD MA", AudioCodec::DTSHD),
+            // ("", AudioCodec::EAC3),
+            // ("", AudioCodec::Flac16),
+            // ("", AudioCodec::Flac24),
+            // ("", AudioCodec::MP2),
+            // ("", AudioCodec::MP3),
+            // ("", AudioCodec::Opus),
+            // ("", AudioCodec::TrueHD),
+            // ("", AudioCodec::Vorbis),
+        ]))
+    }
+}
+
+// "CodecId": "S_HDMV/PGS"
+// "CodecId": "V_MPEG4/ISO/AVC"
+
 /// Specifies the methods of audio track encoding when transcoding.
 #[allow(clippy::upper_case_acronyms)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum AudioEncodeMethod {
     /// Audio track is passed thru without modification.
     Copy,
@@ -84,6 +129,7 @@ pub enum AudioEncodeMethod {
 
 /// Media container types.
 #[allow(clippy::upper_case_acronyms)]
+#[derive(Debug)]
 pub enum ContainerType {
     /// Matroska Container Format
     /// <https://en.wikipedia.org/wiki/Matroska>
@@ -95,6 +141,7 @@ pub enum ContainerType {
 }
 
 /// Location of a media file.
+#[derive(Debug)]
 pub enum MediaLocation {
     /// File path is relative to the media inbox root directory.
     Inbox(PathBuf),    
@@ -133,6 +180,23 @@ impl MediaType {
         }
     }
 
+    /// Create a [`MediaType`] from a string value.
+    pub fn from_string(s: &str) -> Option<Self> {
+        match s {
+            "Movie" => Some(MediaType::Movie),
+            "Show" => Some(MediaType::Show),
+            _ => None,
+        }
+    }
+
+    /// Convert enum to its index value.
+    pub fn as_index(&self) -> u32 {
+        match self {
+            MediaType::Movie => 0,
+            MediaType::Show => 1,
+        }
+    }
+
     /// Convert enum to string.
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -143,12 +207,13 @@ impl MediaType {
 }
 
 impl Display for MediaType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FormatResult {
         f.write_str(self.as_str())
     }
 }
 
 /// Specifies the states of an operation (e.g. copy or transcode).
+#[derive(Debug)]
 pub enum OperationState {
     /// The operation was requested and waiting to be started.
     Requested,
@@ -167,7 +232,9 @@ pub enum OperationState {
 }
 
 /// Specifies the different types of movie and show extras.
+#[derive(Debug)]
 pub enum SpecialFeatureType {
+    None,
     BehindTheScenes,
     DeletedScenes,
     Interviews,
@@ -182,6 +249,7 @@ pub enum SpecialFeatureType {
 
 /// Specifies the various subtitle codecs.
 #[allow(clippy::upper_case_acronyms)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum SubtitleCodec {
     /// EIA-608 Closed Caption Standard
     /// <https://en.wikipedia.org/wiki/EIA-608>
@@ -192,10 +260,29 @@ pub enum SubtitleCodec {
     PGS,
 }
 
+impl SubtitleCodec {
+    /// Returns the sutitle codec based on the provided MakeMKV short form codec string.
+    pub fn from_makemkv(codec: &str) -> Result<SubtitleCodec> {
+        SubtitleCodec::makemkv_codec_map().get(codec)
+            .copied()
+            .ok_or(Error::MissingSubtitleCodecMapping { codec_short: codec.to_owned() })
+    }
+
+    /// Returns the mapping of MakeMKV audio codecs.
+    fn makemkv_codec_map() -> &'static HashMap<&'static str, SubtitleCodec> {
+        static CODEC_MAP: OnceLock<HashMap<&'static str, SubtitleCodec>> = OnceLock::new();
+        CODEC_MAP.get_or_init(|| HashMap::from([
+            ("CC", SubtitleCodec::CC),
+            ("PGS", SubtitleCodec::PGS),
+        ]))
+    }
+}
+
 /// Specifies the various video codecs.
 ///
 /// This isn't meant to be an all inclusive list of video codecs. It was generated using the 
 /// HandBrake documentation.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum VideoCodec {
     /// Advanced Video Coding (AVC) or H.264 or MPEG-4 Part 10
     /// <https://en.wikipedia.org/wiki/Advanced_Video_Coding>
@@ -226,7 +313,35 @@ pub enum VideoCodec {
     VP9,
 }
 
+impl VideoCodec {
+    /// Returns the sutitle codec based on the provided MakeMKV short form codec string.
+    pub fn from_makemkv(codec: &str) -> Result<VideoCodec> {
+        VideoCodec::makemkv_codec_map().get(codec)
+            .copied()
+            .ok_or(Error::MissingVideoCodecMapping { codec_short: codec.to_owned() })
+    }
+
+    /// Returns the mapping of MakeMKV video codecs.
+    fn makemkv_codec_map() -> &'static HashMap<&'static str, VideoCodec> {
+        static CODEC_MAP: OnceLock<HashMap<&'static str, VideoCodec>> = OnceLock::new();
+        CODEC_MAP.get_or_init(|| HashMap::from([
+            //-------------------------------------------------------------------------------------
+            // NOTE: The commented out items are either not supported by MakeMKV or their short
+            //       codec value is unknown.
+            //-------------------------------------------------------------------------------------
+            // ("", VideoCodec::H264),
+            // ("", VideoCodec::H265),
+            // ("", VideoCodec::MPEG2),
+            ("Mpeg4", VideoCodec::MPEG4),
+            // ("", VideoCodec::Theora),
+            // ("", VideoCodec::VP8),
+            // ("", VideoCodec::VP9),
+        ]))
+    }
+}
+
 /// Specifies the different sources of a video file's creation.
+#[derive(Debug)]
 pub enum VideoSource {
     /// Video was created by copying a title from a DVD or Blu-ray.
     CopyOperation(Reference<CopyOperation>),
@@ -236,6 +351,7 @@ pub enum VideoSource {
 }
 
 /// Represents an audio track in a video.
+#[derive(Debug, Deserialize, Serialize)]
 pub struct AudioTrack {
     /// The audio track's index.
     ///
@@ -277,6 +393,7 @@ pub struct AudioTrack {
 /// There is intentionally some overlap between the fields in this data structure and the [`Title`]
 /// data structure. The difference between the two is that this data structure won't change
 /// once created whereas the fields in the [`Title`] might be edited.
+#[derive(Debug)]
 pub struct CopyOperation {
     /// Unique id of the copy operation (primary key).
     pub id: u32,
@@ -383,6 +500,7 @@ impl Default for CopyOperation {
 }
 
 /// The parameters for a copy operation.
+#[derive(Debug)]
 pub struct CopyParamaters {
     /// The type of media being copied (Movie or TV Show).
     pub media_type: MediaType,
@@ -391,7 +509,7 @@ pub struct CopyParamaters {
     pub title: String,
 
     /// The release year of the movie or show (first season premier).
-    pub release_year: String,
+    pub release_year: u16,
 
     /// The season of the show the title belongs to.
     ///
@@ -409,6 +527,7 @@ pub struct CopyParamaters {
 }
 
 /// Represents a specific computer an operation was performed on.
+#[derive(Debug)]
 pub struct Host {
     /// Unique id of the host (primary key).
     pub id: u32,
@@ -420,6 +539,8 @@ pub struct Host {
 /// Represents an optical drive.
 ///
 /// This is the representation of a drive within the database.
+/// TODO: Add notes about other optical drive data types here for reference. Also update those
+///       other instances.
 #[derive(Debug)]
 pub struct OpticalDrive {
     /// Unique id of the drive (primary key).
@@ -430,6 +551,7 @@ pub struct OpticalDrive {
 }
 
 /// Represents a relationship to another model.
+#[derive(Debug)]
 pub struct Reference<T> {
     /// The reference id (foreign key).
     pub id: u32,
@@ -442,6 +564,7 @@ pub struct Reference<T> {
 }
 
 /// Represents a special feature in a DVD or Blu-ray.
+#[derive(Debug)]
 pub struct SpecialFeature {
     /// The type of special feature.
     pub kind: SpecialFeatureType,
@@ -451,6 +574,7 @@ pub struct SpecialFeature {
 }
 
 /// Represents a subtitle track.
+#[derive(Debug, Deserialize, Serialize)]
 pub struct SubtitleTrack {
     /// The subtitle's track index.
     ///
@@ -469,6 +593,7 @@ pub struct SubtitleTrack {
 /// Represents an title.
 ///
 /// A title can be a movie, TV show episode, or special feature. 
+#[derive(Debug)]
 pub struct Title {
     /// Unique id of the title (primary key).
     pub id: u32,
@@ -541,6 +666,7 @@ pub struct Title {
 /// There is intentionally some overlap between the fields in this data structure and the [`Title`]
 /// data structure. The difference between the two is that this data structure won't change
 /// once created whereas the fields in the [`Title`] might be edited.
+#[derive(Debug)]
 pub struct TranscodeOperation {
     /// Unique id of the operation (primary key).
     pub id: u32,
@@ -599,6 +725,7 @@ pub struct TranscodeOperation {
 }
 
 /// Represents an individual video file.
+#[derive(Debug)]
 pub struct Video {
     /// Unique id of the video (primary key).
     pub id: u32,
@@ -620,7 +747,7 @@ pub struct Video {
     /// List of audio tracks.
     ///
     /// This field is stored as JSON data in the database.
-    pub audio_tracks: Vec<VideoTrack>,
+    pub audio_tracks: Vec<AudioTrack>,
 
     /// List of subtitle tracks.
     ///
@@ -638,6 +765,7 @@ pub struct Video {
 }
 
 /// Represents a video track.
+#[derive(Debug, Deserialize, Serialize)]
 pub struct VideoTrack {
     /// The video's track index.
     ///

@@ -1,12 +1,14 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Handles interactions with optical drives.
 
 pub mod actor;
+pub mod copy;
+pub mod data;
 pub mod glib;
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(feature = "faux_drives")))]
 mod linux;
 
 #[cfg(feature = "faux_drives")]
@@ -29,10 +31,11 @@ mod platform {
 
 use std::time::Duration;
 
-use crate::{Error, Result};
-use crate::error::ChannelError;
+use crate::Result;
+use crate::db::Database;
+use crate::fs::FileSystem;
 
-use actor::{DriveActorHandle, DriveActorMessage};
+use glib::OpticalDriveObject;
 
 /// Represents the state of the optical drive's disc.
 #[derive(Clone, Debug, PartialEq)]
@@ -97,14 +100,9 @@ pub enum OpticalDriveState {
     },
 }
 
-/// Represents an optical drive.
-#[derive(Debug)]
+/// Information reported by the operating system for the optical drive.
+#[derive(Clone, Debug, PartialEq)]
 pub struct OpticalDrive {
-    /// The name assigned to the drive.
-    ///
-    /// This will be set to the serial number by default, but can be overwritten by the user.
-    pub name: String,
-
     /// The device path of the drive, such as "/dev/sr0".
     pub path: String,
 
@@ -116,82 +114,6 @@ pub struct OpticalDrive {
 
     /// The state of the disc in the optical drive.
     pub disc: DiscState,
-
-    /// The state of the drive.
-    pub state: OpticalDriveState,
-
-    /// Interface for communicating with the actor responsible for this drive instance.
-    handle: Option<DriveActorHandle>,
-}
-
-impl OpticalDrive {
-    /// Updates the status of the drive.
-    ///
-    /// This will make a request to the drive's actor instance and then update its status based
-    /// on the result.
-    ///
-    /// # Errors
-    ///
-    /// - [`Error::DriveActorChannel`] will be raised if the actor handle is invalid or an error
-    ///   occurs when requesting the status.
-    pub async fn update_status(&mut self) -> Result<bool> {
-        // Request the current status from the drive's actor instance.
-        let status = self.get_status().await?;
-
-        let mut modified = false;
-
-        if status.disc != self.disc {
-            tracing::info!(old=?self.disc, new=?status.disc, "disc state changed");
-            self.disc = status.disc;
-            modified = true;
-        }
-
-        if status.drive != self.state {
-            tracing::info!(old=?self.state, new=?status.drive, "drive state changed");
-            self.state = status.drive;
-            modified = true;
-        }
-
-        Ok(modified)
-    }
-
-    /// Get the current status of the drive.
-    ///
-    /// # Errors
-    ///
-    /// - [`Error::DriveActorChannel`] will be raised if the actor handle is invalid or an error
-    ///   occurs when requesting the status.
-    async fn get_status(&self) -> Result<OpticalDriveStatus> {
-        let Some(handle) = &self.handle else {
-            return Err(Error::DriveActorChannel { error: ChannelError::InvalidChannel });
-        };
-        handle.get_status().await
-    }
-
-    /// Create a [`OpticalDrive`] instance from OS provided optical drive information.
-    fn from_os(value: OsOpticalDrive) -> Self {
-        Self {
-            handle: Some(actor::create_actor(&value.serial_number)),
-            name: value.serial_number.clone(),
-            path: value.path,
-            serial_number: value.serial_number,
-            disc: value.disc,
-            state: OpticalDriveState::Idle,
-        }
-    }
-}
-
-impl Default for OpticalDrive {
-    fn default() -> Self {
-        Self { 
-            handle: None,
-            name: Default::default(),
-            path: Default::default(),
-            serial_number: Default::default(),
-            disc: DiscState::None,
-            state: OpticalDriveState::Disconnected,
-        }
-    }
 }
 
 /// The current status of the optical drive.
@@ -218,34 +140,18 @@ impl OpticalDriveStatus {
 /// - [`crate::Error::CommandIo`] or [`crate::Error::CommandReturnedErrorCode`] if the command to
 ///   to get the optical drive from the OS fails, or
 /// - [`crate::Error::Serialization`] if the output from the OS cannot be parsed
-pub fn init() -> Result<Vec<OpticalDrive>> {
+pub fn init(fs: FileSystem, db: Database) -> Result<Vec<OpticalDriveObject>> {
     let drives = get_optical_drives()?.into_iter()
         .map(|drive| {
             tracing::info!(sn=drive.serial_number, path=drive.path, "found optical drive");
-            OpticalDrive::from_os(drive)
+            OpticalDriveObject::new(drive, fs.clone(), db.clone())
         })
         .collect();
     Ok(drives)
 }
 
-/// Information reported by the operating system for the optical drive.
-#[derive(Clone, Debug, PartialEq)]
-struct OsOpticalDrive {
-    /// The device path of the drive, such as "/dev/sr0".
-    pub path: String,
-
-    /// The serial number of the optical drive.
-    ///
-    /// This may be a shortened version of the serial number assigned by the
-    /// manufacturer.
-    pub serial_number: String,
-
-    /// The state of the disc in the optical drive.
-    pub disc: DiscState,
-}
-
 /// Gets the optical drive information for all available optical drives.
-fn get_optical_drives() -> Result<Vec<OsOpticalDrive>> {
+fn get_optical_drives() -> Result<Vec<OpticalDrive>> {
   let drives = platform::get_optical_drives()?;
   Ok(drives)
 }
@@ -254,7 +160,8 @@ fn get_optical_drives() -> Result<Vec<OsOpticalDrive>> {
 ///
 /// Returns `None` if an optical drive cannot be found with the provided serial number. Returns an
 /// error if something goes wrong when querying the operating system.
-fn get_optical_drive(serial_number: &str) -> Result<Option<OsOpticalDrive>> {
+fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
   let drive = platform::get_optical_drive(serial_number)?;
   Ok(drive)
 }
+

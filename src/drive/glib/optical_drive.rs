@@ -1,15 +1,21 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Defines the GObject for [`OpticalDrive`].
+//! Defines the GObject representing an optical drive.
+
+use std::time::Duration;
 
 use gtk::glib;
 use gtk::glib::Object;
-use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
-use crate::Result;
-use crate::drive::{OpticalDrive, OpticalDriveStatus};
+use crate::drive::OpticalDrive;
+use crate::drive::actor;
+use crate::drive::data::{FormData, FormDataUpdate};
+use crate::drive::glib::OpticalDriveState;
+use crate::db::Database;
+use crate::fs::FileSystem;
+use crate::models::CopyParamaters;
 
 glib::wrapper! {
     /// GObject implementation for [`OpticalDrive`].
@@ -18,11 +24,99 @@ glib::wrapper! {
 
 impl OpticalDriveObject {
     /// Creates new [`OpticalDriveObject`] instance from the provided optical drive.
-    pub fn new(drive: OpticalDrive) -> Self {
+    pub fn new(drive: OpticalDrive, fs: FileSystem, db: Database) -> Self {
         let obj: Self = Object::builder()
             .build();
-        obj.imp().inner.replace(drive);
+
+        let imp = obj.imp();
+
+        imp.handle.replace(Some(actor::create_actor(&drive, fs, db)));
+
+        imp.name.replace(drive.serial_number.clone());
+        imp.serial_number.replace(drive.serial_number);
+        imp.path.replace(drive.path);
+
         obj
+    }
+
+    /// Cancels a copy operation currently in progress.
+    pub async fn cancel_copy_disc(&self) {
+        let handle = self.imp().handle
+            .borrow()
+            .as_ref()
+            .expect("FIXME: error msg or proper handling")
+            .clone();
+        let result = handle
+            .cancel_copy_disc()
+            .await;
+        if let Err(error) = result {
+            tracing::error!(?error, "failed to cancel copy disc");
+        }
+    }
+
+    /// Begin copying the disc in the optical drive.
+    pub async fn copy_disc(&self, copy_parameters: CopyParamaters) {
+        let handle = self.imp().handle
+            .borrow()
+            .as_ref()
+            .expect("FIXME: error msg or proper handling")
+            .clone();
+        let result = handle
+            .copy_disc(copy_parameters)
+            .await;
+        if let Err(error) = result {
+            tracing::error!(?error, "failed to copy disc");
+        }
+    }
+
+    /// Get the form data from the drive's persistent storage.
+    pub async fn get_form_data(&self) -> Option<FormData> {
+        let handle = self.imp().handle
+            .borrow()
+            .as_ref()
+            .expect("FIXME: error msg or proper handling")
+            .clone();
+        let result = handle
+            .get_form_data()
+            .await;
+        match result {
+            Ok(form_data) => Some(form_data),
+            Err(error) => {
+                tracing::error!(?error, "failed to get form data");
+                None
+            }
+        }
+    }
+
+    /// Reset the drive state back to `Idle` from `Success` or `Failed`.
+    pub async fn reset(&self) {
+        let handle = self.imp().handle
+            .borrow()
+            .as_ref()
+            .expect("FIXME: error msg or proper handling")
+            .clone();
+        let result = handle
+            .reset()
+            .await;
+        if let Err(error) = result {
+            tracing::error!(?error, "failed to reset");
+        }
+    }
+
+    /// Updates the form data in the drive's persistent data.
+    pub async fn update_form_data(&self, data: FormDataUpdate) {
+        let handle = self.imp().handle
+            .borrow()
+            .as_ref()
+            .expect("FIXME: error msg or proper handling")
+            .clone();
+        let result = handle
+            .update_form_data(data)
+            .await;
+
+        if let Err(error) = result {
+            tracing::error!(?error, "failed to update form data");
+        }
     }
 
     /// Updates the status of the drive.
@@ -30,211 +124,171 @@ impl OpticalDriveObject {
     /// This will request the current status from the drive's actor instance and then send the
     /// property change notifications if required.
     pub async fn update_status(&self) {
-        let result = self.imp().inner.borrow_mut().update_status().await;
-        match result {
-            Ok(modified) => {
-                if modified {
-                    self.notify_disc_label();
-                    self.notify_drive_state();
-                    self.notify_elapsed_time();
-                    self.notify_error_message();
-                    self.notify_stage();
-                    self.notify_subtask();
-                    self.notify_subtask_progress();
-                    self.notify_task();
-                    self.notify_task_progress();
-                }
-            },
+        let handle = self.imp().handle
+            .borrow()
+            .as_ref()
+            .expect("FIXME: error msg or proper handling")
+            .clone();
+        let status = handle
+            .get_status()
+            .await;
+        let status = match status {
+            Ok(status) => status,
             Err(error) => {
                 tracing::error!(?error, "failed to update status");
+                return;
+            }
+        };
+
+        match status.disc {
+            crate::drive::DiscState::None => {
+                self.set_disc_label(String::default());
+            },
+            crate::drive::DiscState::Inserted { label, uuid: _ } => {
+                self.set_disc_label(label);
+            },
+        }
+
+        match status.drive {
+            crate::drive::OpticalDriveState::Disconnected => {
+                self.set_drive_state(OpticalDriveState::Disconnected);
+            },
+            crate::drive::OpticalDriveState::Idle => {
+                self.set_drive_state(OpticalDriveState::Idle);
+            },
+            crate::drive::OpticalDriveState::Copying {
+                stage,
+                task,
+                task_progress,
+                subtask,
+                subtask_progress,
+                elapsed_time,
+            } => {
+                self.set_drive_state(OpticalDriveState::Copying);
+                self.set_stage(stage);
+                self.set_elapsed_time(format_elapsed_time(&elapsed_time));
+                self.set_task(task);
+                self.set_task_progress(task_progress);
+                self.set_subtask(subtask);
+                self.set_subtask_progress(subtask_progress);
+            },
+            crate::drive::OpticalDriveState::Success => {
+                self.set_drive_state(OpticalDriveState::Success);
+            },
+            crate::drive::OpticalDriveState::Failed { error } => {
+                self.set_drive_state(OpticalDriveState::Failed);
+                self.set_error_message(error);
             },
         }
     }
+
+}
+
+/// Formats the elapsed time duration into a string.
+fn format_elapsed_time(elapsed_time: &Duration) -> String {
+    let total_seconds = elapsed_time.as_secs();
+    let hours = total_seconds / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+    let seconds = total_seconds % 60;
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
 }
 
 mod imp {
     //! Implementation for the optical drive object.
 
     use std::cell::{Cell, RefCell};
-    use std::rc::Rc;
+    
 
     use gtk::glib;
     use gtk::glib::Properties;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
-    use crate::drive::{DiscState, OpticalDrive};
+    
+    use crate::drive::actor::DriveActorHandle;
     use crate::drive::glib::OpticalDriveState;
 
     /// Implementation for [`super::OpticalDriveObject`].
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::OpticalDriveObject)]
     pub struct OpticalDriveObject {
-        #[property(name = "name", get, type = String, member = name)]
-        #[property(name = "path", get, type = String, member = path)]
-        #[property(name = "serial-number", get, type = String, member = serial_number)]
-        #[property(name = "disc-label", get = OpticalDriveObject::disc_label, type = String)]
+        /// The name assigned to the drive.
+        ///
+        /// This will be set to the serial number by default, but can be overwritten by the user.
+        #[property(name = "name", get, set, type = String)]
+        pub(super) name: RefCell<String>,
+
+        /// The device path of the drive, such as "/dev/sr0".
+        #[property(name = "path", get, set, type = String)]
+        pub(super) path: RefCell<String>,
+
+        /// The serial number of the optical drive.
+        ///
+        /// This may be a shortened version of the serial number assigned by the manufacturer.
+        #[property(name = "serial-number", get, set, type = String)]
+        pub(super) serial_number: RefCell<String>,
+
+        /// The state of the disc in the optical drive.
+        #[property(name = "disc-label", get, set, type = String)]
+        pub(super) disc_label: RefCell<String>,
+
+        /// The state of the drive.
         #[property(
             name = "drive-state",
-            get = OpticalDriveObject::drive_state,
+            get,
+            set,
             type = OpticalDriveState,
-            builder(OpticalDriveState::Disconnected)
-        )]
-        #[property(
-            name = "error-message",
-            get = OpticalDriveObject::error_message,
-            type = Option<String>
-        )]
-        #[property(
-            name = "stage",
-            get = OpticalDriveObject::stage,
-            type = Option<String>
-        )]
-        #[property(
-            name = "elapsed-time",
-            get = OpticalDriveObject::elapsed_time,
-            type = Option<String>
-        )]
-        #[property(
-            name = "task",
-            get = OpticalDriveObject::task,
-            type = Option<String>
-        )]
-        #[property(
-            name = "task-progress",
-            get = OpticalDriveObject::task_progress,
-            type = f32
-        )]
-        #[property(
-            name = "subtask",
-            get = OpticalDriveObject::subtask,
-            type = Option<String>
-        )]
-        #[property(
-            name = "subtask-progress",
-            get = OpticalDriveObject::subtask_progress,
-            type = f32
-        )]
-        pub(super) inner: RefCell<OpticalDrive>,
+            builder(OpticalDriveState::Disconnected))
+        ]
+        pub(super) drive: Cell<OpticalDriveState>,
+
+        /// Brief description of what caused the failure.
+        ///
+        /// This is only valid when the state is [`OpticalDriveState::Failed`].
+        #[property(name = "error-message", get, set, type = String)]
+        pub(super) error_message: RefCell<String>,
+
+        /// The current stage of the copying process.
+        ///
+        /// This is only valid when the state is [`OpticalDriveState::Copying`].
+        #[property(name = "stage", get, set, type = String)]
+        pub(super) stage: RefCell<String>,
+
+        /// The length of time the copy operation has been running.
+        ///
+        /// This is only valid when the state is [`OpticalDriveState::Copying`].
+        #[property(name = "elapsed-time", get, set, type = String)]
+        pub(super) elapsed_time: RefCell<String>,
+
+        /// The task currently being performed.
+        ///
+        /// This is only valid when the state is [`OpticalDriveState::Copying`].
+        #[property(name = "task", get, set, type = String)]
+        pub(super) task: RefCell<String>,
+
+        /// The percent complete (0 -> 0%, 1.0 -> 100%) of the current task.
+        ///
+        /// This is only valid when the state is [`OpticalDriveState::Copying`].
+        #[property(name = "task-progress", get, set, type = f32)]
+        pub(super) task_progress: Cell<f32>,
+
+        /// The subtask currently being performed.
+        ///
+        /// This is only valid when the state is [`OpticalDriveState::Copying`].
+        #[property(name = "subtask", get, set, type = String)]
+        pub(super) subtask: RefCell<String>,
+
+        /// The percent complete (0 -> 0%, 1.0 -> 100%) of the current subtask.
+        ///
+        /// This is only valid when the state is [`OpticalDriveState::Copying`].
+        #[property(name = "subtask-progress", get, set, type = f32)]
+        pub(super) subtask_progress: Cell<f32>,
+
+        /// Interface for communicating with the actor responsible for this drive instance.
+        pub(super) handle: RefCell<Option<DriveActorHandle>>,
     }
 
     impl OpticalDriveObject {
-        /// Returns the disc label if a disc is inserted into the drive or an empty string if the
-        /// optical drive is empty.
-        pub fn disc_label(&self) -> String {
-            let disc = &self.inner.borrow().disc;
-            match disc {
-                DiscState::None => String::default(),
-                DiscState::Inserted { label, uuid: _ } => label.clone(),
-            }
-        }
-
-        /// Returns the state of the drive.
-        ///
-        /// The returned value is the GObject representation of the state that combines the drive 
-        /// and disc states into one state enumeration. This provides an value to bind to when
-        /// determining which view to display.
-        pub fn drive_state(&self) -> OpticalDriveState {
-            let state = &self.inner.borrow().state;
-            match state {
-                crate::drive::OpticalDriveState::Disconnected => OpticalDriveState::Disconnected,
-                crate::drive::OpticalDriveState::Idle => {
-                    let disc = &self.inner.borrow().disc;
-                    match disc {
-                        DiscState::None => OpticalDriveState::Empty,
-                        DiscState::Inserted { .. } => OpticalDriveState::Idle,
-                    }
-                },
-                crate::drive::OpticalDriveState::Copying { .. } => OpticalDriveState::Copying,
-                crate::drive::OpticalDriveState::Success => OpticalDriveState::Success,
-                crate::drive::OpticalDriveState::Failed { .. } => OpticalDriveState::Failed,
-            }
-        }
-
-        /// Returns the elapsed time of the copy operation or `None` if the drive is not in the
-        /// copying state.
-        pub fn elapsed_time(&self) -> Option<String> {
-            let state = &self.inner.borrow().state;
-            match state {
-                crate::drive::OpticalDriveState::Copying { elapsed_time, .. } => {
-                    let total_seconds = elapsed_time.as_secs();
-                    let hours = total_seconds / 3600;
-                    let minutes = (total_seconds % 3600) / 60;
-                    let seconds = total_seconds % 60;
-                    Some(format!("{:02}:{:02}:{:02}", hours, minutes, seconds))
-                },
-                _ => None,
-            }
-
-        }
-
-        /// Returns the error message.
-        ///
-        /// The result will be `Some` if the drive is in the failed state and `None` if in any
-        /// other state.
-        pub fn error_message(&self) -> Option<String> {
-            let state = &self.inner.borrow().state;
-            match state {
-                crate::drive::OpticalDriveState::Failed { error } => Some(error.clone()),
-                _ => None
-            }
-        }
-
-        /// Returns the stage of the copy operation or `None` if the drive is in a state other than
-        /// the copying state.
-        pub fn stage(&self) -> Option<String> {
-            let state = &self.inner.borrow().state;
-            match state {
-                crate::drive::OpticalDriveState::Copying { stage, .. } => Some(stage.clone()),
-                _ => None,
-            }
-        }
-
-        /// Returns the label for the current task of the copy operation or `None` if the drive is
-        /// not in the copying state.
-        pub fn task(&self) -> Option<String> {
-            let state = &self.inner.borrow().state;
-            match state {
-                crate::drive::OpticalDriveState::Copying { task, .. } => Some(task.clone()),
-                _ => None,
-            }
-        }
-
-        /// Returns the progress of the current task.
-        ///
-        /// This value will be between 0 and 1 if the drive is in the copying state based on the
-        /// last progress update. If not in the copying state, will return zero.
-        pub fn task_progress(&self) -> f32 {
-            let state = &self.inner.borrow().state;
-            match state {
-                crate::drive::OpticalDriveState::Copying { task_progress, .. } => *task_progress,
-                _ => 0.0,
-            }
-        }
-
-        /// Returns the label for the current subtask of the copy operation or `None` if the drive
-        /// is not in the copying state.
-        pub fn subtask(&self) -> Option<String> {
-            let state = &self.inner.borrow().state;
-            match state {
-                crate::drive::OpticalDriveState::Copying { subtask, .. } => Some(subtask.clone()),
-                _ => None,
-            }
-        }
-
-        /// Returns the progress of the current subtask.
-        ///
-        /// This value will be between 0 and 1 if the drive is in the copying state based on the
-        /// last progress update. If not in the copying state, will return zero.
-        pub fn subtask_progress(&self) -> f32 {
-            let state = &self.inner.borrow().state;
-            match state {
-                crate::drive::OpticalDriveState::Copying { subtask_progress, .. } => {
-                    *subtask_progress
-                },
-                _ => 0.0,
-            }
-        }
     }
 
     #[glib::object_subclass]

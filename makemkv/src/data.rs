@@ -1,4 +1,4 @@
-// Copyright 2025 Kevin Fisher. All rights reserved.
+// Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Data representing information about a disc's content.
@@ -7,7 +7,8 @@
 //! disc that is extracted by MakeMKV with the "info" command.
 
 use std::collections::hash_map::Entry;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 use std::{collections::HashMap, fs::OpenOptions};
 
 use serde::{Deserialize, Serialize};
@@ -99,25 +100,6 @@ pub struct DiscInfo {
     pub titles: Vec<Option<TitleInfo>>,
 }
 
-/// Information for a title on the disc.
-#[derive(Deserialize, Serialize)]
-pub struct TitleInfo {
-    /// Map containing the attributes of the title where each key is the attribute id and the value
-    /// is the attribute's value.
-    pub attributes: HashMap<Attribute, String>,
-
-    /// List of streams (audio, video, subtitle) for the title.
-    pub streams: Vec<Option<StreamInfo>>,
-}
-
-/// Information for a video, audio, or subtitle stream in a title.
-#[derive(Deserialize, Serialize)]
-pub struct StreamInfo {
-    /// Map containing the attributes of the stream where each key is the attribute id and the
-    /// value is the attribute's value.
-    pub attributes: HashMap<Attribute, String>,
-}
-
 impl DiscInfo {
     /// Constructs a new `DiscInfo` instance.
     pub fn new() -> Self {
@@ -204,6 +186,26 @@ impl DiscInfo {
         title.add_stream_attribute(stream_index, attr, value)
     }
 
+    /// Returns the disc information as JSON.
+    pub fn as_json(&self) -> Result<String> {
+        let json = serde_json::to_string(&self).map_err(|error| Error::JsonError {
+            path: PathBuf::default(),
+            error ,
+        })?;
+
+        Ok(json)
+    }
+
+    /// Returns the disc information as formatted JSON.
+    pub fn as_formatted_json(&self) -> Result<String> {
+        let json = serde_json::to_string_pretty(&self).map_err(|error| Error::JsonError {
+            path: PathBuf::default(),
+            error ,
+        })?;
+
+        Ok(json)
+    }
+
     /// Loads the disc information from a JSON file at the provided path.
     pub fn load(path: &Path) -> Result<DiscInfo> {
         let file = OpenOptions::new()
@@ -242,6 +244,17 @@ impl Default for DiscInfo {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Information for a title on the disc.
+#[derive(Deserialize, Serialize)]
+pub struct TitleInfo {
+    /// Map containing the attributes of the title where each key is the attribute id and the value
+    /// is the attribute's value.
+    pub attributes: HashMap<Attribute, String>,
+
+    /// List of streams (audio, video, subtitle) for the title.
+    pub streams: Vec<Option<StreamInfo>>,
 }
 
 impl TitleInfo {
@@ -293,12 +306,35 @@ impl TitleInfo {
         let stream = self.streams[index].get_or_insert(StreamInfo::new());
         stream.add_attribute(attr, value)
     }
+
+    /// Returns the duration of the title.
+    pub fn duration(&self) -> Result<Duration> {
+        let duration = self.attributes.get(&Attribute::Duration)
+            .map(|s| s.to_owned())
+            .ok_or(Error::AttributeNotFound { attr: Attribute::Duration })?;
+        parse_duration(&duration)
+    }
+
+    /// Returns the output file name generated for the MKV video generated for the video.
+    pub fn output_file_name(&self) -> Result<String> {
+        self.attributes.get(&Attribute::OutputFileName)
+            .map(|s| s.to_owned())
+            .ok_or(Error::AttributeNotFound { attr: Attribute::OutputFileName })
+    }
 }
 
 impl Default for TitleInfo {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Information for a video, audio, or subtitle stream in a title.
+#[derive(Deserialize, Serialize)]
+pub struct StreamInfo {
+    /// Map containing the attributes of the stream where each key is the attribute id and the
+    /// value is the attribute's value.
+    pub attributes: HashMap<Attribute, String>,
 }
 
 impl StreamInfo {
@@ -318,12 +354,148 @@ impl StreamInfo {
             Err(Error::DuplicateAttribute { attr })
         }
     }
+
+    /// Returns the aspect ratio for a video stream.
+    pub fn aspect_radio(&self) -> Result<String> {
+        self.attributes.get(&Attribute::VideoAspectRatio)
+            .map(|s| s.to_owned())
+            .ok_or(Error::AttributeNotFound { attr: Attribute::VideoAspectRatio })
+    }
+
+    /// Returns the channel count for an audio stream.
+    pub fn channel_count(&self) -> Result<u8> {
+        let count = self.attributes.get(&Attribute::AudioChannelsCount)
+            .map(|s| s.to_owned())
+            .ok_or(Error::AttributeNotFound { attr: Attribute::AudioChannelsCount })?;
+        count.parse::<u8>()
+            .map_err(|_| Error::InvalidChannelCount { text: count })
+    }
+
+    /// Returns the channel layout for an audio stream.
+    pub fn channel_layout(&self) -> Result<String> {
+        self.attributes.get(&Attribute::AudioChannelLayoutName)
+            .map(|s| s.to_owned())
+            .ok_or(Error::AttributeNotFound { attr: Attribute::AudioChannelLayoutName })
+    }
+
+    /// Returns the codec using the short form attribute.
+    ///
+    /// NOTE: The short codec is used instead of the codec id because the same id can be used for
+    ///       several different codecs. For example A_DTS is used for both DTS and DTS-HD.
+    pub fn codec(&self) -> Result<String> {
+        self.attributes.get(&Attribute::CodecShort)
+            .map(|s| s.to_owned())
+            .ok_or(Error::AttributeNotFound { attr: Attribute::CodecShort })
+    }
+
+    /// Returns the language for an audio or subtitle stream.
+    pub fn language_name(&self) -> Result<String> {
+        self.attributes.get(&Attribute::LangName)
+            .map(|s| s.to_owned())
+            .ok_or(Error::AttributeNotFound { attr: Attribute::LangName })
+    }
+
+    /// Returns true if the stream is an audio stream.
+    pub fn is_audio_stream(&self) -> bool {
+        match self.attributes.get(&Attribute::Type) {
+            Some(s) => s.eq_ignore_ascii_case("Audio"),
+            None => false,
+        }
+    }
+
+    /// Returns true if the stream is a subtitle stream.
+    pub fn is_subtitle_stream(&self) -> bool {
+        match self.attributes.get(&Attribute::Type) {
+            Some(s) => s.eq_ignore_ascii_case("Subtitles"),
+            None => false,
+        }
+    }
+
+    /// Returns true if the stream is a vidoe stream.
+    pub fn is_video_stream(&self) -> bool {
+        match self.attributes.get(&Attribute::Type) {
+            Some(s) => s.eq_ignore_ascii_case("Video"),
+            None => false,
+        }
+    }
+
+    /// Get the stream type.
+    pub fn stream_type(&self) -> Result<String> {
+        self.attributes.get(&Attribute::Type)
+            .map(|s| s.to_owned())
+            .ok_or(Error::AttributeNotFound { attr: Attribute::Type })
+    }
+
+    /// Returns the tree info (display text) for the stream.
+    pub fn tree_info(&self) -> Result<String> {
+        self.attributes.get(&Attribute::TreeInfo)
+            .map(|s| s.to_owned())
+            .ok_or(Error::AttributeNotFound { attr: Attribute::TreeInfo })
+    }
+
+    /// Returns the video size (e.g. 1920x1080) for a video stream.
+    pub fn video_size(&self) -> Result<String> {
+        self.attributes.get(&Attribute::VideoSize)
+            .map(|s| s.to_owned())
+            .ok_or(Error::AttributeNotFound { attr: Attribute::VideoSize })
+    }
 }
 
 impl Default for StreamInfo {
     fn default() -> Self {
         Self::new()
     }
+}
+
+// TODO: Test
+// TODO: Should there be proper error handling?
+
+/// Parses the duration value into a [`Duration`] instance returning `None` if the provided value
+/// cannot be parsed.
+fn parse_duration(s: &str) -> Result<Duration> {
+    let parts: Vec<&str> = s.split(':').collect();
+    if parts.len() != 3 {
+        return Err(Error::InvalidDuration {
+            error: String::from("failed to extract hours, minutes, and seconds"),
+            text: s.to_owned(),
+        });
+    }
+
+    let hours = parts[0].parse::<u64>()
+        .map_err(|_| Error::InvalidDuration {
+            error: String::from("failed to parse hours"),
+            text: s.to_owned(),
+        })?;
+
+    let minutes = parts[1].parse::<u64>()
+        .map_err(|_| Error::InvalidDuration {
+            error: String::from("failed to parse minutes"),
+            text: s.to_owned(),
+        })?;
+
+    let seconds = parts[2].parse::<u64>()
+        .map_err(|_| Error::InvalidDuration {
+            error: String::from("failed to parse seconds"),
+            text: s.to_owned(),
+        })?;
+
+    if minutes >= 60 {
+        return Err(Error::InvalidDuration {
+            error: String::from("minutes >= 60"),
+            text: s.to_owned(),
+        });
+    }
+
+    if seconds >= 60 {
+        return Err(Error::InvalidDuration {
+            error: String::from("seconds >= 60"),
+            text: s.to_owned(),
+        });
+    }
+
+    let total_seconds = hours * 3600 + minutes * 60 + seconds;
+
+    Ok(Duration::from_secs(total_seconds))
 }
 
 #[cfg(test)]
