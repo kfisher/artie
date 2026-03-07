@@ -29,6 +29,11 @@ pub enum Error {
         stderr: String,
     },
 
+    /// Error raised when attempting to compress a string.
+    CompressIo {
+        error: std::io::Error,
+    },
+
     /// Error raised when connecting to the database fails.
     Connect {
         path: Option<PathBuf>,
@@ -207,4 +212,11 @@ pub fn json_deserialize(error: serde_json::Error) -> Error {
     }
 }
 
+/// Creates a [`Error::Serialization`] error when caused by failing to serialize JSON.
+pub fn json_serialize(error: serde_json::Error) -> Error {
+    Error::Serialization {
+        path: None,
+        error: SerializationError::JsonSerialize(error),
+    }
+}
 

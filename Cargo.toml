@@ -41,6 +41,9 @@ workspace = true
 [dependencies.chrono]
 workspace = true
 
+[dependencies.flate2]
+version = "1.0"
+
 [dependencies.gethostname]
 version = "1.1.0"
 

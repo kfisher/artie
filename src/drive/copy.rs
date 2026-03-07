@@ -284,21 +284,6 @@ pub async fn copy_disc(
         },
     };
 
-    let json = match disc_info.as_json() {
-        Ok(json) => json,
-        Err(error) => {
-            tracing::error!(sn=drive.serial_number, ?error, "failed to convert disc info to json");
-            let error = Error::MakeMKV { error };
-            operation_failed(
-                &actor,
-                &drive.serial_number,
-                Some((conn, copy_operation)),
-                ErrorMessage::DiscInfoSerializationError(error),
-            ).await;
-            return;
-        }
-    };
-
     let path = fs.disc_info_file(&copy_operation);
     if let Err(error) = disc_info.save(&path) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to save disc info to disc");
@@ -312,7 +297,7 @@ pub async fn copy_disc(
         return;
     }
 
-    if let Err(error) = db::copy_operation::set_metadata(&conn, &mut copy_operation, &json) {
+    if let Err(error) = db::copy_operation::set_metadata(&conn, &mut copy_operation, &disc_info) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to write disc info to db");
         operation_failed(
             &actor,

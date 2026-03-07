@@ -6,25 +6,13 @@
 use rusqlite::Connection;
 
 use crate::{Error, Result};
+use crate::error;
 use crate::models::{Video, VideoSource};
 
 use super::Operation;
 use super::conv;
 
-
-
 pub fn create(conn: &Connection, video: &mut Video) -> Result<()> {
-        // id: 0,
-        // location: todo!(),
-        // checksum: todo!(),
-        // container: todo!(),
-        // video_tracks: todo!(),
-        // audio_tracks: todo!(),
-        // subtitle_tracks: todo!(),
-        // source: todo!(),
-        // title: todo!(),
-        // duration: todo!(),
-
     let sql = "
         INSERT INTO video ( location_area
                           , location_path
@@ -72,9 +60,12 @@ pub fn create(conn: &Connection, video: &mut Video) -> Result<()> {
         loc_path,
         checksum.as_str(),
         conv::container_type_to_sql(&video.container),
-        serde_json::to_string(&video.video_tracks).unwrap(), // FIXME: ERROR
-        serde_json::to_string(&video.audio_tracks).unwrap(), // FIXME: ERROR
-        serde_json::to_string(&video.subtitle_tracks).unwrap(), // FIXME: ERROR
+        serde_json::to_string(&video.video_tracks)
+            .map_err(error::json_serialize)?,
+        serde_json::to_string(&video.audio_tracks)
+            .map_err(error::json_serialize)?,
+        serde_json::to_string(&video.subtitle_tracks)
+            .map_err(error::json_serialize)?,
         copy_operation,
         transcode_operation,
         video.title.id,

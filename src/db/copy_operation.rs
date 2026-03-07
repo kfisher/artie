@@ -7,7 +7,10 @@ use chrono::{DateTime, Utc};
 
 use rusqlite::Connection;
 
+use makemkv::DiscInfo;
+
 use crate::{Error, Result};
+use crate::compress;
 use crate::models::{CopyOperation, OperationState};
 
 use super::Operation;
@@ -130,8 +133,6 @@ pub fn create_table(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-// TODO: Should try to compress the COPY and INFO logs. They won't be modified once added.
-
 /// Set the copy log of the copy operation update the database record.
 pub fn set_copy_log(
     conn: &Connection,
@@ -144,7 +145,7 @@ pub fn set_copy_log(
          WHERE id=?2
     ";
 
-    let bytes = copy_log.as_bytes();
+    let bytes = compress::compress(copy_log)?;
 
     let _ = conn.execute(sql, (bytes, copy_operation.id)).map_err(|error| Error::Db {
         operation: Operation::Execute,
@@ -169,7 +170,7 @@ pub fn set_info_log(
          WHERE id=?2
     ";
 
-    let bytes = info_log.as_bytes();
+    let bytes = compress::compress(info_log)?;
 
     let _ = conn.execute(sql, (bytes, copy_operation.id)).map_err(|error| Error::Db {
         operation: Operation::Execute,
@@ -184,7 +185,7 @@ pub fn set_info_log(
 pub fn set_metadata(
     conn: &Connection,
     copy_operation: &mut CopyOperation,
-    metadata: &str,
+    disc_info: &DiscInfo,
 ) -> Result<()> {
     let sql = "
         UPDATE copy_operation
@@ -192,7 +193,12 @@ pub fn set_metadata(
          WHERE id=?2
     ";
 
-    let bytes = metadata.as_bytes();
+    let json = disc_info.as_json()
+        .map_err(|error| Error::MakeMKV { error })?;
+
+    // The metadata isn't really needed after the copy operation and is kept for information
+    // purposes only. Therefore compress the data.
+    let bytes = compress::compress(&json)?;
 
     let _ = conn.execute(sql, (bytes, copy_operation.id)).map_err(|error| Error::Db {
         operation: Operation::Execute,
