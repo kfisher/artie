@@ -433,8 +433,6 @@ pub async fn copy_disc(
         return;
     }
 
-    // TODO: Generate title and video entries. Implementation seperate outside of drives?
-
     if let Err(error) = db::copy_operation::set_state(
         &conn,
         &mut copy_operation,

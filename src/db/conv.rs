@@ -90,4 +90,147 @@ pub fn special_feature_to_sql(special_feature: &Option<SpecialFeature>) -> (u8, 
     }
 }
 
-// TODO: TESTING
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use crate::models::{
+        ContainerType,
+        MediaLocation,
+        MediaType,
+        OperationState,
+        SpecialFeature,
+        SpecialFeatureType,
+    };
+
+    #[test]
+    fn test_container_type_to_sql_mkv() {
+        assert_eq!(container_type_to_sql(&ContainerType::MKV), 0);
+    }
+
+    #[test]
+    fn test_container_type_to_sql_mp4() {
+        assert_eq!(container_type_to_sql(&ContainerType::MP4), 1);
+    }
+
+    #[test]
+    fn test_media_type_to_sql_movie() {
+        assert_eq!(media_type_to_sql(&MediaType::Movie), 0);
+    }
+
+    #[test]
+    fn test_media_type_to_sql_show() {
+        assert_eq!(media_type_to_sql(&MediaType::Show), 1);
+    }
+
+    #[test]
+    fn test_media_location_to_sql_inbox() {
+        let (area, path) = media_location_to_sql(
+            &MediaLocation::Inbox(PathBuf::from("movies/foo.mkv"))
+        );
+        assert_eq!(area, 1);
+        assert_eq!(path, "movies/foo.mkv");
+    }
+
+    #[test]
+    fn test_media_location_to_sql_library() {
+        let (area, path) = media_location_to_sql(
+            &MediaLocation::Library(PathBuf::from("shows/bar.mkv"))
+        );
+        assert_eq!(area, 2);
+        assert_eq!(path, "shows/bar.mkv");
+    }
+
+    #[test]
+    fn test_media_location_to_sql_archive() {
+        let (area, path) = media_location_to_sql(
+            &MediaLocation::Archive(PathBuf::from("archive/baz.mkv"))
+        );
+        assert_eq!(area, 3);
+        assert_eq!(path, "archive/baz.mkv");
+    }
+
+    #[test]
+    fn test_media_location_to_sql_deleted() {
+        let (area, path) = media_location_to_sql(&MediaLocation::Deleted);
+        assert_eq!(area, 4);
+        assert_eq!(path, "");
+    }
+
+    #[test]
+    fn test_operation_state_to_sql_requested() {
+        let (state, error) = operation_state_to_sql(&OperationState::Requested);
+        assert_eq!(state, 0);
+        assert!(error.is_empty());
+    }
+
+    #[test]
+    fn test_operation_state_to_sql_running() {
+        let (state, error) = operation_state_to_sql(&OperationState::Running);
+        assert_eq!(state, 1);
+        assert!(error.is_empty());
+    }
+
+    #[test]
+    fn test_operation_state_to_sql_completed() {
+        let (state, error) = operation_state_to_sql(&OperationState::Completed);
+        assert_eq!(state, 2);
+        assert!(error.is_empty());
+    }
+
+    #[test]
+    fn test_operation_state_to_sql_cancelled() {
+        let (state, error) = operation_state_to_sql(&OperationState::Cancelled);
+        assert_eq!(state, 3);
+        assert!(error.is_empty());
+    }
+
+    #[test]
+    fn test_operation_state_to_sql_failed() {
+        let reason = "disk full".to_owned();
+        let (state, error) = operation_state_to_sql(
+            &OperationState::Failed { reason: reason.clone() }
+        );
+        assert_eq!(state, 4);
+        assert_eq!(error, reason);
+    }
+
+    #[test]
+    fn test_special_feature_to_sql_none_option() {
+        let (kind, name) = special_feature_to_sql(&None);
+        assert_eq!(kind, 0);
+        assert!(name.is_empty());
+    }
+
+    #[test]
+    fn test_special_feature_to_sql_none_kind() {
+        let sf = Some(SpecialFeature { kind: SpecialFeatureType::None, name: String::new() });
+        let (kind, name) = special_feature_to_sql(&sf);
+        assert_eq!(kind, 0);
+        assert!(name.is_empty());
+    }
+
+    #[test]
+    fn test_special_feature_to_sql_types() {
+        let cases = [
+            (SpecialFeatureType::BehindTheScenes, 1u8),
+            (SpecialFeatureType::DeletedScenes, 2),
+            (SpecialFeatureType::Interviews, 3),
+            (SpecialFeatureType::Scenes, 4),
+            (SpecialFeatureType::Samples, 5),
+            (SpecialFeatureType::Shorts, 6),
+            (SpecialFeatureType::Featurettes, 7),
+            (SpecialFeatureType::Clips, 8),
+            (SpecialFeatureType::Extras, 9),
+            (SpecialFeatureType::Trailers, 10),
+        ];
+
+        for (feature_type, expected_kind) in cases {
+            let sf = Some(SpecialFeature { kind: feature_type, name: "Test Feature".to_owned() });
+            let (kind, name) = special_feature_to_sql(&sf);
+            assert_eq!(kind, expected_kind);
+            assert_eq!(name, "Test Feature");
+        }
+    }
+}

@@ -251,25 +251,127 @@ pub fn set_state(
 mod tests {
     use super::*;
     use rusqlite::Connection;
+    use crate::models::{OperationState, Reference};
 
-    //-] /// Helper function to create an in-memory database with the copy_operation table
-    //-] fn setup_test_db() -> Connection {
-    //-]     let conn = Connection::open_in_memory()
-    //-]         .expect("Failed to create in-memory database");
-    //-]     create_table(&conn)
-    //-]         .expect("Failed to create table");
-    //-]     conn
-    //-] }
+    fn setup_test_db() -> (Connection, u32, u32) {
+        let conn = Connection::open_in_memory()
+            .expect("Failed to create in-memory database");
+        super::super::host::create_table(&conn)
+            .expect("Failed to create host table");
+        super::super::optical_drive::create_table(&conn)
+            .expect("Failed to create optical_drive table");
+        create_table(&conn).expect("Failed to create copy_operation table");
+        let host = super::super::host::create(&conn, "testhost")
+            .expect("Failed to create host");
+        let drive = super::super::optical_drive::create(&conn, "SN-TEST-001")
+            .expect("Failed to create drive");
+        (conn, host.id, drive.id)
+    }
+
+    fn make_copy_operation(host_id: u32, drive_id: u32) -> CopyOperation {
+        CopyOperation {
+            host: Reference { id: host_id, value: None },
+            drive: Reference { id: drive_id, value: None },
+            ..CopyOperation::default()
+        }
+    }
 
     #[test]
     fn test_create_table() {
         let conn = Connection::open_in_memory().unwrap();
-
-        // Should succeed
         let result = create_table(&conn);
         assert!(result.is_ok());
     }
 
-    // TODO: More Testing
+    #[test]
+    fn test_create_copy_operation() {
+        let (conn, host_id, drive_id) = setup_test_db();
+        let mut op = make_copy_operation(host_id, drive_id);
+
+        create(&conn, &mut op).expect("Failed to create copy operation");
+
+        assert!(op.id > 0);
+    }
+
+    #[test]
+    fn test_create_copy_operation_sets_unique_ids() {
+        let (conn, host_id, drive_id) = setup_test_db();
+        let mut op1 = make_copy_operation(host_id, drive_id);
+        let mut op2 = make_copy_operation(host_id, drive_id);
+
+        create(&conn, &mut op1).unwrap();
+        create(&conn, &mut op2).unwrap();
+
+        assert_ne!(op1.id, op2.id);
+    }
+
+    #[test]
+    fn test_set_copy_log() {
+        let (conn, host_id, drive_id) = setup_test_db();
+        let mut op = make_copy_operation(host_id, drive_id);
+        create(&conn, &mut op).unwrap();
+
+        set_copy_log(&conn, &mut op, "copy log output").expect("Failed to set copy log");
+
+        assert_eq!(op.copy_log, "copy log output");
+    }
+
+    #[test]
+    fn test_set_info_log() {
+        let (conn, host_id, drive_id) = setup_test_db();
+        let mut op = make_copy_operation(host_id, drive_id);
+        create(&conn, &mut op).unwrap();
+
+        let result = set_info_log(&conn, &mut op, "info log output");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_set_state_running() {
+        let (conn, host_id, drive_id) = setup_test_db();
+        let mut op = make_copy_operation(host_id, drive_id);
+        create(&conn, &mut op).unwrap();
+
+        set_state(&conn, &mut op, OperationState::Running).expect("Failed to set state");
+
+        assert!(matches!(op.state, OperationState::Running));
+    }
+
+    #[test]
+    fn test_set_state_completed() {
+        let (conn, host_id, drive_id) = setup_test_db();
+        let mut op = make_copy_operation(host_id, drive_id);
+        create(&conn, &mut op).unwrap();
+
+        set_state(&conn, &mut op, OperationState::Completed).expect("Failed to set state");
+
+        assert!(matches!(op.state, OperationState::Completed));
+        assert!(op.completed.timestamp() > 0);
+    }
+
+    #[test]
+    fn test_set_state_cancelled() {
+        let (conn, host_id, drive_id) = setup_test_db();
+        let mut op = make_copy_operation(host_id, drive_id);
+        create(&conn, &mut op).unwrap();
+
+        set_state(&conn, &mut op, OperationState::Cancelled).expect("Failed to set state");
+
+        assert!(matches!(op.state, OperationState::Cancelled));
+        assert!(op.completed.timestamp() > 0);
+    }
+
+    #[test]
+    fn test_set_state_failed() {
+        let (conn, host_id, drive_id) = setup_test_db();
+        let mut op = make_copy_operation(host_id, drive_id);
+        create(&conn, &mut op).unwrap();
+
+        set_state(&conn, &mut op, OperationState::Failed { reason: "disk error".to_owned() })
+            .expect("Failed to set state");
+
+        assert!(matches!(op.state, OperationState::Failed { .. }));
+        assert!(op.completed.timestamp() > 0);
+    }
 }
 

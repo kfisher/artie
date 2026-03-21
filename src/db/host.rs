@@ -103,21 +103,146 @@ mod tests {
     use super::*;
     use rusqlite::Connection;
 
-    //-] /// Helper function to create an in-memory database with the host table
-    //-] fn setup_test_db() -> Connection {
-    //-]     let conn = Connection::open_in_memory()
-    //-]         .expect("Failed to create in-memory database");
-    //-]     create_table(&conn)
-    //-]         .expect("Failed to create table");
-    //-]     conn
-    //-] }
+    fn setup_test_db() -> Connection {
+        let conn = Connection::open_in_memory().expect("Failed to create in-memory database");
+        create_table(&conn).expect("Failed to create table");
+        conn
+    }
 
     #[test]
     fn test_create_table() {
         let conn = Connection::open_in_memory().unwrap();
-        
-        // Should succeed
         let result = create_table(&conn);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_host() {
+        let conn = setup_test_db();
+        let hostname = "myhost.local";
+
+        let host = create(&conn, hostname).expect("Failed to create host");
+
+        assert_eq!(host.hostname, hostname);
+        assert!(host.id > 0);
+    }
+
+    #[test]
+    fn test_create_empty_hostname_fails() {
+        let conn = setup_test_db();
+
+        let result = create(&conn, "");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_create_whitespace_hostname_fails() {
+        let conn = setup_test_db();
+
+        let result = create(&conn, "   ");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_create_duplicate_hostname_fails() {
+        let conn = setup_test_db();
+        let hostname = "myhost.local";
+
+        let result = create(&conn, hostname);
+        assert!(result.is_ok());
+
+        let result = create(&conn, hostname);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_get_by_hostname_existing() {
+        let conn = setup_test_db();
+        let hostname = "myhost.local";
+
+        let created = create(&conn, hostname).unwrap();
+
+        let retrieved = get_by_serial_number(&conn, hostname)
+            .expect("Query should succeed")
+            .expect("Host should exist");
+
+        assert_eq!(retrieved.id, created.id);
+        assert_eq!(retrieved.hostname, created.hostname);
+    }
+
+    #[test]
+    fn test_get_by_hostname_not_found() {
+        let conn = setup_test_db();
+
+        let result = get_by_serial_number(&conn, "nonexistent.local")
+            .expect("Query should succeed");
+
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_get_or_create_when_exists() {
+        let conn = setup_test_db();
+        let hostname = "myhost.local";
+
+        let original = create(&conn, hostname).unwrap();
+        let retrieved = get_or_create(&conn, hostname).unwrap();
+
+        assert_eq!(retrieved.id, original.id);
+        assert_eq!(retrieved.hostname, original.hostname);
+    }
+
+    #[test]
+    fn test_get_or_create_when_not_exists() {
+        let conn = setup_test_db();
+        let hostname = "myhost.local";
+
+        let host = get_or_create(&conn, hostname).unwrap();
+
+        assert_eq!(host.hostname, hostname);
+        assert!(host.id > 0);
+
+        let retrieved = get_by_serial_number(&conn, hostname)
+            .unwrap()
+            .expect("Host should exist");
+        assert_eq!(retrieved.id, host.id);
+    }
+
+    #[test]
+    fn test_get_or_create_idempotent() {
+        let conn = setup_test_db();
+        let hostname = "myhost.local";
+
+        let host1 = get_or_create(&conn, hostname).unwrap();
+        let host2 = get_or_create(&conn, hostname).unwrap();
+        let host3 = get_or_create(&conn, hostname).unwrap();
+
+        assert_eq!(host1.id, host2.id);
+        assert_eq!(host2.id, host3.id);
+        assert_eq!(host1.hostname, host2.hostname);
+    }
+
+    #[test]
+    fn test_hostname_with_special_characters() {
+        let conn = setup_test_db();
+
+        let hostnames = vec![
+            "host-01.local",
+            "host_02.local",
+            "host with spaces",
+            "host'with'quotes",
+            "host\"with\"doublequotes",
+        ];
+
+        for hostname in hostnames {
+            let host = create(&conn, hostname)
+                .unwrap_or_else(|_| panic!("Failed to create host with hostname: {}", hostname));
+            assert_eq!(host.hostname, hostname);
+
+            let retrieved = get_by_serial_number(&conn, hostname)
+                .unwrap()
+                .expect("Host should exist");
+            assert_eq!(retrieved.hostname, hostname);
+        }
     }
 }

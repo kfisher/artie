@@ -46,20 +46,9 @@ mod tests {
     use super::*;
     use rusqlite::Connection;
 
-    //-] /// Helper function to create an in-memory database with the transcode_operation table
-    //-] fn setup_test_db() -> Connection {
-    //-]     let conn = Connection::open_in_memory()
-    //-]         .expect("Failed to create in-memory database");
-    //-]     create_table(&conn)
-    //-]         .expect("Failed to create table");
-    //-]     conn
-    //-] }
-
     #[test]
     fn test_create_table() {
         let conn = Connection::open_in_memory().unwrap();
-        
-        // Should succeed
         let result = create_table(&conn);
         assert!(result.is_ok());
     }

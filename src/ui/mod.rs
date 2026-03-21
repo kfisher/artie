@@ -52,7 +52,7 @@ pub mod helpers {
 
     pub const INVALID_CSS_CLASS: &str = "invalid";
 
-    // TODO
+    /// Marks the entry as valid or invalid.
     pub fn update_validity_style(entry: &Entry, valid: bool) {
         if valid {
             entry_valid(entry);

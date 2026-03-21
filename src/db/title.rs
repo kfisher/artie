@@ -11,7 +11,7 @@ use crate::models::Title;
 use super::Operation;
 use super::conv;
 
-// TODO
+/// Creates a new [`Title`] instance in the database.
 pub fn create(conn: &Connection, title: &mut Title) -> Result<()> {
     let sql = "
         INSERT INTO title ( title_index
@@ -113,22 +113,111 @@ pub fn create_table(conn: &Connection) -> Result<()> {
 mod tests {
     use super::*;
     use rusqlite::Connection;
+    use crate::models::MediaType;
 
-    //-] /// Helper function to create an in-memory database with the title table
-    //-] fn setup_test_db() -> Connection {
-    //-]     let conn = Connection::open_in_memory()
-    //-]         .expect("Failed to create in-memory database");
-    //-]     create_table(&conn)
-    //-]         .expect("Failed to create table");
-    //-]     conn
-    //-] }
+    fn setup_test_db() -> Connection {
+        let conn = Connection::open_in_memory().expect("Failed to create in-memory database");
+        create_table(&conn).expect("Failed to create table");
+        conn
+    }
+
+    fn make_title(name: &str) -> Title {
+        Title {
+            id: 0,
+            index: 1,
+            media_type: MediaType::Movie,
+            title: name.to_owned(),
+            year: 2024,
+            season: 0,
+            episode_number: 0,
+            episode_count: 0,
+            special_feature: None,
+            version: String::new(),
+            disc: 1,
+            location: "shelf-a".to_owned(),
+            memo: String::new(),
+            videos: None,
+        }
+    }
 
     #[test]
     fn test_create_table() {
         let conn = Connection::open_in_memory().unwrap();
-        
-        // Should succeed
         let result = create_table(&conn);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_create_title() {
+        let conn = setup_test_db();
+        let mut title = make_title("Test Movie");
+
+        create(&conn, &mut title).expect("Failed to create title");
+
+        assert!(title.id > 0);
+    }
+
+    #[test]
+    fn test_create_title_sets_unique_ids() {
+        let conn = setup_test_db();
+        let mut title1 = make_title("Movie One");
+        let mut title2 = make_title("Movie Two");
+
+        create(&conn, &mut title1).unwrap();
+        create(&conn, &mut title2).unwrap();
+
+        assert!(title1.id > 0);
+        assert!(title2.id > 0);
+        assert_ne!(title1.id, title2.id);
+    }
+
+    #[test]
+    fn test_create_title_show_with_episode() {
+        let conn = setup_test_db();
+        let mut title = Title {
+            id: 0,
+            index: 2,
+            media_type: MediaType::Show,
+            title: "Test Show".to_owned(),
+            year: 2023,
+            season: 3,
+            episode_number: 7,
+            episode_count: 2,
+            special_feature: None,
+            version: String::new(),
+            disc: 1,
+            location: "shelf-b".to_owned(),
+            memo: "double episode".to_owned(),
+            videos: None,
+        };
+
+        create(&conn, &mut title).expect("Failed to create title");
+
+        assert!(title.id > 0);
+    }
+
+    #[test]
+    fn test_create_title_with_version() {
+        let conn = setup_test_db();
+        let mut title = Title {
+            id: 0,
+            index: 1,
+            media_type: MediaType::Movie,
+            title: "Test Movie".to_owned(),
+            year: 2020,
+            season: 0,
+            episode_number: 0,
+            episode_count: 0,
+            special_feature: None,
+            version: "Director's Cut".to_owned(),
+            disc: 1,
+            location: "shelf-a".to_owned(),
+            memo: String::new(),
+            videos: None,
+        };
+
+        create(&conn, &mut title).expect("Failed to create title");
+
+        assert!(title.id > 0);
     }
 }
