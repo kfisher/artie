@@ -1,12 +1,11 @@
 /* Copyright 2026 Kevin Fisher. All rights reserved. *
  * SPDX-License-Identifier: GPL-3.0-only             */
 
-/* 
- * COLORS
- *
+/*************************************************************************************************
+ * COLORS & VARIABLES
+ *************************************************************************************************
  * NOTE: The following is based of the Nord color palette.
  *       https://www.nordtheme.com/
- *
  *************************************************************************************************/
 
 :root {
@@ -78,172 +77,28 @@
     --color-text-text: #00FF00;
     --color-text-border: #00FF00;
     --color-text-hover: #00FF00;
+
+    --border-radius: 4px;
+}
+
+/*************************************************************************************************
+ * RESET
+ *************************************************************************************************
+ * Ignore the default theme. While this might annoy people, its the easiest way
+ * to ensure the application appearance looks consitent across all platforms.
+ *************************************************************************************************/
+
+window * {
+  all: unset;
 }
 
 * {
-    color: var(--color-text-base);
+  background-color: var(--color-background-base);
+  color: var(--color-text-base);
 }
 
-/* 
- * GTK (built-in widgets)
- *
- *************************************************************************************************/
-
-entry {
-    background-color: var(--color-surface-2-base);
-    border-color: var(--color-surface-2-border);
-}
-
-entry:focus-within {
-    outline-color: var(--color-primary-base);
-}
-
-entry.invalid {
-    outline-color: var(--color-danger-base);
-    outline-offset: -2px;
-    outline-width: 2px;
-}
-
-entry.invalid:focus-within {
-    outline-color: var(--color-primary-base);
-    border: 0;
-}
-
-listview {
-    background-color: transparent;
-}
-
-window.background {
-    background-color: var(--color-surface-0-base);
-}
-
-progressbar {
-}
-
-progressbar > trough {
-    background-color: var(--color-surface-2-base);
-    border: 1px solid var(--color-surface-2-border);
-    min-height: 16px;
-}
-
-progressbar > trough > progress {
-    background-color: var(--color-secondary-base);
-    border-radius: 1.5px;
-    border-width: 0;
-    min-height: 16px;
-}
-
-progressbar.horizontal > trough > progress { 
-    margin: 0;
-}
-
-button {
-    background-image: none;
-}
-
-button.danger {
-    background-color: var(--color-danger-base);
-    border-color: var(--color-danger-border);
-}
-
-button.danger:active {
-    background-color: var(--color-danger-base);
-}
-
-button.danger:hover {
-    background-color: var(--color-danger-hover);
-}
-
-button.danger label, button.danger image {
-    color: var(--color-danger-text);
-}
-
-button.default {
-    background-color: var(--color-surface-3-base);
-    border-color: var(--color-surface-3-border);
-}
-
-button.default:hover  {
-    background-color: var(--color-surface-3-hover);
-}
-
-button.default:hover:active {
-    background-color: var(--color-surface-3-base);
-}
-
-button.default label, button.default image {
-    color: var(--color-surface-3-text);
-}
-
-button.primary  {
-    background-color: var(--color-primary-base);
-    border-color: var(--color-primary-border);
-}
-
-button.primary:hover {
-    background-color: var(--color-primary-hover);
-}
-
-button.primary:hover:active {
-    background-color: var(--color-primary-base);
-}
-
-button.primary label, button.primary image {
-    color: var(--color-primary-text);
-}
-
-button.secondary  {
-    background-color: var(--color-secondary-base);
-    border-color: var(--color-secondary-border);
-}
-
-button.secondary:hover {
-    background-color: var(--color-secondary-hover);
-}
-
-button.secondary:hover:active {
-    background-color: var(--color-secondary-base);
-}
-
-button.secondary label, button.secondary image {
-    color: var(--color-secondary-text);
-}
-
-button.success  {
-    background-color: var(--color-success-base);
-    border-color: var(--color-success-border);
-}
-
-button.success:hover {
-    background-color: var(--color-success-hover);
-}
-
-button.success:hover:active {
-    background-color: var(--color-success-base);
-}
-
-button.success label, button.success image {
-    color: var(--color-success-text);
-}
-
-dropdown button {
-    background-color: var(--color-surface-2-base);
-    border-color: var(--color-surface-2-border);
-}
-
-dropdown popover contents {
-    background-color: var(--color-surface-2-base);
-    border-color: var(--color-surface-2-border);
-}
-
-dropdown popover listview > row.activatable:selected,
-dropdown popover listview > row.activatable:selected:hover {
-    background-color: var(--color-surface-1-base);
-}
-
-/* 
- * APP (custom widgets)
- *
+/*************************************************************************************************
+ * ANIMATIONS
  *************************************************************************************************/
 
 @keyframes rotateAnimation {
@@ -251,6 +106,223 @@ dropdown popover listview > row.activatable:selected:hover {
         -gtk-icon-transform: rotate(1turn);
     }
 }
+
+/*************************************************************************************************
+ * GTK WIDGETS
+ *************************************************************************************************/
+
+button {
+    /* FIXME: Intentionally give this a default that will stick out so that it
+     *        can be addressed when encountered. */
+    background-color: hotpink; 
+    border-radius: var(--border-radius);
+    border-style: solid;
+    border-width: 1px;
+    min-height: 24px;
+    min-width: 16px;
+    padding: 4px 8px;
+    transition: all 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+button.danger {
+    background-color: var(--color-danger-base);
+    border-color: var(--color-danger-border);
+    color: var(--color-danger-text);
+}
+
+button.danger:hover {
+    background-color: var(--color-danger-hover);
+}
+
+button.danger:active {
+    background-color: var(--color-danger-base);
+}
+
+button.default {
+    background-color: var(--color-surface-3-base);
+    border-color: var(--color-surface-3-border);
+    color: var(--color-surface-3-text);
+}
+
+button.default:hover {
+    background-color: var(--color-surface-3-hover);
+}
+
+button.default:active {
+    background-color: var(--color-surface-3-base);
+}
+
+button.primary {
+    background-color: var(--color-primary-base);
+    border-color: var(--color-primary-border);
+    color: var(--color-primary-text);
+}
+
+button.primary:hover {
+    background-color: var(--color-primary-hover);
+}
+
+button.primary:active {
+    background-color: var(--color-primary-base);
+}
+
+button.secondary {
+    background-color: var(--color-secondary-base);
+    border-color: var(--color-secondary-border);
+    color: var(--color-secondary-text);
+}
+
+button.secondary:hover {
+    background-color: var(--color-secondary-hover);
+}
+
+button.secondary:active {
+    background-color: var(--color-secondary-base);
+}
+
+button.success {
+    background-color: var(--color-success-base);
+    border-color: var(--color-success-border);
+    color: var(--color-success-text);
+}
+
+button.success:hover {
+    background-color: var(--color-success-hover);
+}
+
+button.success:active {
+    background-color: var(--color-success-base);
+}
+
+entry {
+    background-color: var(--color-surface-2-base);
+    border-color: var(--color-surface-2-border);
+    border-radius: var(--border-radius);
+    border-style: solid;
+    border-width: 1px;
+    min-height: 24px;
+    padding: 4px 8px;
+    transition: all 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+entry:focus-within {
+    outline-color: var(--color-primary-base);
+    outline-width: 2px;
+    outline-style: solid;
+    outline-offset: -2px;
+}
+
+entry.invalid {
+    border-color: var(--color-danger-base);
+}
+
+dropdown arrow {
+    -gtk-icon-source: -gtk-icontheme('pan-down-symbolic');
+    min-height: 16px;
+    min-width: 16px;
+}
+
+dropdown button {
+    background-color: var(--color-surface-2-base);
+    border-color: var(--color-surface-2-border);
+    border-radius: var(--border-radius);
+    border-style: solid;
+    border-width: 1px;
+    padding: 4px 8px;
+}
+
+dropdown popover contents {
+    background-color: var(--color-surface-2-base);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-surface-2-border);
+    margin-top: 2px;
+    min-height: 24px;
+}
+
+dropdown popover contents listview > row {
+    padding: 4px 8px;
+}
+
+dropdown popover contents listview > row:hover {
+    background-color: var(--color-surface-2-hover);
+}
+
+dropdown popover contents listview > row:selected,
+dropdown popover contents listview > row:selected:hover {
+    background-color: var(--color-surface-1-base);
+}
+
+headerbar {
+    background-color: #232831;
+}
+
+
+headerbar > windowhandle > box {
+    padding: 4px 8px;
+}
+
+headerbar button.text-button {
+    background-color: var(--color-surface-3-base);
+    border-color: var(--color-surface-3-border);
+    color: var(--color-surface-3-text);
+    min-width: 100px;
+}
+
+headerbar button.text-button:not(last-child) {
+    margin-right: 4px;
+}
+
+headerbar button.text-button:hover {
+    background-color: var(--color-surface-3-hover);
+}
+
+headerbar button.text-button:checked {
+    background-color: var(--color-primary-base);
+    border-color: var(--color-primary-border);
+    color: var(--color-primary-text);
+}
+
+headerbar label.title {
+    font-weight: bold;
+    font-size: 1.25em;
+}
+
+headerbar windowcontrols button.image-button {
+    background-color: transparent;
+    border: 0;
+    border-radius: 100px;
+}
+
+headerbar windowcontrols button.image-button:hover {
+    background-color: #282D37;
+    color: var(--color-surface-3-text);
+}
+
+headerbar windowcontrols button.image-button:active {
+    background-color: #2B323D;
+}
+
+progressbar > trough {
+    background-color: var(--color-surface-2-base);
+    border: 1px solid var(--color-surface-2-border);
+    border-radius: var(--border-radius);
+    min-height: 16px;
+}
+
+progressbar > trough > progress {
+    background-color: var(--color-secondary-base);
+    border-radius: var(--border-radius);
+    border-width: 0;
+    min-height: 16px;
+}
+
+window.background {
+  background-color: var(--color-surface-0-base);
+}
+
+/*************************************************************************************************
+ * CUSTOM WIDGETS
+ *************************************************************************************************/
 
 .drive-list-widget row:hover {
     background-color: transparent;
