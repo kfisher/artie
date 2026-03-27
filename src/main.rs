@@ -8,6 +8,7 @@ mod error;
 mod fs;
 mod library;
 mod models;
+mod net;
 mod settings;
 mod ui;
 
