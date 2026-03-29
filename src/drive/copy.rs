@@ -19,14 +19,10 @@ use crate::Error;
 use crate::db;
 use crate::db::Database;
 use crate::fs::FileSystem;
+use crate::drive::{DiscState, OpticalDriveState, OpticalDrive};
+use crate::drive::actor::handle::DriveActorHandle;
 use crate::library;
 use crate::models::{CopyOperation, CopyParamaters, OperationState, Reference};
-
-use super::{DiscState, OpticalDriveState, OpticalDrive};
-use super::actor::DriveActorHandle;
-
-// TODO: Make sure the numbered errors (system and database) are ordered correctly or come up with
-//       a better option.
 
 /// Copies the disc in the optical drive.
 pub async fn copy_disc(

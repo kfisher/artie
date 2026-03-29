@@ -1,6 +1,8 @@
 // Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
+//! TODO: DOC
+
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -9,128 +11,18 @@ use tokio::sync::oneshot;
 
 use tokio_util::sync::CancellationToken;
 
-use crate::{Error, Result};
-use crate::error::ChannelError;
+use crate::Result;
 use crate::db::Database;
+use crate::drive;
+use crate::drive::{DiscState, OpticalDrive, OpticalDriveState, OpticalDriveStatus};
+use crate::drive::actor::DriveActorMessage;
+use crate::drive::actor::handle::DriveActorHandle;
+use crate::drive::copy;
+use crate::drive::data::{Data, FormData, FormDataUpdate};
+use crate::error::{Error, ChannelError};
 use crate::fs::FileSystem;
 use crate::models::CopyParamaters;
 use crate::task;
-
-use super::{DiscState, OpticalDriveState, OpticalDriveStatus, OpticalDrive};
-use super::copy;
-use super::data::{Data, FormData, FormDataUpdate};
-
-/// Specifies the messages and responses for the optical drive actor.
-///
-/// Each message will have a channel that will be used by the actor to send the response. This will
-/// be a `oneshot` channel for a single response or a `mpsc` channel for streaming data such as
-/// operation process information.
-#[derive(Debug)]
-pub enum DriveActorMessage {
-    /// Request to cancel and in-progress copy operation.
-    CancelCopyDisc,
-
-    /// Request to start copying the disc in the optical drive.
-    CopyDisc {
-        parameters: CopyParamaters,
-    },
-
-    /// Request the form data from the drive's persistent data.
-    GetFormData {
-        response: oneshot::Sender<FormData>,
-    },
-
-    /// Request the current status of the optical drive.
-    GetStatus {
-        response: oneshot::Sender<OpticalDriveStatus>,
-    },
-
-    /// Request to reset the drive state back to idle.
-    ///
-    /// Resets the state from `Success` or `Failed` back to `Idle`.
-    Reset,
-
-    /// Update the form data stored in the drive's persistent data.
-    ///
-    /// Each field is optional that are `Some` if the field was modified or `None` if the field
-    /// hasn't changed.
-    UpdateFormData {
-        data: FormDataUpdate,
-    },
-
-    /// Updates the optical drive state.
-    UpdateOpticalDriveState {
-        state: OpticalDriveState,
-    }
-}
-
-/// Handle used to communicate with a [`DriveActor`] instance.
-#[derive(Clone, Debug)]
-pub struct DriveActorHandle {
-    /// Transmission end of the channel used to send requests to the actor.
-    tx: mpsc::Sender<DriveActorMessage>,
-}
-
-impl DriveActorHandle {
-    /// Create a new [`DriveActorHandle`] instance.
-    fn new(tx: mpsc::Sender<DriveActorMessage>) -> Self {
-        Self { tx }
-    }
-
-    /// Cancels a copy operation currently in progress.
-    pub async fn cancel_copy_disc(&self) -> Result<()> {
-        let msg = DriveActorMessage::CancelCopyDisc;
-        self.tx.send(msg).await.map_err(send_error)
-    }
-
-    /// Begins copying the disc in the optical drive.
-    pub async fn copy_disc(&self, copy_parameters: CopyParamaters) -> Result<()> {
-        let msg = DriveActorMessage::CopyDisc { parameters: copy_parameters };
-        self.tx.send(msg).await.map_err(send_error)
-    }
-
-    /// Get the form data from the drive's persistent storage.
-    pub async fn get_form_data(&self) -> Result<FormData> {
-        let (tx, rx) = oneshot::channel();
-
-        let msg = DriveActorMessage::GetFormData { response: tx };
-
-        self.tx.send(msg).await
-            .map_err(send_error)?;
-
-        rx.await.map_err(oneshot_recv_error)
-    }
-
-    /// Get the current status of the optical drive.
-    pub async fn get_status(&self) -> Result<OpticalDriveStatus> {
-        let (tx, rx) = oneshot::channel();
-
-        let msg = DriveActorMessage::GetStatus { response: tx };
-
-        self.tx.send(msg).await
-            .map_err(send_error)?;
-
-        rx.await.map_err(oneshot_recv_error)
-    }
-
-    /// Reset the drive state back to `Idle` from `Success` or `Failed`.
-    pub async fn reset(&self) -> Result<()> {
-        let msg = DriveActorMessage::Reset;
-        self.tx.send(msg).await.map_err(send_error)
-    }
-
-    /// Updates the form data in the drive's persistent data.
-    pub async fn update_form_data(&self, data: FormDataUpdate) -> Result<()> {
-        let msg = DriveActorMessage::UpdateFormData { data };
-        self.tx.send(msg).await.map_err(send_error)
-    }
-
-    /// Updates the current state of the optical drive.
-    pub(super) async fn update_optical_drive_state(&self, state: OpticalDriveState) -> Result<()> {
-        let msg = DriveActorMessage::UpdateOpticalDriveState { state };
-        self.tx.send(msg).await.map_err(send_error)
-    }
-}
 
 /// Create a [`DriveActor`] instance, start it, and return its handle.
 pub fn create_actor(drive: &OpticalDrive, fs: FileSystem, db: Database) -> DriveActorHandle {
@@ -138,6 +30,7 @@ pub fn create_actor(drive: &OpticalDrive, fs: FileSystem, db: Database) -> Drive
 }
 
 /// Actor used to perform copy operations and monitor the state of an optical
+// TODO: DOC
 #[derive(Debug)]
 struct DriveActor {
     /// The optical drive this actor is associated with.
@@ -276,7 +169,7 @@ impl DriveActor {
 
     /// Process the request for getting the current state of the actor.
     fn get_state(&self, tx: oneshot::Sender<OpticalDriveStatus>) -> Result<()> {
-        let status = match super::get_optical_drive(&self.drive.serial_number)? {
+        let status = match drive::get_optical_drive(&self.drive.serial_number)? {
             Some(drive) => OpticalDriveStatus::new(drive.disc, self.state.clone()),
             None => OpticalDriveStatus::new(DiscState::None, OpticalDriveState::Disconnected),
         };
@@ -368,11 +261,6 @@ impl DriveActor {
     }
 }
 
-/// Create an application error from the provided tokio error.
-fn oneshot_recv_error(e: oneshot::error::RecvError) -> Error {
-    Error::DriveActorChannel { error: Box::new(ChannelError::OneShotRecv(e)) }
-}
-
 /// Runs the processing loop for the provided actor.
 async fn run_actor(mut actor: DriveActor) {
     tracing::info!(sn=actor.drive.serial_number, "message processing started");
@@ -385,9 +273,3 @@ async fn run_actor(mut actor: DriveActor) {
 
     tracing::info!(sn=actor.drive.serial_number, "message processing ended");
 }
-
-/// Create an application error from the provided tokio error.
-fn send_error(e: mpsc::error::SendError<DriveActorMessage>) -> Error {
-    Error::DriveActorChannel { error: Box::new(ChannelError::Send(e)) }
-}
-

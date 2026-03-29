@@ -30,7 +30,7 @@ impl OpticalDriveObject {
 
         let imp = obj.imp();
 
-        imp.handle.replace(Some(actor::create_actor(&drive, fs, db)));
+        imp.handle.replace(Some(actor::local::create_actor(&drive, fs, db)));
 
         imp.name.replace(drive.serial_number.clone());
         imp.serial_number.replace(drive.serial_number);
@@ -205,7 +205,7 @@ mod imp {
     use gtk::subclass::prelude::*;
 
     
-    use crate::drive::actor::DriveActorHandle;
+    use crate::drive::actor::handle::DriveActorHandle;
     use crate::drive::glib::OpticalDriveState;
 
     /// Implementation for [`super::OpticalDriveObject`].
