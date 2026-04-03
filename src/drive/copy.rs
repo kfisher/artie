@@ -31,7 +31,7 @@ pub async fn copy_disc(
     fs: FileSystem,
     db: Database,
     actor: DriveActorHandle,
-    ct: CancellationToken,
+    cancellation_token: CancellationToken,
 ) {
     tracing::info!(sn=drive.serial_number, "starting copy operation");
 
@@ -78,17 +78,7 @@ pub async fn copy_disc(
         }
     };
 
-    // Don't expect a computer's hostname to contain invalid unicode characters. If it does, then
-    // something likely went very wrong with fetching the hostname to the point where we would
-    // prefer an application crash anyways.
-    // 
-    // TODO: When worker nodes are added, the following will need to be updated.
-    // 
-    let hostname = gethostname::gethostname()
-        .into_string()
-        .unwrap();
-
-    let host = match db::host::get_or_create(&conn, &hostname) {
+    let host = match db::host::get_or_create(&conn, &drive.hostname) {
         Ok(host) => host,
         Err(error) => {
             tracing::error!(sn=drive.serial_number, ?error, "failed to get/create host db record");
@@ -135,7 +125,7 @@ pub async fn copy_disc(
     };
 
     // Don't check for cancellation until now because we want there to be a database entry.
-    if ct.is_cancelled() {
+    if cancellation_token.is_cancelled() {
         tracing::info!(sn=drive.serial_number, "copy operation cancelled");
         operation_canceled(&actor, &drive.serial_number, conn, copy_operation).await;
         return;
@@ -156,12 +146,23 @@ pub async fn copy_disc(
         return;
     }
 
-    let output_dir = fs.inbox_folder(&copy_operation);
+    let output_location = fs.inbox_location(&copy_operation, None);
+    let Some(output_path) = fs.path(&output_location) else {
+        let error = Error::InvalidMediaLocation { location: output_location };
+        tracing::error!(sn=drive.serial_number, ?error, "failed to get output path");
+        operation_failed(
+            &actor,
+            &drive.serial_number,
+            None,
+            ErrorMessage::DbOpSetStateRunning(error),
+        ).await;
+        return;
+    };
 
     // The folder name should almost guaranteed to be unique. Even so, if it does, exit because
     // something has gone wrong so we don't override stuff we don't intend to.
-    if output_dir.exists() {
-        tracing::error!(sn=drive.serial_number, ?output_dir, "output directory already exists");
+    if output_path.exists() {
+        tracing::error!(sn=drive.serial_number, ?output_path, "output directory already exists");
         operation_failed(
             &actor,
             &drive.serial_number,
@@ -171,15 +172,15 @@ pub async fn copy_disc(
         return;
     }
 
-    if let Err(error) = std::fs::create_dir(&output_dir) {
+    if let Err(error) = std::fs::create_dir(&output_path) {
         tracing::error!(
             sn=drive.serial_number,
-            ?output_dir,
+            ?output_path,
             ?error,
             "failed to create output directory"
         );
         let error = Error::FileIo { 
-            path: output_dir, 
+            path: output_path, 
             error 
         };
         operation_failed(
@@ -191,16 +192,18 @@ pub async fn copy_disc(
         return;
     }
 
-    tracing::info!(sn=drive.serial_number, path=?output_dir, "created inbox folder");
+    tracing::info!(sn=drive.serial_number, path=?output_path, "created inbox folder");
 
     let (tx, mut rx) = mpsc::unbounded_channel::<CommandOutput>();
+
+    let actor_handle = actor.clone();
     let device_path = drive.path.clone();
-    let tx_clone = tx.clone();
-    let log_path = fs.mkv_info_log_file(&copy_operation);
-    let ct_clone = ct.clone();
+    let command_output = tx.clone();
+    let ct = cancellation_token.clone();
+    let log_location = fs.mkv_info_log_location(&copy_operation);
     let handle = tokio::spawn(async move {
-        makemkv::get_disc_info(&device_path, &tx_clone, &log_path, &ct_clone).await
-    }).with_cancellation_token(&ct);
+        actor_handle.run_makemkv_info(command_output, &device_path, log_location, ct).await
+    }).with_cancellation_token(&cancellation_token);
 
     // Must drop the original sender to avoid blocking indefinitely.
     drop(tx);
@@ -227,15 +230,14 @@ pub async fn copy_disc(
         }
     }
 
-    if ct.is_cancelled() {
+    if cancellation_token.is_cancelled() {
         tracing::info!(sn=drive.serial_number, "copy operation cancelled");
         operation_canceled(&actor, &drive.serial_number, conn, copy_operation).await;
         return;
     }
 
-
     let result = handle.await;
-
+  
     // NOTE: If we make it this far, result should not be None. If its None, its because the token
     //       is cancelled which means we would have exited above. Leaving this hear just in case
     //       there are other conditions then the token being cancelled that can result in None that
@@ -250,7 +252,7 @@ pub async fn copy_disc(
         ).await;
         return;
     };
-
+  
     let result = match result {
         Ok(result) => result,
         Err(error) => {
@@ -264,12 +266,11 @@ pub async fn copy_disc(
             return;
         },
     };
-
+  
     let (disc_info, log_text) = match result {
         Ok(output) => (output.disc_info, output.log),
         Err(error) => {
             tracing::error!(sn=drive.serial_number, ?error, "disc info command failed");
-            let error = Error::MakeMKV { error };
             operation_failed(
                 &actor,
                 &drive.serial_number,
@@ -279,7 +280,7 @@ pub async fn copy_disc(
             return;
         },
     };
-
+  
     let path = fs.disc_info_file(&copy_operation);
     if let Err(error) = disc_info.save(&path) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to save disc info to disc");
@@ -292,7 +293,7 @@ pub async fn copy_disc(
         ).await;
         return;
     }
-
+  
     if let Err(error) = db::copy_operation::set_metadata(&conn, &mut copy_operation, &disc_info) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to write disc info to db");
         operation_failed(
@@ -303,7 +304,7 @@ pub async fn copy_disc(
         ).await;
         return;
     }
-
+  
     if let Err(error) = db::copy_operation::set_info_log(&conn, &mut copy_operation, &log_text) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to write info log to db");
         operation_failed(
@@ -316,17 +317,25 @@ pub async fn copy_disc(
     }
 
     let (tx, mut rx) = mpsc::unbounded_channel::<CommandOutput>();
-    let device_path = drive.path.clone();
-    let tx_clone = tx.clone();
-    let log_path = fs.mkv_copy_log_file(&copy_operation);
-    let ct_clone = ct.clone();
-    let handle = tokio::spawn(async move {
-        makemkv::copy_disc(&device_path, &output_dir, &tx_clone, &log_path, &ct_clone).await
-    }).with_cancellation_token(&ct);
 
+    let actor_handle = actor.clone();
+    let device_path = drive.path.clone();
+    let command_output = tx.clone();
+    let ct = cancellation_token.clone();
+    let log_location = fs.mkv_copy_log_location(&copy_operation);
+    let handle = tokio::spawn(async move {
+        actor_handle.run_makemkv_copy(
+            command_output,
+            &device_path,
+            output_location,
+            log_location,
+            ct
+        ).await
+    }).with_cancellation_token(&cancellation_token);
+  
     // Must drop the original sender to avoid blocking indefinitely.
     drop(tx);
-
+  
     while let Some(data) = rx.recv().await {
         match data {
             CommandOutput::Message(_message) => {
@@ -348,15 +357,15 @@ pub async fn copy_disc(
             },
         }
     }
-
-    if ct.is_cancelled() {
+  
+    if cancellation_token.is_cancelled() {
         tracing::info!(sn=drive.serial_number, "copy operation cancelled");
         operation_canceled(&actor, &drive.serial_number, conn, copy_operation).await;
         return;
     }
-
+  
     let result = handle.await;
-
+  
     // NOTE: If we make it this far, result should not be None. If its None, its because the token
     //       is cancelled which means we would have exited above. Leaving this hear just in case
     //       there are other conditions then the token being cancelled that can result in None that
@@ -371,7 +380,7 @@ pub async fn copy_disc(
         ).await;
         return;
     };
-
+  
     let result = match result {
         Ok(result) => result,
         Err(error) => {
@@ -385,12 +394,11 @@ pub async fn copy_disc(
             return;
         },
     };
-
+  
     let log_text = match result {
         Ok(output) => output.log,
         Err(error) => {
             tracing::error!(sn=drive.serial_number, ?error, "disc copy command failed");
-            let error = Error::MakeMKV { error };
             operation_failed(
                 &actor,
                 &drive.serial_number,
@@ -400,7 +408,7 @@ pub async fn copy_disc(
             return;
         },
     };
-
+  
     if let Err(error) = db::copy_operation::set_copy_log(&conn, &mut copy_operation, &log_text) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to write copy log to db");
         operation_failed(
@@ -411,7 +419,7 @@ pub async fn copy_disc(
         ).await;
         return;
     }
-
+  
     if let Err(error) = library::process_copy_operation(
         &fs,
         &drive.serial_number,
@@ -428,7 +436,7 @@ pub async fn copy_disc(
         ).await;
         return;
     }
-
+  
     if let Err(error) = db::copy_operation::set_state(
         &conn,
         &mut copy_operation,
@@ -445,7 +453,7 @@ pub async fn copy_disc(
     }
     
     send_state(&actor, OpticalDriveState::Success).await;
-
+  
     tracing::info!(sn=drive.serial_number, "copy operation completed successfully");
 }
 

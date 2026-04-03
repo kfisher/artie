@@ -26,6 +26,7 @@ use std::process::ExitStatus;
 use crate::commands::Context;
 
 /// Output data from copying a disc.
+#[derive(Debug)]
 pub struct CopyCommandOutput {
     /// Exit code for the operation.
     ///
@@ -38,6 +39,7 @@ pub struct CopyCommandOutput {
 }
 
 /// Output data from gathering disc info.
+#[derive(Debug)]
 pub struct InfoCommandOutput {
     /// Exit code for the operation.
     ///

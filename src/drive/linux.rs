@@ -90,10 +90,18 @@ impl BlockDevice {
             panic!("Block device is not a valid optical drive.");
         };
 
+        // Don't expect a computer's hostname to contain invalid unicode characters. If it does,
+        // then something likely went very wrong with fetching the hostname to the point where we
+        // would prefer an application crash anyways.
+        let hostname = gethostname::gethostname()
+            .into_string()
+            .unwrap();
+
         let mut drive = OpticalDrive {
             path: self.name.clone(),
             serial_number: sn.clone(),
             disc: DiscState::None,
+            hostname,
         };
 
         if let Some(label) = &self.label {

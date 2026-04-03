@@ -6,11 +6,17 @@
 pub mod handle;
 pub mod local;
 
+use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use tokio_util::sync::CancellationToken;
+
+use makemkv::{CommandOutput, CopyCommandOutput, InfoCommandOutput};
+
+use crate::Result;
 use crate::drive::{OpticalDriveState, OpticalDriveStatus};
 use crate::drive::data::{FormData, FormDataUpdate};
-use crate::models::CopyParamaters;
+use crate::models::{CopyParamaters, MediaLocation};
 
 /// Specifies the messages and responses for the optical drive actor.
 ///
@@ -27,6 +33,8 @@ pub enum DriveActorMessage {
         parameters: CopyParamaters,
     },
 
+    // TODO: Should the responses send a result?
+
     /// Request the form data from the drive's persistent data.
     GetFormData {
         response: oneshot::Sender<FormData>,
@@ -41,6 +49,25 @@ pub enum DriveActorMessage {
     ///
     /// Resets the state from `Success` or `Failed` back to `Idle`.
     Reset,
+
+    /// Request to run the MakeMKV info command to gather information about the titles on the disc.
+    RunMakeMkvInfo {
+        command_output: mpsc::UnboundedSender<CommandOutput>,
+        device_path: String,
+        log_file: MediaLocation,
+        cancellation_token: CancellationToken,
+        response: oneshot::Sender<Result<InfoCommandOutput>>,
+    },
+
+    /// Request to run the MakeMKV copy command to copy titles from the disc to the file system.
+    RunMakeMkvCopy {
+        command_output: mpsc::UnboundedSender<CommandOutput>,
+        device_path: String,
+        output_dir: MediaLocation,
+        log_file: MediaLocation,
+        cancellation_token: CancellationToken,
+        response: oneshot::Sender<Result<CopyCommandOutput>>,
+    },
 
     /// Update the form data stored in the drive's persistent data.
     ///

@@ -114,6 +114,9 @@ pub struct OpticalDrive {
 
     /// The state of the disc in the optical drive.
     pub disc: DiscState,
+
+    /// The hostname of the system the drive is installed in.
+    pub hostname: String,
 }
 
 /// The current status of the optical drive.

@@ -90,7 +90,7 @@ pub enum Attribute {
 }
 
 /// Information extracted from a DVD or Blu-ray about its contents.
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct DiscInfo {
     /// Map containing the attributes of the disc itself where each key is the attribute id and the
     /// value is the attribute's value.
@@ -247,7 +247,7 @@ impl Default for DiscInfo {
 }
 
 /// Information for a title on the disc.
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct TitleInfo {
     /// Map containing the attributes of the title where each key is the attribute id and the value
     /// is the attribute's value.
@@ -330,7 +330,7 @@ impl Default for TitleInfo {
 }
 
 /// Information for a video, audio, or subtitle stream in a title.
-#[derive(Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct StreamInfo {
     /// Map containing the attributes of the stream where each key is the attribute id and the
     /// value is the attribute's value.

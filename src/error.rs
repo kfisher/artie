@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
 use crate::drive::actor::DriveActorMessage;
+use crate::models::MediaLocation;
 
 /// Error type for the application
 #[derive(Debug)]
@@ -80,6 +81,14 @@ pub enum Error {
     /// permissions to know of the file's existence.
     FileNotFound {
         path: PathBuf,
+    },
+
+    /// Error raise when attempting to use an invalid media location.
+    ///
+    /// This will typically be raised if attempting to use [`MediaLocation::Deleted`] when a valid
+    /// path is expected.
+    InvalidMediaLocation {
+        location: MediaLocation,
     },
 
     /// Error raised when attempting to perform an operation on an optical drive cannot be

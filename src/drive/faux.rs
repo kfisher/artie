@@ -67,6 +67,7 @@ impl FauxDrive {
                 Some(disc) => DiscState::Inserted { label: disc.label, uuid: disc.uuid },
                 None => DiscState::None,
             },
+            hostname: String::from("faux-pc"),
         }
     }
 }

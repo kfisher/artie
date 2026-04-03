@@ -38,6 +38,11 @@ impl FileSystem {
         }
     }
 
+    // TODO: Anything that returns a PathBuf, should have suffix _path and anything that returns
+    //       MediaLocation should have suffix _location. 
+    // TODO: Review anything that returns a PathBuf. Determine if they should only be returning a
+    //       media location instead.
+
     /// Returns `true` if the archive directory exists, is a directory, and accessible by the user
     /// or `false` otherwise.
     pub fn archive_exists(&self) -> bool {
@@ -57,7 +62,7 @@ impl FileSystem {
 
     /// Returns the path to the disc info file for a copy operation.
     pub fn disc_info_file(&self, copy_operation: &CopyOperation) -> PathBuf {
-        self.inbox_folder(copy_operation).join(DISC_INFO_FILENAME)
+        self.inbox_path(copy_operation).join(DISC_INFO_FILENAME)
     }
 
     /// Returns `true` if the inbox directory exists, is a directory, and accessible by the user or
@@ -67,13 +72,20 @@ impl FileSystem {
     }
 
     /// Returns the path to the inbox folder for a copy operation.
-    pub fn inbox_folder(&self, copy_operation: &CopyOperation) -> PathBuf {
+    pub fn inbox_path(&self, copy_operation: &CopyOperation) -> PathBuf {
         self.settings.inbox.join(PathBuf::from(self.inbox_folder_name(copy_operation)))
     }
 
     /// Returns the media location for a file created by a copy operation.
-    pub fn inbox_location(&self, copy_operation: &CopyOperation, filename: &str) -> MediaLocation {
-        let path = PathBuf::from(self.inbox_folder_name(copy_operation)).join(filename);
+    pub fn inbox_location(
+        &self,
+        copy_operation: &CopyOperation,
+        filename: Option<&str>
+    ) -> MediaLocation {
+        let mut path = PathBuf::from(self.inbox_folder_name(copy_operation));
+        if let Some(filename) = filename {
+            path = path.join(filename);
+        }
         MediaLocation::Inbox(path)
     }
 
@@ -112,14 +124,15 @@ impl FileSystem {
         Ok(())
     }
 
-    /// Returns the path to the log file created when gathering disc info during a copy operation.
-    pub fn mkv_info_log_file(&self, copy_operation: &CopyOperation) -> PathBuf {
-        self.inbox_folder(copy_operation).join(MAKEMKV_INFO_LOG_FILENAME)
+    /// Returns the location of the file to the log file created when gathering disc info during a
+    /// copy operation.
+    pub fn mkv_info_log_location(&self, copy_operation: &CopyOperation) -> MediaLocation {
+        self.inbox_location(copy_operation, Some(MAKEMKV_INFO_LOG_FILENAME))
     }
 
-    /// Returns the path to the log file created when copying a disc.
-    pub fn mkv_copy_log_file(&self, copy_operation: &CopyOperation) -> PathBuf {
-        self.inbox_folder(copy_operation).join(MAKEMKV_COPY_LOG_FILENAME)
+    /// Returns the location of the file to the log file created when copying a disc.
+    pub fn mkv_copy_log_location(&self, copy_operation: &CopyOperation) -> MediaLocation {
+        self.inbox_location(copy_operation, Some(MAKEMKV_COPY_LOG_FILENAME))
     }
 
     /// Returns the path for a file.
@@ -360,7 +373,7 @@ mod tests {
             ..CopyOperation::default()
         };
 
-        let result = file_system.inbox_folder(&copy_op);
+        let result = file_system.inbox_path(&copy_op);
         let expected = temp.path().join("inbox/0x00003039.The Matrix.D1");
 
         assert_eq!(result, expected);
@@ -380,7 +393,7 @@ mod tests {
             ..CopyOperation::default()
         };
 
-        let result = file_system.inbox_folder(&copy_op);
+        let result = file_system.inbox_path(&copy_op);
         let expected = temp.path().join("inbox/0xFFFFFFFF.Test Movie.D2");
 
         assert_eq!(result, expected);
@@ -400,7 +413,7 @@ mod tests {
             ..CopyOperation::default()
         };
 
-        let result = file_system.inbox_folder(&copy_op);
+        let result = file_system.inbox_path(&copy_op);
         let expected = temp.path().join("inbox/0x0000D431.Breaking Bad.S5.D3");
 
         assert_eq!(result, expected);
@@ -420,7 +433,7 @@ mod tests {
             ..CopyOperation::default()
         };
 
-        let result = file_system.inbox_folder(&copy_op);
+        let result = file_system.inbox_path(&copy_op);
         let expected = temp.path().join("inbox/0x00000064.Extras.S0.D1");
 
         assert_eq!(result, expected);
@@ -442,7 +455,7 @@ mod tests {
             ..CopyOperation::default()
         };
 
-        let result = file_system.inbox_folder(&copy_op);
+        let result = file_system.inbox_path(&copy_op);
         let expected = temp.path().join("inbox/0x000003E7.Movie: The Sequel!.D1");
 
         assert_eq!(result, expected);
@@ -462,7 +475,7 @@ mod tests {
             ..CopyOperation::default()
         };
 
-        let result = file_system.inbox_folder(&copy_op);
+        let result = file_system.inbox_path(&copy_op);
         let expected = temp.path().join("inbox/0x00000000.Zero.D1");
 
         assert_eq!(result, expected);

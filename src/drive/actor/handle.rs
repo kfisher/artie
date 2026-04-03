@@ -4,12 +4,16 @@
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
+use tokio_util::sync::CancellationToken;
+
+use makemkv::{CommandOutput, CopyCommandOutput, InfoCommandOutput};
+
 use crate::Result;
 use crate::error::{ChannelError, Error};
 use crate::drive::{OpticalDriveState, OpticalDriveStatus};
 use crate::drive::actor::DriveActorMessage;
 use crate::drive::data::{FormData, FormDataUpdate};
-use crate::models::CopyParamaters;
+use crate::models::{CopyParamaters, MediaLocation};
 
 /// Handle used to communicate with a [`DriveActor`] instance.
 // TODO: Update
@@ -59,6 +63,104 @@ impl DriveActorHandle {
             .map_err(send_error)?;
 
         rx.await.map_err(oneshot_recv_error)
+    }
+
+    /// Run the MakeMKV info command to gather information about a disc's titles.
+    ///
+    /// **Note** This is called as part of the [`DriveActorHandle::copy_disc`] request.
+    /// 
+    /// `command_output`:  Channel used by the MakeMKV command to relay output from the command as
+    /// well as progress information.
+    ///
+    /// `device_path`:  Device path (or name) of the optical drive to perform the operation on
+    /// (e.g. "/dev/sr0").
+    ///
+    /// `log_file`:  The file location where the output of the command should be logged to.
+    ///
+    /// `cancellation_token`:  Cancellation token used to cancel the copy operation. It is assumed
+    /// that the token is not already cancelled.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::MakeMKV`] if an error occures while running the MakeMKV command.
+    ///
+    /// [`Error::DriveActorChannel`] if an error occures when attempting to send information thru
+    /// a channel.
+    pub async fn run_makemkv_info(
+        &self,
+        command_output: mpsc::UnboundedSender<CommandOutput>,
+        device_path: &str,
+        log_file: MediaLocation,
+        cancellation_token: CancellationToken,
+    ) -> Result<InfoCommandOutput> {
+        let (tx, rx) = oneshot::channel();
+
+        let msg = DriveActorMessage::RunMakeMkvInfo {
+            command_output,
+            device_path: device_path.to_owned(),
+            log_file,
+            cancellation_token,
+            response: tx,
+        };
+
+        self.tx.send(msg).await
+            .map_err(send_error)?;
+
+        match rx.await {
+            Ok(result) => result,
+            Err(error) => Err(oneshot_recv_error(error)),
+        }
+    }
+
+    /// Run the MakeMKV copy command to copy a disc's titles to the file system.
+    ///
+    /// **Note** This is called as part of the [`DriveActorHandle::copy_disc`] request.
+    /// 
+    /// `command_output`:  Channel used by the MakeMKV command to relay output from the command as
+    /// well as progress information.
+    ///
+    /// `device_path`:  Device path (or name) of the optical drive to perform the operation on
+    /// (e.g. "/dev/sr0").
+    ///
+    /// `output_dir`:  The directory location where the video files should be written to.
+    ///
+    /// `log_file`:  The file location where the output of the command should be logged to.
+    ///
+    /// `cancellation_token`:  Cancellation token used to cancel the copy operation. It is assumed
+    /// that the token is not already cancelled.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::MakeMKV`] if an error occures while running the MakeMKV command.
+    ///
+    /// [`Error::DriveActorChannel`] if an error occures when attempting to send information thru
+    /// a channel.
+    pub async fn run_makemkv_copy(
+        &self,
+        command_output: mpsc::UnboundedSender<CommandOutput>,
+        device_path: &str,
+        output_dir: MediaLocation,
+        log_file: MediaLocation,
+        cancellation_token: CancellationToken,
+    ) -> Result<CopyCommandOutput> {
+        let (tx, rx) = oneshot::channel();
+
+        let msg = DriveActorMessage::RunMakeMkvCopy {
+            command_output,
+            device_path: device_path.to_owned(),
+            output_dir,
+            log_file,
+            cancellation_token,
+            response: tx,
+        };
+
+        self.tx.send(msg).await
+            .map_err(send_error)?;
+
+        match rx.await {
+            Ok(result) => result,
+            Err(error) => Err(oneshot_recv_error(error)),
+        }
     }
 
     /// Reset the drive state back to `Idle` from `Success` or `Failed`.

@@ -102,7 +102,7 @@ fn process_title_info(
         });
     };
 
-    let location = fs.inbox_location(copy_operation, &file_name);
+    let location = fs.inbox_location(copy_operation, Some(&file_name));
 
     // TODO
     let checksum: [u8; 32] = [0; 32];
