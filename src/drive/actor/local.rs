@@ -18,7 +18,8 @@ use crate::Result;
 use crate::db::Database;
 use crate::drive;
 use crate::drive::{DiscState, OpticalDrive, OpticalDriveState, OpticalDriveStatus};
-use crate::drive::actor::DriveActorMessage;
+use crate::drive::actor;
+use crate::drive::actor::{DriveActor, DriveActorMessage};
 use crate::drive::actor::handle::DriveActorHandle;
 use crate::drive::copy;
 use crate::drive::data::{Data, FormData, FormDataUpdate};
@@ -27,16 +28,33 @@ use crate::fs::FileSystem;
 use crate::models::{CopyParamaters, MediaLocation};
 use crate::task;
 
-/// Create a [`DriveActor`] instance, start it, and return its handle.
+/// Create a [`LocalDriveActor`] instance, start it, and return a [`DriveActorHandle`] instance for
+/// interfacing with it.
+///
+/// `drive`:  The information for the optical drive that this actor is associated with.
+///
+/// `fs`:  Information about where where relevent files can be found or should be written to when
+/// performing copy operation (e.g. where to copy titles to).
+///
+/// `db`:  Interface for reading and writing to the database.
 pub fn create_actor(drive: &OpticalDrive, fs: FileSystem, db: Database) -> DriveActorHandle {
-    DriveActor::create(drive.clone(), fs, db)
+    let (tx, rx) = mpsc::channel(actor::ACTOR_CHANNEL_BUFFER_SIZE);
+
+    let actor = LocalDriveActor::new(drive.clone(), fs, db, tx.clone(), rx);
+    task::spawn(actor::run_actor(actor));
+
+    DriveActorHandle::new(tx)
 }
 
-/// Actor used to perform copy operations and monitor the state of an optical
-// TODO: DOC
+/// Actor used to perform copy operations and monitor the state of an optical drive that is
+/// attached to the same host that the control node is running on.
 #[derive(Debug)]
-struct DriveActor {
+struct LocalDriveActor {
     /// The optical drive this actor is associated with.
+    ///
+    /// Each actor instance is associated with a single drive attached to the same host that the
+    /// control node is running on. Additionally, a drive should not have more than one actor
+    /// instance associated with it.
     drive: OpticalDrive,
 
     /// The current state of the drive.
@@ -61,7 +79,7 @@ struct DriveActor {
     copy_ct: Option<CancellationToken>,
 }
 
-impl DriveActor {
+impl LocalDriveActor {
     /// Create a [`DriveActor`] instance.
     fn new(
         drive: OpticalDrive,
@@ -71,16 +89,6 @@ impl DriveActor {
         rx: mpsc::Receiver<DriveActorMessage>,
     ) -> Self {
         Self { drive, state: OpticalDriveState::Idle, fs, db, tx, rx, copy_ct: None }
-    }
-
-    /// Create a [`DriveActor`] instance, start it, and return its handle.
-    fn create(drive: OpticalDrive, fs: FileSystem, db: Database) -> DriveActorHandle {
-        let (tx, rx) = mpsc::channel(10);
-
-        let actor = DriveActor::new(drive, fs, db, tx.clone(), rx);
-        task::spawn(run_actor(actor));
-
-        DriveActorHandle::new(tx)
     }
 
     /// Cancels a copy operation currently in progress.
@@ -130,51 +138,6 @@ impl DriveActor {
         );
 
         Ok(())
-    }
-
-    /// Process a message that was received from the actor's communication channel.
-    fn handle_message(&mut self, msg: DriveActorMessage) -> Result<()> {
-        match msg {
-            DriveActorMessage::CancelCopyDisc => self.cancel_copy_disc(),
-            DriveActorMessage::CopyDisc { parameters } => self.copy_disc(parameters),
-            DriveActorMessage::GetFormData { response } => self.get_form_data(response),
-            DriveActorMessage::GetStatus { response } => self.get_state(response),
-            DriveActorMessage::Reset => self.reset(),
-            DriveActorMessage::RunMakeMkvInfo {
-                command_output,
-                device_path,
-                log_file,
-                cancellation_token,
-                response,
-            } => {
-                self.run_makemkv_info(
-                    command_output,
-                    device_path,
-                    log_file,
-                    cancellation_token,
-                    response,
-                )
-            },
-            DriveActorMessage::RunMakeMkvCopy {
-                command_output,
-                device_path,
-                output_dir,
-                log_file,
-                cancellation_token,
-                response,
-            } => {
-                self.run_makemkv_copy(
-                    command_output,
-                    device_path,
-                    output_dir,
-                    log_file,
-                    cancellation_token,
-                    response,
-                )
-            },
-            DriveActorMessage::UpdateFormData { data } => self.update_form_data(data),
-            DriveActorMessage::UpdateOpticalDriveState { state } => self.update_state(state),
-        }
     }
 
     /// Loads the drive's persistent data and returns it.
@@ -263,7 +226,6 @@ impl DriveActor {
         ct: CancellationToken,
         response: oneshot::Sender<Result<InfoCommandOutput>>,
     ) -> Result<()> {
-        // TODO: See what happens if this is invalid.
         let log_path = self.fs.path(&log_file)
             .ok_or(Error::InvalidMediaLocation { location: log_file })?;
 
@@ -384,15 +346,57 @@ impl DriveActor {
     }
 }
 
-/// Runs the processing loop for the provided actor.
-async fn run_actor(mut actor: DriveActor) {
-    tracing::info!(sn=actor.drive.serial_number, "message processing started");
-
-    while let Some(msg) = actor.rx.recv().await {
-        if let Err(error) = actor.handle_message(msg) {
-            tracing::error!(sn=actor.drive.serial_number, ?error, "Failed to process message.");
+impl DriveActor for LocalDriveActor {
+    fn proc_msg(&mut self, msg: DriveActorMessage) -> Result<()> {
+        match msg {
+            DriveActorMessage::CancelCopyDisc => self.cancel_copy_disc(),
+            DriveActorMessage::CopyDisc { parameters } => self.copy_disc(parameters),
+            DriveActorMessage::GetFormData { response } => self.get_form_data(response),
+            DriveActorMessage::GetStatus { response } => self.get_state(response),
+            DriveActorMessage::Reset => self.reset(),
+            DriveActorMessage::RunMakeMkvInfo {
+                command_output,
+                device_path,
+                log_file,
+                cancellation_token,
+                response,
+            } => {
+                self.run_makemkv_info(
+                    command_output,
+                    device_path,
+                    log_file,
+                    cancellation_token,
+                    response,
+                )
+            },
+            DriveActorMessage::RunMakeMkvCopy {
+                command_output,
+                device_path,
+                output_dir,
+                log_file,
+                cancellation_token,
+                response,
+            } => {
+                self.run_makemkv_copy(
+                    command_output,
+                    device_path,
+                    output_dir,
+                    log_file,
+                    cancellation_token,
+                    response,
+                )
+            },
+            DriveActorMessage::UpdateFormData { data } => self.update_form_data(data),
+            DriveActorMessage::UpdateOpticalDriveState { state } => self.update_state(state),
         }
     }
 
-    tracing::info!(sn=actor.drive.serial_number, "message processing ended");
+    fn serial_number(&self) -> &str {
+        &self.drive.serial_number
+    }
+
+    async fn recv_msg(&mut self) -> Option<DriveActorMessage> {
+        self.rx.recv().await
+    }
 }
+
