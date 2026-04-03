@@ -437,13 +437,13 @@ mod tests {
 
     #[test]
     fn test_get_optical_drive_command_error() {
-        let cmd = || -> Result<String> { 
+        let cmd = || -> Result<String> {
             Err(Error::CommandReturnedErrorCode {
                 command: String::from("test_command"),
                 args: String::from("test_args"),
-                code: Some(47), 
+                code: Some(47),
                 stdout: String::from("stdout text"),
-                stderr: String::from("stderr text") 
+                stderr: String::from("stderr text")
             })
         };
         match get_optical_drive_impl(&String::from("SN0001"), cmd) {

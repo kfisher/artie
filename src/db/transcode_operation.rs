@@ -32,7 +32,7 @@ pub(crate) fn create_table(conn: &Connection) -> Result<()> {
         ) STRICT
     ";
 
-    let _ = conn.execute(sql, ()).map_err(|error| Error::Db { 
+    let _ = conn.execute(sql, ()).map_err(|error| Error::Db {
             operation: Operation::Execute,
             error,
         })?;

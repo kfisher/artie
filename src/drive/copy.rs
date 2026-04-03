@@ -52,7 +52,7 @@ pub async fn copy_disc(
     let DiscState::Inserted { label: _disc_label, uuid: disc_uuid } = drive.disc else {
         tracing::error!("cannot copy from empty drive");
         operation_failed(
-            &actor, 
+            &actor,
             &drive.serial_number,
             None,
             ErrorMessage::InvalidDiscState,
@@ -65,7 +65,7 @@ pub async fn copy_disc(
         Err(error) => {
             tracing::error!(
                 sn=drive.serial_number,
-                ?error, 
+                ?error,
                 "failed to get/create optical drive db record"
             );
             operation_failed(
@@ -179,9 +179,9 @@ pub async fn copy_disc(
             ?error,
             "failed to create output directory"
         );
-        let error = Error::FileIo { 
-            path: output_path, 
-            error 
+        let error = Error::FileIo {
+            path: output_path,
+            error
         };
         operation_failed(
             &actor,
@@ -237,7 +237,7 @@ pub async fn copy_disc(
     }
 
     let result = handle.await;
-  
+
     // NOTE: If we make it this far, result should not be None. If its None, its because the token
     //       is cancelled which means we would have exited above. Leaving this hear just in case
     //       there are other conditions then the token being cancelled that can result in None that
@@ -252,7 +252,7 @@ pub async fn copy_disc(
         ).await;
         return;
     };
-  
+
     let result = match result {
         Ok(result) => result,
         Err(error) => {
@@ -266,7 +266,7 @@ pub async fn copy_disc(
             return;
         },
     };
-  
+
     let (disc_info, log_text) = match result {
         Ok(output) => (output.disc_info, output.log),
         Err(error) => {
@@ -280,7 +280,7 @@ pub async fn copy_disc(
             return;
         },
     };
-  
+
     let path = fs.disc_info_file(&copy_operation);
     if let Err(error) = disc_info.save(&path) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to save disc info to disc");
@@ -293,7 +293,7 @@ pub async fn copy_disc(
         ).await;
         return;
     }
-  
+
     if let Err(error) = db::copy_operation::set_metadata(&conn, &mut copy_operation, &disc_info) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to write disc info to db");
         operation_failed(
@@ -304,7 +304,7 @@ pub async fn copy_disc(
         ).await;
         return;
     }
-  
+
     if let Err(error) = db::copy_operation::set_info_log(&conn, &mut copy_operation, &log_text) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to write info log to db");
         operation_failed(
@@ -332,10 +332,10 @@ pub async fn copy_disc(
             ct
         ).await
     }).with_cancellation_token(&cancellation_token);
-  
+
     // Must drop the original sender to avoid blocking indefinitely.
     drop(tx);
-  
+
     while let Some(data) = rx.recv().await {
         match data {
             CommandOutput::Message(_message) => {
@@ -357,15 +357,15 @@ pub async fn copy_disc(
             },
         }
     }
-  
+
     if cancellation_token.is_cancelled() {
         tracing::info!(sn=drive.serial_number, "copy operation cancelled");
         operation_canceled(&actor, &drive.serial_number, conn, copy_operation).await;
         return;
     }
-  
+
     let result = handle.await;
-  
+
     // NOTE: If we make it this far, result should not be None. If its None, its because the token
     //       is cancelled which means we would have exited above. Leaving this hear just in case
     //       there are other conditions then the token being cancelled that can result in None that
@@ -380,7 +380,7 @@ pub async fn copy_disc(
         ).await;
         return;
     };
-  
+
     let result = match result {
         Ok(result) => result,
         Err(error) => {
@@ -394,7 +394,7 @@ pub async fn copy_disc(
             return;
         },
     };
-  
+
     let log_text = match result {
         Ok(output) => output.log,
         Err(error) => {
@@ -408,7 +408,7 @@ pub async fn copy_disc(
             return;
         },
     };
-  
+
     if let Err(error) = db::copy_operation::set_copy_log(&conn, &mut copy_operation, &log_text) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to write copy log to db");
         operation_failed(
@@ -419,7 +419,7 @@ pub async fn copy_disc(
         ).await;
         return;
     }
-  
+
     if let Err(error) = library::process_copy_operation(
         &fs,
         &drive.serial_number,
@@ -436,7 +436,7 @@ pub async fn copy_disc(
         ).await;
         return;
     }
-  
+
     if let Err(error) = db::copy_operation::set_state(
         &conn,
         &mut copy_operation,
@@ -451,9 +451,9 @@ pub async fn copy_disc(
         ).await;
         return;
     }
-    
+
     send_state(&actor, OpticalDriveState::Success).await;
-  
+
     tracing::info!(sn=drive.serial_number, "copy operation completed successfully");
 }
 
@@ -488,7 +488,7 @@ impl ErrorMessage {
     /// Creates the error message for the user.
     fn user_message(&self) -> String {
         match self {
-            ErrorMessage::ConnectFailed(_) => { 
+            ErrorMessage::ConnectFailed(_) => {
                 String::from("Database connection failed.")
             },
             ErrorMessage::CopyCommandHandleAwait => {
@@ -595,7 +595,7 @@ async fn operation_failed(
         error: msg.user_message(),
     };
 
-    let operation_state = OperationState::Failed { 
+    let operation_state = OperationState::Failed {
         reason: msg.database_message(),
     };
 

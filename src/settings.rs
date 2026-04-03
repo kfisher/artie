@@ -32,7 +32,7 @@ impl Settings {
             .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
 
         let settings: Settings = toml::from_str(&contents)
-            .map_err(|error| Error::Serialization { 
+            .map_err(|error| Error::Serialization {
                 path: Some(path.to_owned()),
                 error: SerializationError::TomlDeserialize(error),
             })?;
@@ -49,7 +49,7 @@ impl Settings {
     /// - [`Error::Serialization`] if the settings cannot be serialized.
     pub fn save(&self, path: &Path) -> Result<()> {
         let toml_string = toml::to_string_pretty(self)
-            .map_err(|error| Error::Serialization { 
+            .map_err(|error| Error::Serialization {
                 path: Some(path.to_owned()),
                 error: SerializationError::TomlSerialize(error),
             })?;

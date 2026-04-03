@@ -210,7 +210,7 @@ pub fn set_metadata(
 }
 
 /// Sets the state of the copy operation and update the database record.
-/// 
+///
 /// This will also set the completed and error fields if applicable based of the state.
 pub fn set_state(
     conn: &Connection,

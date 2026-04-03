@@ -18,19 +18,19 @@ pub enum Message {
 
 impl Message {
     /// Deserializes a message from the network.
-    pub fn deserialize<T>(lines: &mut T) -> Result<Message> 
+    pub fn deserialize<T>(lines: &mut T) -> Result<Message>
     where
         T: Iterator<Item = String>
     {
         let msg_type = lines
             .next()
             .ok_or_else(|| Error::MessageParseError {
-                error: String::from("message was empty") 
+                error: String::from("message was empty")
             })?;
         let msg_data = lines
             .next()
             .ok_or_else(|| Error::MessageParseError {
-                error: String::from("message missing data") 
+                error: String::from("message missing data")
             })?;
 
         match msg_type.as_str() {

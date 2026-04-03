@@ -60,7 +60,7 @@ struct FauxDrive {
 
 impl FauxDrive {
     pub fn into_os_drive(self) -> OpticalDrive {
-        OpticalDrive { 
+        OpticalDrive {
             path: self.path,
             serial_number: self.serial_number,
             disc: match self.disc {
@@ -74,24 +74,24 @@ impl FauxDrive {
 
 fn get_faux_optical_drives() -> Result<Vec<FauxDrive>> {
     let drives_dir = PathBuf::from(FAUX_DRIVES_DIR);
-    
+
     if !drives_dir.exists() {
         return Ok(Vec::new());
     }
 
     let mut drives = Vec::new();
-    
+
     for entry in fs::read_dir(&drives_dir).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
-        
+
         if path.extension().and_then(|s| s.to_str()) == Some("json") {
             let contents = fs::read_to_string(&path).unwrap();
             let drive: FauxDrive = serde_json::from_str(&contents).unwrap();
             drives.push(drive);
         }
     }
-    
+
     Ok(drives)
 }
 

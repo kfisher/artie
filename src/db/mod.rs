@@ -73,7 +73,7 @@ impl Database {
             None => Connection::open_in_memory(),
         }.map_err(|error| Error::Connect {
             path: self.settings.path.clone(),
-            error 
+            error
         })
     }
 }

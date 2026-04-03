@@ -90,7 +90,7 @@ pub mod task {
     }
 
     /// Runs a future blocking until it completes.
-    pub fn block_on<F>(future: F) -> F::Output 
+    pub fn block_on<F>(future: F) -> F::Output
     where
         F: Future,
     {

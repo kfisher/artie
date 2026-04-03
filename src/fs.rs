@@ -4,7 +4,7 @@
 //! File system settings and operations.
 //!
 //! This module is used to perform file system operations related to managing media and data files
-//! that are generated when performing copy and transcode operations. 
+//! that are generated when performing copy and transcode operations.
 
 use std::fs;
 use std::path::PathBuf;
@@ -39,7 +39,7 @@ impl FileSystem {
     }
 
     // TODO: Anything that returns a PathBuf, should have suffix _path and anything that returns
-    //       MediaLocation should have suffix _location. 
+    //       MediaLocation should have suffix _location.
     // TODO: Review anything that returns a PathBuf. Determine if they should only be returning a
     //       media location instead.
 
@@ -100,25 +100,25 @@ impl FileSystem {
         fs::create_dir_all(&self.settings.inbox)
             .map_err(|error| Error::FileIo {
                 path: self.settings.inbox.to_owned(),
-                error 
+                error
             })?;
 
         fs::create_dir_all(&self.settings.library)
             .map_err(|error| Error::FileIo {
                 path: self.settings.library.to_owned(),
-                error 
+                error
             })?;
 
         fs::create_dir_all(&self.settings.archive)
             .map_err(|error| Error::FileIo {
                 path: self.settings.archive.to_owned(),
-                error 
+                error
             })?;
 
         fs::create_dir_all(&self.settings.data)
             .map_err(|error| Error::FileIo {
                 path: self.settings.data.to_owned(),
-                error 
+                error
             })?;
 
         Ok(())
@@ -183,7 +183,7 @@ impl FileSystem {
 pub struct Settings {
     /// Path to the media inbox directory.
     ///
-    /// The inbox directory is where the titles are initially saved to when being copyied from a 
+    /// The inbox directory is where the titles are initially saved to when being copyied from a
     /// disc along with some additional data files.
     pub inbox: PathBuf,
 

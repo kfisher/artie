@@ -3,7 +3,7 @@
 
 //! Defines the copy page widget.
 //!
-//! The copy page is the page used to initiate, monitor, and terminate copy operations for all 
+//! The copy page is the page used to initiate, monitor, and terminate copy operations for all
 //! connected optical drives.
 
 use std::time::Duration;
@@ -45,7 +45,7 @@ impl CopyPageWidget {
         Object::builder()
             .property("context", context)
             .build()
-    }                      
+    }
 
     /// Builds the user interface.
     ///
@@ -81,7 +81,7 @@ impl CopyPageWidget {
     /// Configures the model used in the drive list view.
     ///
     /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::CopyPageWidget::constructed`]. 
+    /// See [`imp::CopyPageWidget::constructed`].
     fn setup_model(&self) {
         let context = self.context().expect("context not set");
         self.imp().drive_list_view
@@ -94,7 +94,7 @@ impl CopyPageWidget {
     /// Configures the factory used in the drive list view.
     ///
     /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::CopyPageWidget::constructed`]. 
+    /// See [`imp::CopyPageWidget::constructed`].
     fn setup_factory(&self) {
         let factory = SignalListItemFactory::new();
 
@@ -143,7 +143,7 @@ impl CopyPageWidget {
     /// Configures the signals and callbacks.
     ///
     /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::CopyPageWidget::constructed`]. 
+    /// See [`imp::CopyPageWidget::constructed`].
     fn setup_callbacks(&self) {
     }
 
@@ -182,7 +182,7 @@ mod imp {
     use std::cell::RefCell;
 
     use gtk::{Box, ListView};
-    
+
     use gtk::glib;
     use gtk::glib::Properties;
     use gtk::prelude::*;

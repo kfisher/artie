@@ -31,7 +31,7 @@ impl Data {
         let text = fs::read_to_string(path)
             .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
         let data: Data = serde_json::from_str(&text)
-            .map_err(|error| Error::Serialization { 
+            .map_err(|error| Error::Serialization {
                 path: Some(path.to_owned()),
                 error: SerializationError::JsonDeserialize(error)
             })?;
@@ -41,7 +41,7 @@ impl Data {
     /// Saves the persistent data for a drive.
     pub fn save(&self, path: &Path) -> Result<()> {
         let text = serde_json::to_string_pretty(self)
-            .map_err(|error| Error::Serialization { 
+            .map_err(|error| Error::Serialization {
                 path: Some(path.to_owned()),
                 error: SerializationError::JsonDeserialize(error)
             })?;

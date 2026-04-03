@@ -61,7 +61,7 @@ pub enum Error {
         error: Box<ChannelError<DriveActorMessage>>,
     },
 
-    /// Error raised when a string argument provided to a database operation is empty when the 
+    /// Error raised when a string argument provided to a database operation is empty when the
     /// operation expects a non-empty string.
     ///
     /// TODO: Should convert this to a generic DB validation error.
@@ -130,7 +130,7 @@ pub enum Error {
 
     /// Error raised when serializing or deserializing data.
     ///
-    /// If `path` is `Some`, its the path to the file the serialized data was read from or about to 
+    /// If `path` is `Some`, its the path to the file the serialized data was read from or about to
     /// be written to for additional context.
     Serialization {
         path: Option<PathBuf>,
@@ -179,7 +179,7 @@ pub enum SerializationError {
 
 /// Creates a [`Error::CommandIo`] error based on the provided command and error.
 pub fn command_io(command: &std::process::Command, error: std::io::Error) -> Error {
-    Error::CommandIo { 
+    Error::CommandIo {
         command: command
             .get_program()
             .to_string_lossy()

@@ -43,11 +43,11 @@ pub fn create(conn: &Connection, video: &mut Video) -> Result<()> {
 
     let (loc_area, loc_path) = conv::media_location_to_sql(&video.location);
 
-    let mut stmt = conn.prepare(sql).map_err(|error| Error::Db { 
+    let mut stmt = conn.prepare(sql).map_err(|error| Error::Db {
             operation: Operation::Prepare,
             error,
         })?;
-    
+
     let (copy_operation, transcode_operation) = match &video.source {
         VideoSource::CopyOperation(reference) => (Some(reference.id), None),
         VideoSource::TranscodeOperation(reference) => (None, Some(reference.id)),
@@ -72,7 +72,7 @@ pub fn create(conn: &Connection, video: &mut Video) -> Result<()> {
         video.duration.as_secs(),
     ];
 
-    let id = stmt.query_row(params, |r| r.get::<_, u32>(0)).map_err(|error| Error::Db { 
+    let id = stmt.query_row(params, |r| r.get::<_, u32>(0)).map_err(|error| Error::Db {
         operation: Operation::Query,
         error,
     })?;
@@ -105,7 +105,7 @@ pub fn create_table(conn: &Connection) -> Result<()> {
         ) STRICT
     ";
 
-    let _ = conn.execute(sql, ()).map_err(|error| Error::Db { 
+    let _ = conn.execute(sql, ()).map_err(|error| Error::Db {
             operation: Operation::Execute,
             error,
         })?;

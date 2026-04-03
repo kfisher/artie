@@ -19,7 +19,7 @@ use crate::{Error, Result};
 
 /// Specifies the various audio codecs.
 ///
-/// This isn't meant to be an all inclusive list of audio codecs. It was generated using the 
+/// This isn't meant to be an all inclusive list of audio codecs. It was generated using the
 /// HandBrake documentation.
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
@@ -135,7 +135,7 @@ pub enum ContainerType {
     /// <https://en.wikipedia.org/wiki/Matroska>
     MKV,
 
-    /// MP4 (MPEG Part 14) Container Format 
+    /// MP4 (MPEG Part 14) Container Format
     /// <https://en.wikipedia.org/wiki/MP4_file_format>
     MP4,
 }
@@ -144,7 +144,7 @@ pub enum ContainerType {
 #[derive(Debug)]
 pub enum MediaLocation {
     /// File path is relative to the media inbox root directory.
-    Inbox(PathBuf),    
+    Inbox(PathBuf),
 
     /// File path is relative to the media library root directory.
     Library(PathBuf),
@@ -280,7 +280,7 @@ impl SubtitleCodec {
 
 /// Specifies the various video codecs.
 ///
-/// This isn't meant to be an all inclusive list of video codecs. It was generated using the 
+/// This isn't meant to be an all inclusive list of video codecs. It was generated using the
 /// HandBrake documentation.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum VideoCodec {
@@ -362,8 +362,8 @@ pub struct AudioTrack {
 
     /// The name of the audio track.
     ///
-    /// The name is what will be displayed to users when selecting the audio track. That includes 
-    /// both this application and external applications like VLC or Jellyfin. 
+    /// The name is what will be displayed to users when selecting the audio track. That includes
+    /// both this application and external applications like VLC or Jellyfin.
     pub name: String,
 
     /// The track's audio codec.
@@ -381,7 +381,7 @@ pub struct AudioTrack {
     /// The number of audio channels.
     ///
     /// Note that this is the total of all channels. So if the track is 5.1 surround, this value
-    /// will be 6 (5 main channels + 1 subwoofer channel). 
+    /// will be 6 (5 main channels + 1 subwoofer channel).
     pub channel_count: u8,
 
     /// The channel layout.
@@ -546,7 +546,7 @@ pub struct OpticalDrive {
     /// Unique id of the drive (primary key).
     pub id: u32,
 
-    /// Unique serial number assigned to the drive by the manufacturer. 
+    /// Unique serial number assigned to the drive by the manufacturer.
     pub serial_number: String,
 }
 
@@ -582,7 +582,7 @@ pub struct SubtitleTrack {
     /// vector of a subtitle will have an subtitle track index of 1. This is to better match how
     /// external software typically numbers tracks.
     pub index: u8,
-                                                                  
+
     /// The subtitle's codec.
     pub codec: SubtitleCodec,
 
@@ -592,7 +592,7 @@ pub struct SubtitleTrack {
 
 /// Represents an title.
 ///
-/// A title can be a movie, TV show episode, or special feature. 
+/// A title can be a movie, TV show episode, or special feature.
 #[derive(Debug)]
 pub struct Title {
     /// Unique id of the title (primary key).
@@ -624,13 +624,13 @@ pub struct Title {
     /// episode.
     ///
     /// This is only valid for shows. This will be set to zero for other media types. Additionally,
-    /// this will not be set until the video is transcoded or catalogued. 
+    /// this will not be set until the video is transcoded or catalogued.
     pub episode_number: u16,
 
     /// The number of episodes this title covers.
     ///
     /// This is only valid for shows. This will be set to zero for other media types. Additionally,
-    /// this will not be set until the video is transcoded or catalogued. 
+    /// this will not be set until the video is transcoded or catalogued.
     pub episode_count: u16,
 
     /// Special feature information.
@@ -686,13 +686,13 @@ pub struct TranscodeOperation {
     /// episode.
     ///
     /// This is only valid for shows. This will be set to zero for other media types. Additionally,
-    /// this will not be set until the video is transcoded or catalogued. 
+    /// this will not be set until the video is transcoded or catalogued.
     pub episode_number: u16,
 
     /// The number of episodes this title covers.
     ///
     /// This is only valid for shows. This will be set to zero for other media types. Additionally,
-    /// this will not be set until the video is transcoded or catalogued. 
+    /// this will not be set until the video is transcoded or catalogued.
     pub episode_count: u16,
 
     /// Special feature information.
@@ -773,7 +773,7 @@ pub struct VideoTrack {
     /// of a video will have an video track index of 1. This is to better match how external
     /// software typically numbers tracks.
     pub index: u8,
-                                                                  
+
     /// The video's codec.
     pub codec: VideoCodec,
 

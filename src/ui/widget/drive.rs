@@ -39,7 +39,7 @@ impl DriveWidget {
     /// Creates a new [`DriveWidget`] instance.
     pub fn new() -> Self {
         Object::builder().build()
-    }                      
+    }
 
     /// Builds the user interface.
     ///
@@ -233,7 +233,7 @@ impl DriveWidget {
     /// copy operation to be started.
     fn build_idle_ui(&self, stack: &Stack) {
         let icon_box = self.build_icon_box(
-            Some("fontawesome.v7.solid.compact-disc-symbolic"), 
+            Some("fontawesome.v7.solid.compact-disc-symbolic"),
             "idle"
         );
 
@@ -255,7 +255,7 @@ impl DriveWidget {
     /// Builds the view used when a copy operation is in progress.
     fn build_copying_ui(&self, stack: &Stack) {
         let icon_box = self.build_icon_box(
-            Some("fontawesome.v7.solid.compact-disc-symbolic"), 
+            Some("fontawesome.v7.solid.compact-disc-symbolic"),
             "copying"
         );
 
@@ -406,7 +406,7 @@ impl DriveWidget {
     /// Configures the signals and callbacks.
     ///
     /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::DriveWidget::constructed`]. 
+    /// See [`imp::DriveWidget::constructed`].
     fn setup_callbacks(&self) {
         let imp = self.imp();
 
@@ -510,7 +510,7 @@ impl DriveWidget {
             .sync_create()
             .build();
         bindings.push(task_binding);
-        
+
         let task_progress = imp.task_progress.borrow();
         let task_binding = drive_object
             .bind_property("task-progress", &task_progress.clone(), "fraction")
@@ -742,7 +742,7 @@ mod imp {
     use gtk::glib::Binding;
     use gtk::subclass::prelude::*;
 
-    
+
     use crate::ui::widget::{CopyFormWidget, IconButton};
 
     /// Implementation for [`super::DriveWidget`].

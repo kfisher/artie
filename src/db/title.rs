@@ -45,7 +45,7 @@ pub fn create(conn: &Connection, title: &mut Title) -> Result<()> {
           RETURNING id
     ";
 
-    let mut stmt = conn.prepare(sql).map_err(|error| Error::Db { 
+    let mut stmt = conn.prepare(sql).map_err(|error| Error::Db {
             operation: Operation::Prepare,
             error,
         })?;
@@ -68,7 +68,7 @@ pub fn create(conn: &Connection, title: &mut Title) -> Result<()> {
         title.memo,
     ];
 
-    let id = stmt.query_row(params, |r| r.get::<_, u32>(0)).map_err(|error| Error::Db { 
+    let id = stmt.query_row(params, |r| r.get::<_, u32>(0)).map_err(|error| Error::Db {
         operation: Operation::Query,
         error,
     })?;
@@ -100,7 +100,7 @@ pub fn create_table(conn: &Connection) -> Result<()> {
         ) STRICT
     ";
 
-    let _ = conn.execute(sql, ()).map_err(|error| Error::Db { 
+    let _ = conn.execute(sql, ()).map_err(|error| Error::Db {
             operation: Operation::Execute,
             error,
         })?;

@@ -92,7 +92,7 @@ impl DriveActor {
         } else {
             tracing::warn!(sn=?self.drive.serial_number, "failed to cancel copy operation");
         }
-        
+
         Ok(())
     }
 
@@ -246,7 +246,7 @@ impl DriveActor {
     ///
     /// `ct`:  Cancellation token used to cancel the copy operation. It is assumed that the token
     /// is not already cancelled.
-    /// 
+    ///
     /// `response`:  Channel used to send the result of the command once its complete. This will
     /// include the extracted disc information.
     ///
@@ -293,7 +293,7 @@ impl DriveActor {
     ///
     /// `ct`:  Cancellation token used to cancel the copy operation. It is assumed that the token
     /// is not already cancelled.
-    /// 
+    ///
     /// `response`:  Channel used to send the result of the command once its complete. This will
     /// include the extracted disc information.
     pub fn run_makemkv_copy(

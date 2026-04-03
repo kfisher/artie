@@ -95,10 +95,10 @@ fn process_title_info(
 
     if !file_name.ends_with(".mkv") {
         // The files created by the copy operation should always be an MKV file. This is a sanity
-        // check to help ensure that remains the case. 
+        // check to help ensure that remains the case.
         return Err(Error::UnexpectedFileExtension {
             expected: String::from("*.mkv"),
-            actual: file_name.to_owned() 
+            actual: file_name.to_owned()
         });
     };
 
@@ -127,7 +127,7 @@ fn process_title_info(
         } else if stream.is_subtitle_stream() {
             subtitle_tracks.push(process_subtitle_stream(subtitle_tracks.len() + 1, stream)?);
         } else {
-            return Err(Error::UnexpectedStreamType { 
+            return Err(Error::UnexpectedStreamType {
                 stream_type: stream.stream_type().ok(),
             });
         }

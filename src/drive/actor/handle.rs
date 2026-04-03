@@ -68,7 +68,7 @@ impl DriveActorHandle {
     /// Run the MakeMKV info command to gather information about a disc's titles.
     ///
     /// **Note** This is called as part of the [`DriveActorHandle::copy_disc`] request.
-    /// 
+    ///
     /// `command_output`:  Channel used by the MakeMKV command to relay output from the command as
     /// well as progress information.
     ///
@@ -115,7 +115,7 @@ impl DriveActorHandle {
     /// Run the MakeMKV copy command to copy a disc's titles to the file system.
     ///
     /// **Note** This is called as part of the [`DriveActorHandle::copy_disc`] request.
-    /// 
+    ///
     /// `command_output`:  Channel used by the MakeMKV command to relay output from the command as
     /// well as progress information.
     ///

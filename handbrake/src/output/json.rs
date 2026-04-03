@@ -127,7 +127,7 @@ pub struct WorkDone {
 }
 
 /// Parses a progress JSON object from the provided reader.
-pub fn parse_progress<T>(reader: &mut T) -> Result<Progress> 
+pub fn parse_progress<T>(reader: &mut T) -> Result<Progress>
 where
     T: Read
 {
@@ -135,7 +135,7 @@ where
 }
 
 /// Parses version information from Handbrake's output.
-pub fn parse_version<T>(reader: &mut T) -> Result<Version> 
+pub fn parse_version<T>(reader: &mut T) -> Result<Version>
 where
     T: Read
 {

@@ -71,9 +71,9 @@ pub struct Version {
 /// `log_path` path to where to save the raw output from HandBrake.
 ///
 /// On success, returns the exit code of the handbrake command.
-pub fn transcode_video<T>(opts: &Options, observer: &mut T, log_path: &Path) -> Result<ExitStatus> 
-where 
-    T: Observe 
+pub fn transcode_video<T>(opts: &Options, observer: &mut T, log_path: &Path) -> Result<ExitStatus>
+where
+    T: Observe
 {
     let mut ctx = Context::new(observer);
     ctx.log_output(log_path)?;

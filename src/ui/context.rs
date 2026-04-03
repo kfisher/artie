@@ -32,7 +32,7 @@ impl ContextObject {
 
     /// Returns the drive data store.
     ///
-    /// The drive data store contains the optical drive data as a list of 
+    /// The drive data store contains the optical drive data as a list of
     /// [`crate::drive::glib::optical_drive::OpticalDriveObject`] objects.
     pub fn drives_store(&self) -> Option<ListStore> {
         self.imp().drive_store
@@ -43,11 +43,11 @@ impl ContextObject {
     /// Creates a new [`ContextObject`] instance.
     fn new() -> Self {
         Object::builder().build()
-    }                      
+    }
 
 //  /// Saves the settings to the config.
 //  ///
-//  /// This will create the file if it does not exist or overwrite the file if it does. See 
+//  /// This will create the file if it does not exist or overwrite the file if it does. See
 //  /// [`get_config_path`] for more information on how the path is determined.
 //  ///
 //  /// # Errors
@@ -124,14 +124,14 @@ mod imp {
     use gtk::gio::ListStore;
     use gtk::subclass::prelude::*;
 
-    
-    
+
+
 
     /// Implementation for [`super::ContextObject`].
     #[derive(Default)]
     pub struct ContextObject {
         /// Store containing the optical drive data.
-        /// 
+        ///
         /// Contains [`crate::drive::glib::optical_drive::OpticalDriveObject`] objects.
         pub(super) drive_store: RefCell<Option<ListStore>>,
     }

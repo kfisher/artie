@@ -38,7 +38,7 @@ impl CopyFormWidget {
     /// Creates a new [`CopyFormWidget`] instance.
     pub fn new() -> Self {
         Object::builder().build()
-    }                      
+    }
 
     /// Clears the form's values.
     pub fn clear(&self) {
@@ -52,7 +52,7 @@ impl CopyFormWidget {
     }
 
     /// Subscribe to changes to the media type.
-    pub fn connect_media_type_changed<F>(&self, f: F) 
+    pub fn connect_media_type_changed<F>(&self, f: F)
     where
         F: Fn(MediaType) + 'static
     {
@@ -64,7 +64,7 @@ impl CopyFormWidget {
     }
 
     /// Subscribe to changes to the title.
-    pub fn connect_title_changed<F>(&self, f: F) 
+    pub fn connect_title_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
     {
@@ -81,7 +81,7 @@ impl CopyFormWidget {
     }
 
     /// Subscribe to changes to the year.
-    pub fn connect_year_changed<F>(&self, f: F) 
+    pub fn connect_year_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
     {
@@ -98,7 +98,7 @@ impl CopyFormWidget {
     }
 
     /// Subscribe to changes to the disc number.
-    pub fn connect_disc_number_changed<F>(&self, f: F) 
+    pub fn connect_disc_number_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
     {
@@ -115,7 +115,7 @@ impl CopyFormWidget {
     }
 
     /// Subscribe to changes to the season number.
-    pub fn connect_season_number_changed<F>(&self, f: F) 
+    pub fn connect_season_number_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
     {
@@ -132,7 +132,7 @@ impl CopyFormWidget {
     }
 
     /// Subscribe to changes to the storage location.
-    pub fn connect_location_changed<F>(&self, f: F) 
+    pub fn connect_location_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
     {
@@ -149,7 +149,7 @@ impl CopyFormWidget {
     }
 
     /// Subscribe to changes to the memo.
-    pub fn connect_memo_changed<F>(&self, f: F) 
+    pub fn connect_memo_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
     {
@@ -209,7 +209,7 @@ impl CopyFormWidget {
             season_number,
             disc_number,
             location: location.into(),
-            memo: memo.into(), 
+            memo: memo.into(),
         }
     }
 
@@ -228,7 +228,7 @@ impl CopyFormWidget {
     }
 
     /// Validates the form returning true if valid or false if invalid.
-    /// 
+    ///
     /// This will also update the widget's display based on the validity so that the user knows
     /// which fields are invalid.
     pub fn validate(&self) -> bool {
@@ -412,7 +412,7 @@ impl CopyFormWidget {
     /// Configures the bindings.
     ///
     /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::CopyFormWidget::constructed`]. 
+    /// See [`imp::CopyFormWidget::constructed`].
     fn setup_bindings(&self) {
         let imp = self.imp();
 
@@ -436,7 +436,7 @@ impl CopyFormWidget {
     /// Configures the signals and callbacks.
     ///
     /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::CopyFormWidget::constructed`]. 
+    /// See [`imp::CopyFormWidget::constructed`].
     fn setup_callbacks(&self) {
         let imp = self.imp();
 
@@ -539,7 +539,7 @@ impl Display for CopyFormWidget {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let imp = self.imp();
         write!(
-            f, 
+            f,
             "{{ type: '{}', title: '{}', year: '{}', disc: '{}', season: '{}', location: '{}', memo: '{}'}}",
             MediaType::from_index(imp.type_dropdown.borrow().selected())
                 .map_or_else(|| "", |media_type| media_type.as_str()),
@@ -580,7 +580,7 @@ mod imp {
     use gtk::glib::Binding;
     use gtk::subclass::prelude::*;
 
-    
+
 
     /// Implementation for [`super::CopyFormWidget`].
     #[derive(Default)]

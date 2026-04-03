@@ -197,14 +197,14 @@ mod imp {
     //! Implementation for the optical drive object.
 
     use std::cell::{Cell, RefCell};
-    
+
 
     use gtk::glib;
     use gtk::glib::Properties;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
-    
+
     use crate::drive::actor::handle::DriveActorHandle;
     use crate::drive::glib::OpticalDriveState;
 
