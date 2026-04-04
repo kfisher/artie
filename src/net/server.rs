@@ -3,10 +3,7 @@
 
 //! TODO: DOC
 
-use std::io::BufReader;
-use std::io::prelude::*;
-use std::net::{TcpListener, TcpStream};
-
+use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 
 use crate::Result;
@@ -94,8 +91,8 @@ impl Server {
 /// `server`:  Handle for the server instance.
 ///
 /// `addr`:  The address and port to listen on.
-fn listen(_server: ServerHandle, addr: &str) {
-    let listener = match TcpListener::bind(addr) {
+async fn listen(_server: ServerHandle, addr: &str) {
+    let listener = match TcpListener::bind(addr).await {
         Ok(listener) => listener,
         Err(error) => {
             tracing::error!(?error, ?addr, "failed to listen for connections");
@@ -105,7 +102,7 @@ fn listen(_server: ServerHandle, addr: &str) {
 
     tracing::info!(?addr, "waiting for connection");
     loop {
-        let _stream = match listener.accept() {
+        let _stream = match listener.accept().await {
             Ok((stream, peer_addr)) => {
                 tracing::info!(?peer_addr, "client connected");
                 stream
@@ -134,7 +131,9 @@ async fn run_server(mut server: Server) {
     // Start listening for connections from the control node.
     // TODO: Port and maybe the address should be configurable.
     let handle = server.create_handle();
-    task::spawn_blocking(move || listen(handle, "127.0.0.1:7878"));
+    task::spawn(async move {
+        listen(handle, "127.0.0.1:7878").await;
+    });
 
     while let Some(msg) = server.recv_msg().await {
         if let Err(error) = server.proc_msg(msg) {
