@@ -23,10 +23,6 @@ use crate::models::{CopyParamaters, MediaLocation};
 const ACTOR_CHANNEL_BUFFER_SIZE: usize = 10;
 
 /// Specifies the messages and responses for the optical drive actor.
-///
-/// Each message will have a channel that will be used by the actor to send the response. This will
-/// be a `oneshot` channel for a single response or a `mpsc` channel for streaming data such as
-/// operation process information.
 #[derive(Debug)]
 pub enum DriveActorMessage {
     /// Request to cancel and in-progress copy operation.
