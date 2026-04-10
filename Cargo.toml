@@ -41,6 +41,10 @@ workspace = true
 [dependencies.chrono]
 workspace = true
 
+[dependencies.clap]
+version = "4.0"
+features = ["derive"]
+
 [dependencies.flate2]
 version = "1.0"
 
