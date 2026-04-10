@@ -18,6 +18,7 @@ use tokio::sync::mpsc;
 
 use crate::Result;
 use crate::error::Error;
+use crate::net::Settings;
 use crate::task;
 
 /// Maxium number of messages for a client actor that can be queued.
@@ -39,10 +40,6 @@ const MAX_BACKOFF_COUNT: u32 = 6;
 
 /// Specifies the messages and responses for the client actor.
 pub enum ClientMessage {
-    /// Initiate a connection to a worker node.
-    Connect {
-        addr: String,
-    }
 }
 
 /// Specifies the messages and responses for the client manager actor.
@@ -78,11 +75,11 @@ impl ClientManagerHandle  {
 }
 
 /// Create a [`ClientManager`] instance, start its processing loop, and return a handle for it.
-pub fn create_client_manager() -> ClientManagerHandle {
+pub fn create_client_manager(settings: &Settings) -> ClientManagerHandle {
     // Channel used for the rest of the application to communicate with the client manager actor.
     let (tx, rx) = mpsc::channel(CLIENT_CHANNEL_BUFFER_SIZE);
 
-    let mgr = ClientManager::new(tx.clone(), rx);
+    let mgr = ClientManager::new(tx.clone(), rx, &settings.workers);
     task::spawn(run_client_manager(mgr));
 
     ClientManagerHandle::new(tx)
@@ -104,9 +101,7 @@ struct Client {
     loc_rx: mpsc::Receiver<ClientMessage>,
 
     /// Transmission end of the channel used to send messages to the connected worker.
-    ///
-    /// `None` when not connected to the worker.
-    net_tx: Option<mpsc::Sender<ClientMessage>>,
+    net_tx: mpsc::Sender<ClientMessage>,
 }
 
 impl Client {
@@ -115,52 +110,14 @@ impl Client {
     /// `loc_tx`:  Transmission end of the channel used to send requests to the client instance.
     ///
     /// `loc_rx`:  Receiving end of the channel used to send requests to the client.
+    ///
+    /// `net_tx`:  Transmission end of the channel used to send messages to the connected worker.
     fn new(
         loc_tx: mpsc::Sender<ClientMessage>,
         loc_rx: mpsc::Receiver<ClientMessage>,
+        net_tx: mpsc::Sender<ClientMessage>,
     ) -> Self {
-        Self { loc_tx, loc_rx, net_tx: None }
-    }
-
-    /// Connect to the worker node.
-    ///
-    /// `addr`:  The address of the node to connect to.
-    fn connect(&mut self, addr: &str) -> Result<()> {
-        let addr = addr.to_owned();
-
-        let handle = self.create_handle();
-
-        let (net_tx, mut net_rx) = mpsc::channel(CLIENT_CHANNEL_BUFFER_SIZE);
-        self.net_tx = Some(net_tx);
-
-        task::spawn(async move {
-            let mut attempt: u32 = 0;
-
-            loop {
-                match TcpStream::connect(&addr).await {
-                    Ok(stream) => {
-                        attempt = 0;
-                        process_stream(stream, &addr, &handle, &mut net_rx).await;
-                        tracing::warn!(?addr, "connection lost, will attempt to reconnect");
-                    }
-                    Err(error) => {
-                        tracing::error!(?error, ?addr, attempt, "failed to connect");
-                    }
-                }
-
-                attempt = attempt.saturating_add(1);
-                let delay = if attempt >= MAX_BACKOFF_COUNT {
-                    MAX_DELAY 
-                } else {
-                    BASE_DELAY * 2u32.saturating_pow(attempt)
-                };
-
-                tracing::info!(?addr, attempt, ?delay, "reconnecting after delay");
-                tokio::time::sleep(delay).await;
-            }
-        });
-
-        Ok(())
+        Self { loc_tx, loc_rx, net_tx }
     }
 
     /// Create and return a [`ClientHandle`] instance for communicating with this client instance.
@@ -171,10 +128,8 @@ impl Client {
     /// Processes a request for the client actor.
     ///
     /// `msg`:  Message containing the request for the client.
-    fn proc_msg(&mut self, msg: ClientMessage) -> Result<()> {
-        match msg {
-            ClientMessage::Connect { addr } => self.connect(&addr),
-        }
+    fn proc_msg(&mut self, _msg: ClientMessage) -> Result<()> {
+        Ok(())
     }
 
     /// Get the next request for the client actor.
@@ -198,6 +153,13 @@ struct ClientManager {
     ///
     /// This channel is used by the rest of the application to communicate with the actor.
     rx: mpsc::Receiver<ClientManagerMessage>,
+
+    /// Handles to each client actor.
+    ///
+    /// For each configured worker node a client actor will be created when the manager is created
+    /// and the actor will remain active until the application is closed or the user removes the
+    /// node from the configuration.
+    workers: Vec<ClientHandle>,
 }
 
 impl ClientManager {
@@ -206,19 +168,24 @@ impl ClientManager {
     /// `tx`:  Transmission end of the channel used to send requests to the client instance.
     ///
     /// `rx`:  Receiving end of the channel used to send requests to the client.
+    ///
+    /// `workers`:  List of addresses for the worker nodes.
     fn new(
         tx: mpsc::Sender<ClientManagerMessage>,
         rx: mpsc::Receiver<ClientManagerMessage>,
+        workers: &[String],
     ) -> Self {
-        Self { tx, rx }
+        let workers = workers.into_iter()
+            .map(|addr| create_client(&addr))
+            .collect();
+        Self { tx, rx, workers }
     }
 
     /// Processes a request for the client manager actor.
     ///
     /// `msg`:  Message containing the request.
-    fn proc_msg(&mut self, msg: ClientManagerMessage) -> Result<()> {
-        match msg {
-        }
+    fn proc_msg(&mut self, _msg: ClientManagerMessage) -> Result<()> {
+        Ok(())
     }
 
     /// Get the next request for the client manager actor.
@@ -231,13 +198,54 @@ impl ClientManager {
     }
 }
 
+/// Connect to the worker node.
+///
+/// `addr`:  The address of the node to connect to.
+///
+/// `client`:  Handle for the client instance.
+///
+/// `net_rx`:  Receiving end of the channel used by the server actor to send messages to the
+/// connected client.
+async fn connect(addr: &str, client: ClientHandle, mut net_rx: mpsc::Receiver<ClientMessage>) {
+    let mut attempt: u32 = 0;
+
+    loop {
+        match TcpStream::connect(&addr).await {
+            Ok(stream) => {
+                attempt = 0;
+
+                tracing::info!(?addr, "client connected");
+                process_stream(stream, &addr, &client, &mut net_rx).await;
+                tracing::warn!(?addr, "connection lost, will attempt to reconnect");
+            }
+            Err(error) => {
+                tracing::error!(?error, ?addr, attempt, "failed to connect");
+            }
+        }
+
+        attempt = attempt.saturating_add(1);
+        let delay = if attempt >= MAX_BACKOFF_COUNT {
+            MAX_DELAY 
+        } else {
+            BASE_DELAY * 2u32.saturating_pow(attempt)
+        };
+
+        tracing::trace!(?addr, attempt, ?delay, "reconnecting after delay");
+        tokio::time::sleep(delay).await;
+    }
+}
+
 /// Create a client actor instance, start its processing loop, and return a handle for it.
-fn create_client() -> ClientHandle {
+fn create_client(addr: &str) -> ClientHandle {
     // Channel used for the rest of the application to communicate with the client actor.
     let (loc_tx, loc_rx) = mpsc::channel(CLIENT_CHANNEL_BUFFER_SIZE);
 
-    let client = Client::new(loc_tx.clone(), loc_rx);
-    task::spawn(run_client(client));
+    // Channel used for the client actor to send messages over the network.
+    let (net_tx, net_rx) = mpsc::channel(CLIENT_CHANNEL_BUFFER_SIZE);
+
+    let addr = addr.to_owned();
+    let client = Client::new(loc_tx.clone(), loc_rx, net_tx);
+    task::spawn(run_client(client, addr, net_rx));
 
     ClientHandle::new(loc_tx)
 }
@@ -254,7 +262,7 @@ fn create_client() -> ClientHandle {
 /// `client`:  Handle to the client actor. Used to forward messages from the connected worker node
 /// to the actor for processing.
 ///
-/// `net_rx`:  Receiving end of the channel used by the server actor to send messages to the
+/// `net_rx`:  Receiving end of the channel used by the client actor to send messages to the
 /// connected worker node.
 async fn process_stream(
     stream: TcpStream,
@@ -310,8 +318,24 @@ async fn process_stream(
 ///
 /// This will process requests from the application for the worker node. It will run until the
 /// message channel is closed.
-async fn run_client(mut client: Client) {
+///
+/// `net_rx`:  Receiving end of the channel used by the server client actor to send messages to the
+/// connected worker node.
+///
+/// `addr`:  Address to connect to.
+///
+/// `net_rx`:  Receiving end of the channel used by the client actor to send messages to the
+/// connected worker node.
+async fn run_client(mut client: Client, addr: String, net_rx: mpsc::Receiver<ClientMessage>) {
     tracing::info!("client started");
+
+    // Connect to the worker node. If the connection fails or ever drops, the spawned process will
+    // attempt to connect again. Once connected, this routine will handle processing requests from
+    // the client actor and the network.
+    let handle = client.create_handle();
+    task::spawn(async move {
+        connect(&addr, handle, net_rx).await
+    });
 
     while let Some(msg) = client.recv_msg().await {
         if let Err(error) = client.proc_msg(msg) {

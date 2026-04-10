@@ -66,7 +66,7 @@ struct Server {
     /// This channel is used by the rest of the application to communicate with the server actor.
     loc_rx: mpsc::Receiver<ServerMessage>,
 
-    /// Transmission end of the channel used to send messages to the connected client.
+    /// Transmission end of the channel used to send messages to the connected control node.
     net_tx: mpsc::Sender<ServerMessage>,
 }
 
@@ -77,7 +77,8 @@ impl Server {
     ///
     /// `loc_rx`:  Receiving end of the channel used to send requests to the server.
     ///
-    /// `net_tx`:  Transmission end of the channel used to send messages to the connected client.
+    /// `net_tx`:  Transmission end of the channel used to send messages to the connected control
+    /// node.
     fn new(
         loc_tx: mpsc::Sender<ServerMessage>,
         loc_rx: mpsc::Receiver<ServerMessage>,
@@ -118,7 +119,7 @@ impl Server {
 /// `server`:  Handle for the server instance.
 ///
 /// `net_rx`:  Receiving end of the channel used by the server actor to send messages to the
-/// connected client.
+/// connected control node.
 async fn listen(addr: &str, server: ServerHandle, mut net_rx: mpsc::Receiver<ServerMessage>) {
     let listener = match TcpListener::bind(addr).await {
         Ok(listener) => listener,
@@ -144,20 +145,20 @@ async fn listen(addr: &str, server: ServerHandle, mut net_rx: mpsc::Receiver<Ser
     }
 }
 
-/// Process communication with a connected client.
+/// Process communication with a connected control node.
 ///
-/// This will run until the connect client drops the connection or the server actor closes the
-/// channel it uses to send messages.
+/// This will run until the connect control node drops the connection or the server actor closes
+/// the channel it uses to send messages.
 ///
-/// `stream`:  The stream for the connected client.
+/// `stream`:  The stream for the connected control node.
 ///
-/// `peer_addr`:  The address of the connected client.
+/// `peer_addr`:  The address of the connected control node.
 ///
-/// `server`:  Handle to the server actor. Used to forward messages from the connected client to
-/// the actor for processing.
+/// `server`:  Handle to the server actor. Used to forward messages from the connected control node
+/// to the actor for processing.
 ///
 /// `net_rx`:  Receiving end of the channel used by the server actor to send messages to the
-/// connected client.
+/// connected control node.
 async fn process_stream(
     stream: TcpStream,
     peer_addr: SocketAddr,

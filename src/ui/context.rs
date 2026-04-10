@@ -112,14 +112,18 @@ impl ContextObjectBuilder {
 
         let db = db::init(&fs)?;
 
-        let client_mgr = client::create_client_manager();
+        let client_mgr = if self.mode == Mode::Control {
+            Some(client::create_client_manager(&settings.net))
+        } else {
+            None
+        };
 
         let optical_drives = drive::init(fs, db)?;
 
         let drive_store = ListStore::from_iter(optical_drives);
 
         imp.drive_store.replace(Some(drive_store));
-        imp.client_mgr.replace(Some(client_mgr));
+        imp.client_mgr.replace(client_mgr);
         imp.mode.set(self.mode);
 
         Ok(context)
