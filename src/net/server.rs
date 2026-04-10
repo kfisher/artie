@@ -19,7 +19,7 @@ use tokio::sync::mpsc;
 use crate::Result;
 use crate::task;
 
-/// Maxium number of messages for a drive actor that can be queued.
+/// Maxium number of messages for a server actor that can be queued.
 const SERVER_CHANNEL_BUFFER_SIZE: usize = 10;
 
 /// Specifies the messages and responses for the server actor.
@@ -53,7 +53,7 @@ pub fn create_and_run_server() -> ServerHandle {
     ServerHandle::new(loc_tx)
 }
 
-/// Handles the worker side of network communication.
+/// Actor which handles the worker side of network communication.
 struct Server {
     /// Transmission end of the channel used to send requests to the server instance.
     ///
@@ -76,6 +76,8 @@ impl Server {
     /// `loc_tx`:  Transmission end of the channel used to send requests to the server instance.
     ///
     /// `loc_rx`:  Receiving end of the channel used to send requests to the server.
+    ///
+    /// `net_tx`:  Transmission end of the channel used to send messages to the connected client.
     fn new(
         loc_tx: mpsc::Sender<ServerMessage>,
         loc_rx: mpsc::Receiver<ServerMessage>,

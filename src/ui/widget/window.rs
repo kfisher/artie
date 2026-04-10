@@ -44,6 +44,16 @@ impl Window {
     /// See [`imp::Window::constructed`].
     fn build_ui(&self) {
         let context = self.context().expect("context not set");
+        if context.is_worker() {
+            self.build_worker_ui()
+        } else {
+            self.build_control_ui()
+        }
+    }
+
+    /// Builds the user interface for running in standalone or control mode.
+    fn build_control_ui(&self) {
+        let context = self.context().expect("context not set");
 
         let copy_page = CopyPageWidget::new(&context);
 
@@ -74,6 +84,22 @@ impl Window {
         self.set_default_width(1080);
         self.set_default_height(920);
         self.set_child(Some(&stack));
+    }
+
+    /// Builds the user interface when running as a worker node.
+    fn build_worker_ui(&self) {
+        let header_bar = HeaderBar::builder()
+            .build();
+
+        let temp_text = gtk::Label::builder()
+            .label("Worker Node")
+            .build();
+
+        self.set_title(Some("Artie"));
+        self.set_titlebar(Some(&header_bar));
+        self.set_default_width(1080);
+        self.set_default_height(920);
+        self.set_child(Some(&temp_text));
     }
 }
 

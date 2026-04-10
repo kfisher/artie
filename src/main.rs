@@ -15,6 +15,8 @@ mod ui;
 #[cfg(test)]
 pub(crate) mod test_utils;
 
+use clap::{ArgAction, Parser};
+
 use gtk::Application;
 use gtk::gio;
 use gtk::gio::prelude::{ApplicationExt, ApplicationExtManual};
@@ -34,7 +36,24 @@ pub const APP_ID: &str = "org.example.Artie";
 /// Result type for the application.
 pub type Result<T> = std::result::Result<T, Error>;
 
+/// Specifies the application modes of operation.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Mode {
+    /// Application is running as the control node instance.
+    #[default]
+    Control,
+
+    /// Application is running as a worker node instance.
+    Worker,
+
+    // TODO: We'll eventually probably want a Headless mode which would be a worker without a GUI.
+}
+
 fn main() -> glib::ExitCode {
+
+    // Command line arguments must be parsed before GTK is initialized since GTK may consume
+    // std::env::args().
+    let args = Args::parse();
 
     let filter = Targets::new()
         .with_target("artie", Level::DEBUG)
@@ -45,6 +64,12 @@ fn main() -> glib::ExitCode {
         .with(tracing_subscriber::fmt::layer().with_filter(filter))
         .init();
 
+    let mode = if args.worker {
+        Mode::Worker
+    } else {
+        Mode::Control
+    };
+
     gio::resources_register_include!("compiled.gresource")
         .expect("Failed to register resources.");
 
@@ -52,9 +77,20 @@ fn main() -> glib::ExitCode {
         .application_id(APP_ID)
         .build();
     app.connect_activate(move |app| {
-        ui::build(app);
+        ui::build(app, mode);
     });
-    app.run()
+
+    // Override the command line arguments. Otherwise, GTK will generate errors for the command
+    // line arguments defined above. May need to revist to support GTK arguments.
+    app.run_with_args(&["artie"])
+}
+
+#[derive(Parser, Debug)]
+#[command(name = "artie", about = "Media library creation orchestration tool.")]
+struct Args {
+    /// Indicates that the application should be run as a worker node.
+    #[arg(short = 'w', long = "worker", action = ArgAction::SetTrue)]
+    worker: bool,
 }
 
 pub mod task {

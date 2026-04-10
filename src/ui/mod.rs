@@ -12,10 +12,12 @@ use gtk::gdk::Display;
 
 use widget::Window;
 
+use crate::Mode;
+
 pub use context::ContextObject;
 
 /// Builds the application window.
-pub fn build(app: &Application) {
+pub fn build(app: &Application, mode: Mode) {
     let css_provider = CssProvider::new();
     css_provider.load_from_resource("org/example/artie/css/app.css");
 
@@ -29,6 +31,7 @@ pub fn build(app: &Application) {
     icon_theme.add_resource_path("/org/example/artie/icons");
 
     let context = ContextObject::builder()
+        .mode(mode)
         .build()
         .expect("Failed to create application context");
 
