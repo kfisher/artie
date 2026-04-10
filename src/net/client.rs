@@ -7,6 +7,10 @@
 //! node. [`Client`] is an actor that runs its own async task and can be created using
 //! [`create_client`]. This will create the instance and start its processing loop in a seperate
 //! task returning the handle used by the application to interface with the client actor.
+//!
+//! TODO: Update
+
+use std::time::Duration;
 
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpStream, ToSocketAddrs};
@@ -19,6 +23,20 @@ use crate::task;
 /// Maxium number of messages for a client actor that can be queued.
 const CLIENT_CHANNEL_BUFFER_SIZE: usize = 10;
 
+/// Initial amount of time to wait before attempting to connect to a worker node after a failed
+/// attempt or disconnection.
+const BASE_DELAY: Duration = Duration::from_secs(1);
+
+/// The maximum amount of time to wait before attempting to connect to a worker node after a failed
+/// attempt or disconnection.
+const MAX_DELAY: Duration = Duration::from_secs(60);
+
+/// The number of attempts before the max delay is reached.
+///
+/// This value is the attempt number where the delay calculation would result in exceeding the
+/// maximum delay. `2^6=64` which is greater than the [`MAX_DELAY`] of 60 seconds.
+const MAX_BACKOFF_COUNT: u32 = 6;
+
 /// Specifies the messages and responses for the client actor.
 pub enum ClientMessage {
     /// Initiate a connection to a worker node.
@@ -27,9 +45,14 @@ pub enum ClientMessage {
     }
 }
 
+/// Specifies the messages and responses for the client manager actor.
+pub enum ClientManagerMessage {
+}
+
 /// Handle used to communicate with the [`Client`] instance.
+#[derive(Clone)]
 pub struct ClientHandle {
-    /// Transmission end of the channel used to send requests to the server.
+    /// Transmission end of the channel used to send requests to the client actor.
     tx: mpsc::Sender<ClientMessage>,
 }
 
@@ -40,15 +63,29 @@ impl ClientHandle {
     }
 }
 
-/// Create a client actor instance, start its processing loop, and return a handle for it.
-pub fn create_client() -> ClientHandle {
-    // Channel used for the rest of the application to communicate with the server actor.
-    let (loc_tx, loc_rx) = mpsc::channel(CLIENT_CHANNEL_BUFFER_SIZE);
+/// Handle used to communicate with the [`ClientManager`] instance.
+#[derive(Clone)]
+pub struct ClientManagerHandle {
+    /// Transmission end of the channel used to send requests to the client manager actor.
+    tx: mpsc::Sender<ClientManagerMessage>,
+}
 
-    let client = Client::new(loc_tx.clone(), loc_rx);
-    task::spawn(run_client(client));
+impl ClientManagerHandle  {
+    /// Create a new [`ClientManagerHandle`] instance.
+    pub fn new(tx: mpsc::Sender<ClientManagerMessage>) -> Self {
+        Self { tx }
+    }
+}
 
-    ClientHandle::new(loc_tx)
+/// Create a [`ClientManager`] instance, start its processing loop, and return a handle for it.
+pub fn create_client_manager() -> ClientManagerHandle {
+    // Channel used for the rest of the application to communicate with the client manager actor.
+    let (tx, rx) = mpsc::channel(CLIENT_CHANNEL_BUFFER_SIZE);
+
+    let mgr = ClientManager::new(tx.clone(), rx);
+    task::spawn(run_client_manager(mgr));
+
+    ClientManagerHandle::new(tx)
 }
 
 /// Actor which handles the client side of network communication.
@@ -93,19 +130,34 @@ impl Client {
 
         let handle = self.create_handle();
 
-        let (net_tx, net_rx) = mpsc::channel(CLIENT_CHANNEL_BUFFER_SIZE);
+        let (net_tx, mut net_rx) = mpsc::channel(CLIENT_CHANNEL_BUFFER_SIZE);
         self.net_tx = Some(net_tx);
 
         task::spawn(async move {
-            match TcpStream::connect(&addr).await {
-                Ok(stream) => {
-                    process_stream(stream, &addr, handle, net_rx).await;
-                },
-                Err(error) => {
-                    tracing::error!(?error, ?addr, "failed to connect");
-                    return;
-                },
-            };
+            let mut attempt: u32 = 0;
+
+            loop {
+                match TcpStream::connect(&addr).await {
+                    Ok(stream) => {
+                        attempt = 0;
+                        process_stream(stream, &addr, &handle, &mut net_rx).await;
+                        tracing::warn!(?addr, "connection lost, will attempt to reconnect");
+                    }
+                    Err(error) => {
+                        tracing::error!(?error, ?addr, attempt, "failed to connect");
+                    }
+                }
+
+                attempt = attempt.saturating_add(1);
+                let delay = if attempt >= MAX_BACKOFF_COUNT {
+                    MAX_DELAY 
+                } else {
+                    BASE_DELAY * 2u32.saturating_pow(attempt)
+                };
+
+                tracing::info!(?addr, attempt, ?delay, "reconnecting after delay");
+                tokio::time::sleep(delay).await;
+            }
         });
 
         Ok(())
@@ -116,7 +168,7 @@ impl Client {
         ClientHandle::new(self.loc_tx.clone())
     }
 
-    /// Processes a request for the server.
+    /// Processes a request for the client actor.
     ///
     /// `msg`:  Message containing the request for the client.
     fn proc_msg(&mut self, msg: ClientMessage) -> Result<()> {
@@ -125,7 +177,7 @@ impl Client {
         }
     }
 
-    /// Get the next request for the client.
+    /// Get the next request for the client actor.
     ///
     /// This will return `None` when the message channel is closed and does not contain any queued
     /// messages. If the message queue is empty, but the channel is not closed, this will sleep
@@ -133,6 +185,61 @@ impl Client {
     async fn recv_msg(&mut self) -> Option<ClientMessage> {
         self.loc_rx.recv().await
     }
+}
+
+/// Actor which manages client instances.
+struct ClientManager {
+    /// Transmission end of the channel used to send requests to the client manager actor instance.
+    ///
+    /// This isn't used directly. It serves as a "prototype" and cloned when creating new handles.
+    tx: mpsc::Sender<ClientManagerMessage>,
+
+    /// Receiving end of the channel used to send requests to the client manager actor instance.
+    ///
+    /// This channel is used by the rest of the application to communicate with the actor.
+    rx: mpsc::Receiver<ClientManagerMessage>,
+}
+
+impl ClientManager {
+    /// Create a [`ClientManager`] instance.
+    ///
+    /// `tx`:  Transmission end of the channel used to send requests to the client instance.
+    ///
+    /// `rx`:  Receiving end of the channel used to send requests to the client.
+    fn new(
+        tx: mpsc::Sender<ClientManagerMessage>,
+        rx: mpsc::Receiver<ClientManagerMessage>,
+    ) -> Self {
+        Self { tx, rx }
+    }
+
+    /// Processes a request for the client manager actor.
+    ///
+    /// `msg`:  Message containing the request.
+    fn proc_msg(&mut self, msg: ClientManagerMessage) -> Result<()> {
+        match msg {
+        }
+    }
+
+    /// Get the next request for the client manager actor.
+    ///
+    /// This will return `None` when the message channel is closed and does not contain any queued
+    /// messages. If the message queue is empty, but the channel is not closed, this will sleep
+    /// until a message is sent or the channel is closed.
+    async fn recv_msg(&mut self) -> Option<ClientManagerMessage> {
+        self.rx.recv().await
+    }
+}
+
+/// Create a client actor instance, start its processing loop, and return a handle for it.
+fn create_client() -> ClientHandle {
+    // Channel used for the rest of the application to communicate with the client actor.
+    let (loc_tx, loc_rx) = mpsc::channel(CLIENT_CHANNEL_BUFFER_SIZE);
+
+    let client = Client::new(loc_tx.clone(), loc_rx);
+    task::spawn(run_client(client));
+
+    ClientHandle::new(loc_tx)
 }
 
 /// Process communication with a connected worker node.
@@ -152,8 +259,8 @@ impl Client {
 async fn process_stream(
     stream: TcpStream,
     addr: &str,
-    _client: ClientHandle,
-    mut net_rx: mpsc::Receiver<ClientMessage>,
+    _client: &ClientHandle,
+    net_rx: &mut mpsc::Receiver<ClientMessage>,
 ) {
     let (reader, mut writer) = stream.into_split();
 
@@ -213,5 +320,21 @@ async fn run_client(mut client: Client) {
     }
 
     tracing::info!("client exited");
+}
+
+/// Runs the client manager processing loop.
+///
+/// This will process requests from the application for the client manager. It will run until the
+/// message channel is closed.
+async fn run_client_manager(mut mgr: ClientManager) {
+    tracing::info!("client manager started");
+
+    while let Some(msg) = mgr.recv_msg().await {
+        if let Err(error) = mgr.proc_msg(msg) {
+            tracing::error!(?error, "failed to process client manager request");
+        }
+    }
+
+    tracing::info!("client manager exited");
 }
 

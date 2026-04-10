@@ -127,6 +127,10 @@ pub enum Error {
         codec_short: String,
     },
 
+    /// Error raised when a network error occures.
+    NetIo {
+        error: std::io::Error,
+    },
 
     /// Error raised when serializing or deserializing data.
     ///
