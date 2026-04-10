@@ -136,25 +136,25 @@ impl OpticalDriveStatus {
   }
 }
 
-/// Initialize the optical drive information for all available drives reported by the OS.
-///
-/// # Errors
-///
-/// - [`crate::Error::CommandIo`] or [`crate::Error::CommandReturnedErrorCode`] if the command to
-///   to get the optical drive from the OS fails, or
-/// - [`crate::Error::Serialization`] if the output from the OS cannot be parsed
-pub fn init(fs: FileSystem, db: Database) -> Result<Vec<OpticalDriveObject>> {
-    let drives = get_optical_drives()?.into_iter()
-        .map(|drive| {
-            tracing::info!(sn=drive.serial_number, path=drive.path, "found optical drive");
-            OpticalDriveObject::new(drive, fs.clone(), db.clone())
-        })
-        .collect();
-    Ok(drives)
-}
+//--] /// Initialize the optical drive information for all available drives reported by the OS.
+//--] ///
+//--] /// # Errors
+//--] ///
+//--] /// - [`crate::Error::CommandIo`] or [`crate::Error::CommandReturnedErrorCode`] if the command to
+//--] ///   to get the optical drive from the OS fails, or
+//--] /// - [`crate::Error::Serialization`] if the output from the OS cannot be parsed
+//--] pub fn init(fs: FileSystem, db: Database) -> Result<Vec<OpticalDriveObject>> {
+//--]     let drives = get_optical_drives()?.into_iter()
+//--]         .map(|drive| {
+//--]             tracing::info!(sn=drive.serial_number, path=drive.path, "found optical drive");
+//--]             OpticalDriveObject::new(drive, fs.clone(), db.clone())
+//--]         })
+//--]         .collect();
+//--]     Ok(drives)
+//--] }
 
 /// Gets the optical drive information for all available optical drives.
-fn get_optical_drives() -> Result<Vec<OpticalDrive>> {
+pub fn get_optical_drives() -> Result<Vec<OpticalDrive>> {
   let drives = platform::get_optical_drives()?;
   Ok(drives)
 }
@@ -163,7 +163,7 @@ fn get_optical_drives() -> Result<Vec<OpticalDrive>> {
 ///
 /// Returns `None` if an optical drive cannot be found with the provided serial number. Returns an
 /// error if something goes wrong when querying the operating system.
-fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
+pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
   let drive = platform::get_optical_drive(serial_number)?;
   Ok(drive)
 }

@@ -65,16 +65,24 @@ fn main() -> glib::ExitCode {
         .init();
 
     let mode = if args.worker {
+        let _ = crate::net::server::create_and_run_server(); // TODO: TEMP
         Mode::Worker
     } else {
         Mode::Control
     };
 
+    tracing::info!(?mode, "starting");
+
     gio::resources_register_include!("compiled.gresource")
         .expect("Failed to register resources.");
 
     let app = Application::builder()
-        .application_id(APP_ID)
+        // TODO: Comment this out for now for testing so that we can create multiple instances of
+        //       the application to test networking.
+        // TODO: Since single instance is the default, may need to revist some things to avoid
+        //       extra instances of managers (e.g. client manager) if a second instance is started
+        //       which seems to run some code on the single instance.
+        //.application_id(APP_ID)
         .build();
     app.connect_activate(move |app| {
         ui::build(app, mode);

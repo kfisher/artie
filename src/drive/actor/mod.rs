@@ -5,6 +5,7 @@
 
 pub mod handle;
 pub mod local;
+pub mod manager;
 pub mod worker;
 
 use tokio::sync::mpsc;

@@ -15,8 +15,16 @@ use crate::drive::actor::DriveActorMessage;
 use crate::drive::data::{FormData, FormDataUpdate};
 use crate::models::{CopyParamaters, MediaLocation};
 
-/// Handle used to communicate with a [`DriveActor`] instance.
-// TODO: Update
+/// Handle used to communicate with a drive actor.
+///
+/// There is a single drive actor handle  type for communicating with any of the drive actor types.
+/// This allows the rest of the application to interface with the drives the same way regardless of
+/// what machine the drive is actually on.
+///
+/// The handles are not created directly. Instead they are created by the actor creation functions
+/// which exists for each type of drive actor. See:
+///
+/// - [`crate::drive::actor::local::create_actor`]
 #[derive(Clone, Debug)]
 pub struct DriveActorHandle {
     /// Transmission end of the channel used to send requests to the actor.

@@ -1,18 +1,14 @@
 // Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Handles drive operations on worker node instances.
-//!
-//! There are two actor types used to perform drive operations on worker nodes. The
-//! [`ControlActor`] actor is used on the control node to communicate with the [`WorkerActor`]
-//! instance on the worker node so that requests are perfomed on the expected host.
-
 use tokio::sync::mpsc;
+use tokio::sync::oneshot;
 
+use crate::Result;
 use crate::db::Database;
 use crate::drive::OpticalDrive;
 use crate::drive::actor;
-use crate::drive::actor::{DriveActor, DriveActorMessage};
+use crate::drive::actor::{DriveActor, DriveActorMessage, OpticalDriveState, OpticalDriveStatus};
 use crate::drive::actor::handle::DriveActorHandle;
 use crate::fs::FileSystem;
 use crate::task;
@@ -56,6 +52,9 @@ struct ControlActor {
     /// /[`WorkerActor`] pair is considered a single instance.
     drive: OpticalDrive,
 
+    /// The current state of the drive.
+    state: OpticalDriveState,
+
     /// Transmission end of the channel used to send requests to the actor.
     ///
     /// This isn't used directly by the actor. It is cloned when creating new handle instance from
@@ -80,13 +79,25 @@ impl ControlActor {
         tx: mpsc::Sender<DriveActorMessage>,
         rx: mpsc::Receiver<DriveActorMessage>,
     ) -> Self {
-        Self { drive, tx, rx }
+        Self { drive, state: OpticalDriveState::Disconnected, tx, rx }
+    }
+
+    // TODO
+    fn get_state(&self, _response: oneshot::Sender<OpticalDriveStatus>) -> Result<()> {
+
+        // - If worker not connected, return disconnected state.
+        // - Send request to worker.
+        // - Wait for response.
+        // - Return state.
+
+        todo!()
     }
 }
 
 impl DriveActor for ControlActor {
-    fn proc_msg(&mut self, msg: DriveActorMessage) -> crate::Result<()> {
+    fn proc_msg(&mut self, msg: DriveActorMessage) -> Result<()> {
         match msg {
+            DriveActorMessage::GetStatus { response } => self.get_state(response),
             _ => todo!()
         }
     }
@@ -140,7 +151,7 @@ impl WorkerActor {
 }
 
 impl DriveActor for WorkerActor {
-    fn proc_msg(&mut self, msg: DriveActorMessage) -> crate::Result<()> {
+    fn proc_msg(&mut self, msg: DriveActorMessage) -> Result<()> {
         match msg {
             _ => todo!()
         }

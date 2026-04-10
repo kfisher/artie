@@ -10,6 +10,7 @@ use gtk::glib;
 use gtk::glib::Object;
 use gtk::subclass::prelude::*;
 
+use crate::drive::glib::OpticalDriveObject;
 use crate::{Mode, Result};
 use crate::error::Error;
 use crate::db;
@@ -110,7 +111,7 @@ impl ContextObjectBuilder {
         let fs = FileSystem::new(&settings.fs);
         fs.make_dirs()?;
 
-        let db = db::init(&fs)?;
+        let _db = db::init(&fs)?;
 
         let client_mgr = if self.mode == Mode::Control {
             Some(client::create_client_manager(&settings.net))
@@ -118,9 +119,10 @@ impl ContextObjectBuilder {
             None
         };
 
-        let optical_drives = drive::init(fs, db)?;
+        // TODO
+        // let optical_drives = drive::init(fs, db)?;
 
-        let drive_store = ListStore::from_iter(optical_drives);
+        let drive_store = ListStore::new::<OpticalDriveObject>();
 
         imp.drive_store.replace(Some(drive_store));
         imp.client_mgr.replace(client_mgr);
