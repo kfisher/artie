@@ -11,6 +11,7 @@ use crate::actor::{self, Actor};
 use crate::app;
 use crate::db;
 use crate::drive;
+use crate::net;
 use crate::task;
 use crate::ui;
 
@@ -32,6 +33,9 @@ pub enum Message {
     /// Messages for sending requests to the message bus itself.
     MessageBus(MessageBusMessage),
 
+    /// Messages for sending requests to a client or server actor.
+    Net(net::Message),
+
     /// Messages for sending requests to the UI.
     UI(ui::Message),
 }
@@ -45,6 +49,12 @@ impl From<db::Message> for Message {
 impl From<drive::Message> for Message {
     fn from(value: drive::Message) -> Self {
         Message::Drive(value)
+    }
+}
+
+impl From<net::Message> for Message {
+    fn from(value: net::Message) -> Self {
+        Message::Net(value)
     }
 }
 
@@ -72,32 +82,21 @@ pub fn init_channel() -> (Handle, Receiver<Message>) {
 /// `drive_mgr`:  Handle used to send messages to the drive manager actor and drive actors.
 ///
 /// `bus_send`:  The transmission end of the message bus communication channel.
+///
+/// `net`:  Handle used to send messages to a client or server actor. Which depends on the mode the
+/// application is running in.
 pub fn init_processor(
     db: db::Handle,
     drive_mgr: drive::Handle,
+    net: net::Handle,
     bus_recv: Receiver<Message>,
 ) -> JoinHandle<()> {
-    let msg_processor = MessageBus::new(db, drive_mgr);
+    let msg_processor = MessageBus::new(db, drive_mgr, net);
     let actor = Actor::new("message bus", bus_recv, msg_processor);
 
     // Unlike other actors, return the JoinHandle so that headless mode (no GUI) has something to
     // wait on an not exit immediately.
     task::spawn(actor::run(actor))
-}
-
-/// Creates the message bus and spawn its processing task so it can begin handling requests.
-///
-/// The returned handle can be used to send requests to the bus. The message bus will run its
-/// processing task until the application exits.
-///
-/// # Args
-///
-/// `db`:  Handle used to send messages to the database actor.
-///
-/// `drive_mgr`:  Handle used to send messages to the drive manager actor and drive actors.
-pub fn init(db: db::Handle, drive_mgr: drive::Handle) -> Handle {
-    let msg_processor = MessageBus::new(db, drive_mgr);
-    actor::create_and_run("message bus", msg_processor)
 }
 
 /// Messaging bus used for inner-application communication.
@@ -113,6 +112,9 @@ struct MessageBus {
 
     /// Handle used to send messages to the drive manager actor and drive actors.
     drive_mgr: drive::Handle,
+
+    /// Handle used to send messages to a client or server actor.
+    net: net::Handle,
 }
 
 impl MessageBus {
@@ -123,10 +125,12 @@ impl MessageBus {
     /// `db`:  Handle used to send messages to the database actor. All [`Message::Database`]
     /// messages will be forwarded to this handle.
     ///
-    /// `drive_mgr`:  Handle used to send messages to the drive manager actor. All [`Message::Drive`]
-    /// messages will be forwarded to this handle.
-    fn new(db: db::Handle, drive_mgr: drive::Handle) -> Self {
-        Self { db, drive_mgr }
+    /// `drive_mgr`:  Handle used to send messages to the drive manager actor. All
+    /// [`Message::Drive`] messages will be forwarded to this handle.
+    ///
+    /// `net`:  Handle used to send messages to a client or server actor.
+    fn new(db: db::Handle, drive_mgr: drive::Handle, net: net::Handle) -> Self {
+        Self { db, drive_mgr, net }
     }
 }
 

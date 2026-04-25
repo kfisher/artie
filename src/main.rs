@@ -30,6 +30,8 @@ use tracing_subscriber::prelude::*;
 
 pub use error::Error;
 
+use net::client;
+use net::server;
 use settings::Settings;
 
 /// Specifies the application's modes of operation.
@@ -83,6 +85,8 @@ fn main() -> Result<()> {
         Mode::Control
     };
 
+    tracing::info!(?mode, "starting");
+
     let settings = Settings::from_file(&get_config_path())?;
 
     path::init(settings.paths)?;
@@ -94,10 +98,14 @@ fn main() -> Result<()> {
     let db = db::init()?;
     let drive_mgr = drive::init(&bus)?;
 
-    // Start the message bus processing task.
-    let join_handle = bus::init_processor(db, drive_mgr,bus_recv);
+    let net = if mode == Mode::Control {
+        client::manager::init(&settings.net)
+    } else {
+        server::init()
+    };
 
-    tracing::info!(?mode, "starting");
+    // Start the message bus processing task.
+    let join_handle = bus::init_processor(db, drive_mgr, net, bus_recv);
 
     // TODO: Eventually, we will want to use feature flags so that we can compile a version without
     //       the UI all together.
