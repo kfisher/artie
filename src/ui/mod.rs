@@ -1,23 +1,71 @@
 // Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Provides the graphical user interface.
+//! Application UI.
 
-pub mod context;
-pub mod widget;
+mod context;
+mod data;
+mod helpers;
+mod widget;
 
+use gtk::gdk::Display;
+use gtk::gio::prelude::*;
+use gtk::gio;
+use gtk::glib;
 use gtk::prelude::GtkWindowExt;
 use gtk::{Application, CssProvider, IconTheme};
-use gtk::gdk::Display;
 
+use crate::{Mode, Result};
+
+use crate::bus::Handle;
+use context::ContextObject;
 use widget::Window;
 
-use crate::Mode;
+/// Messages used to send requests to the UI.
+#[derive(Debug)]
+pub enum Message {
+}
 
-pub use context::ContextObject;
+/// Runs the UI.
+///
+/// This will block until the application is closed.
+///
+/// # Args
+///
+/// `mode`:  The mode the application is being run in. When running in worker mode, the UI will be
+/// much more limited since it is the control that the user is expected to interact with.
+pub fn run(mode: Mode, bus: &Handle) -> Result<glib::ExitCode> {
+    gio::resources_register_include!("compiled.gresource")?;
+
+    let context = ContextObject::new(mode, bus.clone());
+
+    let app = Application::builder()
+        // TODO: Comment this out for now for testing so that we can create multiple instances of
+        //       the application to test networking.
+        // TODO: Since single instance is the default, may need to revist some things to avoid
+        //       extra instances of managers (e.g. client manager) if a second instance is started
+        //       which seems to run some code on the single instance.
+        //.application_id(APP_ID)
+        .build();
+    app.connect_activate(move |app| {
+        build(app, context.clone());
+    });
+
+    // Override the command line arguments. Otherwise, GTK will generate errors for the command
+    // line arguments defined above. May need to revist to support GTK arguments.
+    Ok(app.run_with_args(&["artie"]))
+}
 
 /// Builds the application window.
-pub fn build(app: &Application, mode: Mode) {
+/// 
+/// This is used as the callback GTK when the application's widgets whould be constructed.
+///
+/// # Args
+///
+/// `app`:  The GTK application being built.
+///
+/// `context`: The UI's application context.
+fn build(app: &Application, context: ContextObject) {
     let css_provider = CssProvider::new();
     css_provider.load_from_resource("org/example/artie/css/app.css");
 
@@ -30,52 +78,7 @@ pub fn build(app: &Application, mode: Mode) {
     let icon_theme = IconTheme::for_display(&Display::default().unwrap());
     icon_theme.add_resource_path("/org/example/artie/icons");
 
-    let context = ContextObject::builder()
-        .mode(mode)
-        .build()
-        .expect("Failed to create application context");
-
     let window = Window::new(app, &context);
     window.present();
-
-    //--] let menu_popover = PopoverMenu::builder()
-    //--]     .build();
-
-    //--] let menu_button = MenuButton::builder()
-    //--]     .icon_name("open-menu-symbolic")
-    //--]     .popover(&menu_popover)
-    //--]     .build();
-
-    //--] header_bar.pack_end(&menu_button);
 }
 
-pub mod helpers {
-    use gtk::Entry;
-    use gtk::prelude::*;
-
-    pub const INVALID_CSS_CLASS: &str = "invalid";
-
-    /// Marks the entry as valid or invalid.
-    pub fn update_validity_style(entry: &Entry, valid: bool) {
-        if valid {
-            entry_valid(entry);
-        } else {
-            entry_invalid(entry);
-        }
-    }
-
-    /// Marks the entry as valid.
-    ///
-    /// This will remove the invalid css class (see: [`INVALID_CSS_CLASS`])
-    pub fn entry_valid(entry: &Entry) {
-        entry.remove_css_class(INVALID_CSS_CLASS);
-    }
-
-    /// Marks the entry as invalid.
-    ///
-    /// This will add the invalid css class (see: [`INVALID_CSS_CLASS`])
-    pub fn entry_invalid(entry: &Entry) {
-        entry.add_css_class(INVALID_CSS_CLASS);
-    }
-
-}

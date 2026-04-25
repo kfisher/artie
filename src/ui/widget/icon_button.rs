@@ -1,13 +1,14 @@
 // Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
+//! Button widget for displaying both an icon and a label.
+
 use glib::Object;
 use gtk::{Box, Image, Label, Orientation};
 use gtk::glib;
 use gtk::prelude::*;
 
 glib::wrapper! {
-    /// Button widget for displaying both an icon and a label.
     pub struct IconButton(ObjectSubclass<imp::IconButton>)
         @extends gtk::Button,
                  gtk::Widget,
@@ -19,7 +20,18 @@ glib::wrapper! {
 }
 
 impl IconButton {
-    /// Creates a new [`IconButton`] instance.
+    /// Creates a new button instance.
+    ///
+    /// # Args
+    ///
+    /// `icon_name`:  The name of the icon. This is the name of the SVG file without the path or
+    /// file extension.
+    ///
+    /// `label`:  The button text.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the GObject cannot be created.
     pub fn new(icon_name: &str, label: &str) -> Self {
         Object::builder()
             .property("icon-name", icon_name)
@@ -27,10 +39,9 @@ impl IconButton {
             .build()
     }
 
-    /// Builds the user interface.
+    /// Builds the widget.
     ///
-    /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::IconButton::constructed`].
+    /// Called by the implementation ([`imp::IconButton`]) when constructed.
     fn build_ui(&self) {
         let icon = Image::builder()
             .build();
@@ -61,12 +72,10 @@ mod imp {
     use std::cell::RefCell;
 
     use gtk::Button;
-    use gtk::glib;
-    use gtk::glib::Properties;
+    use gtk::glib::{self, Properties};
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
-    /// Implementation for [`super::IconButton`].
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::IconButton)]
     pub struct IconButton {

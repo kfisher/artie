@@ -1,7 +1,7 @@
 // Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Defines the GObject representation of an optical drive's state.
+//! GObject enumerations.
 
 use gtk::glib;
 

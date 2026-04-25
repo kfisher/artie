@@ -5,11 +5,17 @@
 
 use rusqlite::Connection;
 
-use crate::{Error, Result};
-
-use super::Operation;
+use crate::Result;
 
 /// Creates the database table for storing transcode operation data if it does not exist.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
 pub(crate) fn create_table(conn: &Connection) -> Result<()> {
     let sql = "
         CREATE TABLE transcode_operation (
@@ -32,10 +38,7 @@ pub(crate) fn create_table(conn: &Connection) -> Result<()> {
         ) STRICT
     ";
 
-    let _ = conn.execute(sql, ()).map_err(|error| Error::Db {
-            operation: Operation::Execute,
-            error,
-        })?;
+    let _ = conn.execute(sql, ())?;
 
     tracing::info!("create transcode_operation table");
     Ok(())

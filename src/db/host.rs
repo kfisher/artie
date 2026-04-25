@@ -1,28 +1,33 @@
 // Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Database operations for [`Host`] data.
+//! Database operations for host data.
 
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::{Error, Result};
+use crate::error::ValidationError;
 use crate::models::Host;
 
-use super::Operation;
-
-/// Gets an [`Host`] from the database using its hostname if it exists or creates a new instance
-/// if it does not exist.
-pub fn get_or_create(conn: &Connection, hostname: &str) -> Result<Host> {
-    match get_by_serial_number(conn, hostname)? {
-        Some(drive) => Ok(drive),
-        None => create(conn, hostname),
-    }
-}
-
-/// Creates a new [`Host`] instance in the database.
+/// Creates a new host record in the database.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `hostname`:  The hostname.
+///
+/// # Errors
+///
+/// [`Error::Database`] raised if the database operation fails.
+/// 
+/// [`Error::Validation`] raised if the provided hostname is invalid.
 pub fn create(conn: &Connection, hostname: &str) -> Result<Host> {
     if hostname.trim().is_empty() {
-        return Err(Error::EmptyString { arg: String::from("hostname") });
+        return Err(Error::Validation {
+            error: ValidationError::EmptyString,
+            arg: String::from("serial_number")
+        });
     }
 
     let sql = "
@@ -31,17 +36,9 @@ pub fn create(conn: &Connection, hostname: &str) -> Result<Host> {
           RETURNING id
     ";
 
-    let mut stmt = conn.prepare(sql)
-        .map_err(|error| Error::Db {
-            operation: Operation::Prepare,
-            error,
-        })?;
+    let mut stmt = conn.prepare(sql)?;
 
-    let id = stmt.query_row((hostname,), |r| r.get::<_, u32>(0))
-        .map_err(|error| Error::Db {
-            operation: Operation::Query,
-            error,
-        })?;
+    let id = stmt.query_row((hostname,), |r| r.get::<_, u32>(0))?;
 
     let host = Host {
         id,
@@ -52,7 +49,38 @@ pub fn create(conn: &Connection, hostname: &str) -> Result<Host> {
     Ok(host)
 }
 
-/// Gets an [`Host`] from the database using its hostname if it exists.
+/// Gets a host record from the database using its hostname if it exists or creates a new instance
+/// if it does not exist.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `hostname`:  The hostname.
+///
+/// # Errors
+///
+/// [`Error::Database`] raised if the database operation fails.
+/// 
+/// [`Error::Validation`] raised if the provided hostname is invalid.
+pub fn get_or_create(conn: &Connection, hostname: &str) -> Result<Host> {
+    match get_by_serial_number(conn, hostname)? {
+        Some(drive) => Ok(drive),
+        None => create(conn, hostname),
+    }
+}
+
+/// Gets an host record from the database using its hostname if it exists.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `hostname`:  The hostname.
+///
+/// # Errors
+///
+/// [`Error::Database`] raised if the database operation fails.
 pub fn get_by_serial_number(conn: &Connection, hostname: &str) -> Result<Option<Host>> {
     let sql = "
         SELECT host.id, host.hostname
@@ -60,11 +88,7 @@ pub fn get_by_serial_number(conn: &Connection, hostname: &str) -> Result<Option<
          WHERE hostname=:hostname
     ";
 
-    let mut stmt = conn.prepare(sql)
-        .map_err(|error| Error::Db {
-            operation: Operation::Prepare,
-            error,
-        })?;
+    let mut stmt = conn.prepare(sql)?;
 
     let host = stmt.query_one(
         &[(":hostname", hostname)],
@@ -72,15 +96,20 @@ pub fn get_by_serial_number(conn: &Connection, hostname: &str) -> Result<Option<
             id: r.get::<_, u32>(0)?,
             hostname: r.get::<_, String>(1)?
         })
-    ).optional().map_err(|error| Error::Db {
-        operation: Operation::Query,
-        error,
-    })?;
+    ).optional()?;
 
     Ok(host)
 }
 
 /// Creates the database table for storing host data if it does not exist.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// # Errors
+///
+/// [`Error::Database`] raised if the database operation fails.
 pub fn create_table(conn: &Connection) -> Result<()> {
     let sql = "
         CREATE TABLE host (
@@ -89,10 +118,7 @@ pub fn create_table(conn: &Connection) -> Result<()> {
         ) STRICT
     ";
 
-    let _ = conn.execute(sql, ()).map_err(|error| Error::Db {
-            operation: Operation::Execute,
-            error,
-        })?;
+    let _ = conn.execute(sql, ())?;
 
     tracing::info!("create host table");
     Ok(())

@@ -5,13 +5,22 @@
 
 use rusqlite::Connection;
 
-use crate::{Error, Result};
+use crate::Result;
 use crate::models::Title;
 
-use super::Operation;
 use super::conv;
 
-/// Creates a new [`Title`] instance in the database.
+/// Creates a new title record in the database.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `title`:   The title data to create the record from. If successful, the id field will be set.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
 pub fn create(conn: &Connection, title: &mut Title) -> Result<()> {
     let sql = "
         INSERT INTO title ( title_index
@@ -45,10 +54,7 @@ pub fn create(conn: &Connection, title: &mut Title) -> Result<()> {
           RETURNING id
     ";
 
-    let mut stmt = conn.prepare(sql).map_err(|error| Error::Db {
-            operation: Operation::Prepare,
-            error,
-        })?;
+    let mut stmt = conn.prepare(sql)?;
 
     let (sf_kind, sf_name) = conv::special_feature_to_sql(&title.special_feature);
 
@@ -68,10 +74,7 @@ pub fn create(conn: &Connection, title: &mut Title) -> Result<()> {
         title.memo,
     ];
 
-    let id = stmt.query_row(params, |r| r.get::<_, u32>(0)).map_err(|error| Error::Db {
-        operation: Operation::Query,
-        error,
-    })?;
+    let id = stmt.query_row(params, |r| r.get::<_, u32>(0))?;
 
     title.id = id;
 
@@ -80,6 +83,14 @@ pub fn create(conn: &Connection, title: &mut Title) -> Result<()> {
 }
 
 /// Creates the database table for storing title data if it does not exist.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
 pub fn create_table(conn: &Connection) -> Result<()> {
     let sql = "
         CREATE TABLE title (
@@ -100,10 +111,7 @@ pub fn create_table(conn: &Connection) -> Result<()> {
         ) STRICT
     ";
 
-    let _ = conn.execute(sql, ()).map_err(|error| Error::Db {
-            operation: Operation::Execute,
-            error,
-        })?;
+    let _ = conn.execute(sql, ())?;
 
     tracing::info!("create title table");
     Ok(())

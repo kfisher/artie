@@ -1,10 +1,12 @@
 // Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Handles saving and restoring drive information.
+//! Persistent drive information.
 //!
 //! This module is used to save and load drive information like the current state and current form
 //! data so that the information can persist across application runs.
+//!
+//! This does not include the drive's entry in the database which is handled by the database actor.
 
 use std::fs;
 use std::io::Write;
@@ -12,7 +14,6 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::error::SerializationError;
 use crate::{Error, Result};
 
 /// Persistent drive information.
@@ -24,31 +25,32 @@ pub struct Data {
 
 impl Data {
     /// Loads the persistent data for a drive.
+    ///
+    /// If the file does not exist, the default values will be returned.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::SerdeJson`] or [`Error::StdIo`] if an error occurs while trying to read or parse
+    /// the data file if it exists.
     pub fn load(path: &Path) -> Result<Data> {
         if !path.exists() {
             return Err(Error::FileNotFound { path: path.to_owned() });
         }
-        let text = fs::read_to_string(path)
-            .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
-        let data: Data = serde_json::from_str(&text)
-            .map_err(|error| Error::Serialization {
-                path: Some(path.to_owned()),
-                error: SerializationError::JsonDeserialize(error)
-            })?;
+        let text = fs::read_to_string(path)?;
+        let data: Data = serde_json::from_str(&text)?;
         Ok(data)
     }
 
     /// Saves the persistent data for a drive.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::SerdeJson`] or [`Error::StdIo`] if an error occurs while trying to serialize or
+    /// write the data to the file.
     pub fn save(&self, path: &Path) -> Result<()> {
-        let text = serde_json::to_string_pretty(self)
-            .map_err(|error| Error::Serialization {
-                path: Some(path.to_owned()),
-                error: SerializationError::JsonDeserialize(error)
-            })?;
-        let mut file = fs::File::create(path)
-            .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
-        file.write_all(text.as_bytes())
-            .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
+        let text = serde_json::to_string_pretty(self)?;
+        let mut file = fs::File::create(path)?;
+        file.write_all(text.as_bytes())?;
         Ok(())
     }
 }
@@ -59,25 +61,27 @@ impl Data {
 /// copying multiple discs with common data (e.g. multiple discs for a show).
 #[derive(Deserialize, Debug, Default, Serialize)]
 pub struct FormData {
-    /// The type of media.
+    /// The type of media being copied (Movie or TV Show).
     pub media_type: String,
 
-    /// The movie or show title.
+    /// The title of the show or movie.
     pub title: String,
 
-    /// The release year.
+    /// The release year of the movie or show (first season premier).
     pub year: String,
 
-    /// The disc number.
+    /// Disc number.
     pub disc_number: String,
 
-    /// The season number (empty for non-shows).
+    /// The season of the show the title belongs to.
+    ///
+    /// This is only required for television shows. It will be ignored for movies.
     pub season_number: String,
 
-    /// The physical location of the disc being copied.
+    /// Location where the disc is stored.
     pub storage_location: String,
 
-    /// Additional information/context provided by the user.
+    /// Additional information provided by the user.
     pub memo: String,
 }
 
@@ -88,52 +92,80 @@ pub struct FormData {
 /// create an instance with its field filled in.
 #[derive(Debug, Default)]
 pub struct FormDataUpdate {
+    /// The type of media being copied (Movie or TV Show).
     pub media_type: Option<String>,
+
+    /// The title of the show or movie.
     pub title: Option<String>,
+
+    /// The release year of the movie or show (first season premier).
     pub year: Option<String>,
+
+    /// Disc number.
     pub disc_number: Option<String>,
+
+    /// The season of the show the title belongs to.
+    ///
+    /// This is only required for television shows. It will be ignored for movies.
     pub season_number: Option<String>,
+
+    /// Location where the disc is stored.
     pub storage_location: Option<String>,
+
+    /// Additional information provided by the user.
     pub memo: Option<String>
 }
 
 impl FormDataUpdate {
+    /// Create a form data update instance for updating the media type.
     pub fn media_type(value: String) -> Self {
         Self {
             media_type: Some(value),
             ..FormDataUpdate::default()
         }
     }
+
+    /// Create a form data update instance for updating the title.
     pub fn title(value: String) -> Self {
         Self {
             title: Some(value),
             ..FormDataUpdate::default()
         }
     }
+
+    /// Create a form data update instance for updating the yer.
     pub fn year(value: String) -> Self {
         Self {
             year: Some(value),
             ..FormDataUpdate::default()
         }
     }
+
+    /// Create a form data update instance for updating the disc number.
     pub fn disc_number(value: String) -> Self {
         Self {
             disc_number: Some(value),
             ..FormDataUpdate::default()
         }
     }
+
+    /// Create a form data update instance for updating the season number.
     pub fn season_number(value: String) -> Self {
         Self {
             season_number: Some(value),
             ..FormDataUpdate::default()
         }
     }
+
+    /// Create a form data update instance for updating the storage location.
     pub fn storage_location(value: String) -> Self {
         Self {
             storage_location: Some(value),
             ..FormDataUpdate::default()
         }
     }
+
+    /// Create a form data update instance for updating the memo.
     pub fn memo(value: String) -> Self {
         Self {
             memo: Some(value),

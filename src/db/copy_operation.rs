@@ -1,7 +1,7 @@
 // Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Database operations for [`CopyOperation`] data.
+//! Database operations for copy operation data.
 
 use chrono::{DateTime, Utc};
 
@@ -9,14 +9,24 @@ use rusqlite::Connection;
 
 use makemkv::DiscInfo;
 
-use crate::{Error, Result};
+use crate::Result;
 use crate::compress;
 use crate::models::{CopyOperation, OperationState};
 
-use super::Operation;
 use super::conv;
 
-/// Creates a new [`CopyOperation`] instance in the database.
+/// Creates a new copy operation record in the database.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `copy_operation`:  The copy operation data to create the record from. If successful, the id
+/// field will be set.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
 pub fn create(conn: &Connection, copy_operation: &mut CopyOperation) -> Result<()> {
     let sql = "
         INSERT INTO copy_operation ( started
@@ -58,11 +68,7 @@ pub fn create(conn: &Connection, copy_operation: &mut CopyOperation) -> Result<(
           RETURNING id
     ";
 
-    let mut stmt = conn.prepare(sql)
-        .map_err(|error| Error::Db {
-            operation: Operation::Prepare,
-            error,
-        })?;
+    let mut stmt = conn.prepare(sql)?;
 
     let (state, error) = conv::operation_state_to_sql(&copy_operation.state);
 
@@ -86,10 +92,7 @@ pub fn create(conn: &Connection, copy_operation: &mut CopyOperation) -> Result<(
         error,
     ];
 
-    let id = stmt.query_row(params, |r| r.get::<_, u32>(0)).map_err(|error| Error::Db {
-        operation: Operation::Query,
-        error,
-    })?;
+    let id = stmt.query_row(params, |r| r.get::<_, u32>(0))?;
 
     copy_operation.id = id;
 
@@ -97,8 +100,181 @@ pub fn create(conn: &Connection, copy_operation: &mut CopyOperation) -> Result<(
     Ok(())
 }
 
+/// Update the copy log field of a copy operation record.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `copy_operation`:  The copy operation being updated. If this operation is successful, its
+/// copy log field will be updated.
+///
+/// `info_log`:  The copy log text.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
+///
+/// [`crate::Error::StdIo`] raised if the provided log cannot be compressed.
+pub fn set_copy_log(
+    conn: &Connection,
+    copy_operation: &mut CopyOperation,
+    copy_log: &str,
+) -> Result<()> {
+    let sql = "
+        UPDATE copy_operation
+           SET copy_log=?1
+         WHERE id=?2
+    ";
+
+    let bytes = compress::compress(copy_log)?;
+
+    let _ = conn.execute(sql, (bytes, copy_operation.id))?;
+
+    copy_operation.copy_log = copy_log.to_owned();
+
+    tracing::trace!(id=copy_operation.id, "set copy_operation copy log");
+    Ok(())
+}
+
+/// Update the info log field of a copy operation record.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `copy_operation`:  The copy operation being updated. If this operation is successful, its
+/// info log field will be updated.
+///
+/// `info_log`:  The info log text.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
+///
+/// [`crate::Error::StdIo`] raised if the provided log cannot be compressed.
+pub fn set_info_log(
+    conn: &Connection,
+    copy_operation: &mut CopyOperation,
+    info_log: &str,
+) -> Result<()> {
+    let sql = "
+        UPDATE copy_operation
+           SET info_log=?1
+         WHERE id=?2
+    ";
+
+    let bytes = compress::compress(info_log)?;
+
+    let _ = conn.execute(sql, (bytes, copy_operation.id))?;
+
+    copy_operation.info_log = info_log.to_owned();
+
+    tracing::trace!(id=copy_operation.id, "set copy_operation info log");
+    Ok(())
+}
+
+/// Update the metadata field of a copy operation record.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `copy_operation`:  The copy operation being updated. If this operation is successful, its
+/// metadata field will be updated.
+///
+/// `disc_info`:  The disc information that was extracted from the disc. This will be converted to
+/// JSON and then compressed.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
+///
+/// [`crate::Error::SerdeJson`] raised if the provided disc info cannot be converted into JSON.
+///
+/// [`crate::Error::StdIo`] raised if the provided disc info cannot be compressed.
+pub fn set_metadata(
+    conn: &Connection,
+    copy_operation: &mut CopyOperation,
+    disc_info: &DiscInfo,
+) -> Result<()> {
+    let sql = "
+        UPDATE copy_operation
+           SET metadata=?1
+         WHERE id=?2
+    ";
+
+    let json = disc_info.as_json()?;
+
+    // The metadata isn't really needed after the copy operation and is kept for information
+    // purposes only. Therefore compress the data.
+    let bytes = compress::compress(&json)?;
+
+    let _ = conn.execute(sql, (bytes, copy_operation.id))?;
+
+    copy_operation.metadata = json;
+
+    tracing::trace!(id=copy_operation.id, "set copy_operation metadata");
+    Ok(())
+}
+
+/// Update the state, completed, and error fields of a copy operation record based off the provided
+/// operation state.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `copy_operation`:  The copy operation being updated. If this operation is successful, its
+/// operation state will be updated. Additionally, this will also update the completed field if the
+/// new state is `Completed`, `Cancelled`, or `Failed` to the current UTC time.
+///
+/// `operation_state`:  The new state of the copy operation.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
+pub fn set_state(
+    conn: &Connection,
+    copy_operation: &mut CopyOperation,
+    operation_state: OperationState,
+) -> Result<()> {
+    let sql = "
+        UPDATE copy_operation
+           SET state=?1,
+               completed=?2,
+               error=?3
+         WHERE id=?4
+    ";
+
+    let (state, error) = conv::operation_state_to_sql(&operation_state);
+
+    let completed = match operation_state {
+        OperationState::Completed | OperationState::Cancelled | OperationState::Failed { .. } => {
+            Utc::now()
+        },
+        _ => DateTime::<Utc>::default(),
+    };
+
+    let _ = conn.execute(sql, (state, completed.timestamp(), error, copy_operation.id))?;
+
+    copy_operation.state = operation_state;
+    copy_operation.completed = completed;
+
+    tracing::trace!(id=copy_operation.id, "set copy_operation state, completed, error");
+    Ok(())
+}
+
 /// Creates the database table for storing copy operation data if it does not exist.
-pub fn create_table(conn: &Connection) -> Result<()> {
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
+pub(super) fn create_table(conn: &Connection) -> Result<()> {
     let sql = "
         CREATE TABLE copy_operation (
             id          INTEGER  PRIMARY KEY AUTOINCREMENT,
@@ -124,126 +300,9 @@ pub fn create_table(conn: &Connection) -> Result<()> {
         ) STRICT
     ";
 
-    let _ = conn.execute(sql, ()).map_err(|error| Error::Db {
-            operation: Operation::Execute,
-            error,
-        })?;
+    let _ = conn.execute(sql, ())?;
 
     tracing::info!("create copy_operation table");
-    Ok(())
-}
-
-/// Set the copy log of the copy operation update the database record.
-pub fn set_copy_log(
-    conn: &Connection,
-    copy_operation: &mut CopyOperation,
-    copy_log: &str,
-) -> Result<()> {
-    let sql = "
-        UPDATE copy_operation
-           SET copy_log=?1
-         WHERE id=?2
-    ";
-
-    let bytes = compress::compress(copy_log)?;
-
-    let _ = conn.execute(sql, (bytes, copy_operation.id)).map_err(|error| Error::Db {
-        operation: Operation::Execute,
-        error,
-    })?;
-
-    copy_operation.copy_log = copy_log.to_owned();
-
-    tracing::trace!(id=copy_operation.id, "set copy_operation copy log");
-    Ok(())
-}
-
-/// Set the info log of the copy operation update the database record.
-pub fn set_info_log(
-    conn: &Connection,
-    copy_operation: &mut CopyOperation,
-    info_log: &str,
-) -> Result<()> {
-    let sql = "
-        UPDATE copy_operation
-           SET info_log=?1
-         WHERE id=?2
-    ";
-
-    let bytes = compress::compress(info_log)?;
-
-    let _ = conn.execute(sql, (bytes, copy_operation.id)).map_err(|error| Error::Db {
-        operation: Operation::Execute,
-        error,
-    })?;
-
-    tracing::trace!(id=copy_operation.id, "set copy_operation info log");
-    Ok(())
-}
-
-/// Set the info log of the copy operation update the database record.
-pub fn set_metadata(
-    conn: &Connection,
-    copy_operation: &mut CopyOperation,
-    disc_info: &DiscInfo,
-) -> Result<()> {
-    let sql = "
-        UPDATE copy_operation
-           SET metadata=?1
-         WHERE id=?2
-    ";
-
-    let json = disc_info.as_json()
-        .map_err(|error| Error::MakeMKV { error })?;
-
-    // The metadata isn't really needed after the copy operation and is kept for information
-    // purposes only. Therefore compress the data.
-    let bytes = compress::compress(&json)?;
-
-    let _ = conn.execute(sql, (bytes, copy_operation.id)).map_err(|error| Error::Db {
-        operation: Operation::Execute,
-        error,
-    })?;
-
-    tracing::trace!(id=copy_operation.id, "set copy_operation metadata");
-    Ok(())
-}
-
-/// Sets the state of the copy operation and update the database record.
-///
-/// This will also set the completed and error fields if applicable based of the state.
-pub fn set_state(
-    conn: &Connection,
-    copy_operation: &mut CopyOperation,
-    operation_state: OperationState,
-) -> Result<()> {
-    let sql = "
-        UPDATE copy_operation
-           SET state=?1,
-               completed=?2,
-               error=?3
-         WHERE id=?4
-    ";
-
-    let (state, error) = conv::operation_state_to_sql(&operation_state);
-
-    let completed = match operation_state {
-        OperationState::Completed | OperationState::Cancelled | OperationState::Failed { .. } => {
-            Utc::now()
-        },
-        _ => DateTime::<Utc>::default(),
-    };
-
-    let _ = conn.execute(sql, (state, completed.timestamp(), error, copy_operation.id))
-        .map_err(|error| Error::Db {
-            operation: Operation::Execute,
-            error,
-        })?;
-
-    copy_operation.state = operation_state;
-    copy_operation.completed = completed;
-
-    tracing::trace!(id=copy_operation.id, "set copy_operation state, completed, error");
     Ok(())
 }
 

@@ -1,7 +1,7 @@
 // Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Defines the application window widget.
+//! Main application window.
 
 use glib::Object;
 
@@ -11,10 +11,9 @@ use gtk::glib;
 use gtk::prelude::*;
 
 use crate::ui::context::ContextObject;
-use crate::ui::widget::copy_page::CopyPageWidget;
+use crate::ui::widget::CopyPageWidget;
 
 glib::wrapper! {
-    /// Application window widget.
     pub struct Window(ObjectSubclass<imp::Window>)
         @extends gtk::ApplicationWindow,
                  gtk::Window,
@@ -30,7 +29,17 @@ glib::wrapper! {
 }
 
 impl Window {
-    /// Creates a new [`Window`] widget.
+    /// Constructs a new window instance.
+    ///
+    /// # Args
+    ///
+    /// `app`:  The GTK application the window is being constructed for.
+    ///
+    /// `context`:  The application context.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the GObject cannot be created.
     pub fn new(app: &Application, context: &ContextObject) -> Self {
         Object::builder()
             .property("application", app)
@@ -38,10 +47,9 @@ impl Window {
             .build()
     }
 
-    /// Builds the user interface.
+    /// Builds the widget.
     ///
-    /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::Window::constructed`].
+    /// Called by the implementation ([`imp::Window`]) when constructed.
     fn build_ui(&self) {
         let context = self.context().expect("context not set");
         if context.is_worker() {
@@ -51,7 +59,7 @@ impl Window {
         }
     }
 
-    /// Builds the user interface for running in standalone or control mode.
+    /// Builds the widget when running as a control node.
     fn build_control_ui(&self) {
         let context = self.context().expect("context not set");
 
@@ -84,9 +92,19 @@ impl Window {
         self.set_default_width(1080);
         self.set_default_height(920);
         self.set_child(Some(&stack));
+
+        //--] let menu_popover = PopoverMenu::builder()
+        //--]     .build();
+
+        //--] let menu_button = MenuButton::builder()
+        //--]     .icon_name("open-menu-symbolic")
+        //--]     .popover(&menu_popover)
+        //--]     .build();
+
+        //--] header_bar.pack_end(&menu_button);
     }
 
-    /// Builds the user interface when running as a worker node.
+    /// Builds the widget when running as a worker node.
     fn build_worker_ui(&self) {
         let header_bar = HeaderBar::builder()
             .build();
@@ -104,23 +122,21 @@ impl Window {
 }
 
 mod imp {
-    //! Implemenation for the application window.
-
     use std::cell::RefCell;
 
     use gtk::ApplicationWindow;
-    use gtk::glib;
-    use gtk::glib::Properties;
+    use gtk::glib::{self, Properties};
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
     use crate::ui::context::ContextObject;
 
-    /// Implemenation for [`super::Window`].
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::Window)]
     pub struct Window {
         /// The application context.
+        ///
+        /// This property can only be set when the window is constructed.
         #[property(get, set = Self::set_context, construct_only)]
         pub(super) context: RefCell<Option<ContextObject>>,
     }
@@ -152,4 +168,9 @@ mod imp {
     impl WindowImpl for Window {}
 
     impl ApplicationWindowImpl for Window {}
+}
+
+#[cfg(test)]
+mod tests {
+    // TODO
 }

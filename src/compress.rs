@@ -8,13 +8,19 @@ use std::io::prelude::*;
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
 
-use crate::{Error, Result};
+use crate::Result;
 
 /// Compress the provided string.
+///
+/// # Args
+///
+/// `s`:  The string to compress.
+///
+/// # Errors
+///
+/// [`crate::Error::StdIo`] Raised if the provided string cannot be compressed.
 pub fn compress(s: &str) -> Result<Vec<u8>> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
-    encoder.write_all(s.as_bytes())
-        .map_err(|error| Error::CompressIo { error })?;
-    encoder.finish()
-        .map_err(|error| Error::CompressIo { error })
+    encoder.write_all(s.as_bytes())?;
+    encoder.finish().map_err(|e| e.into())
 }

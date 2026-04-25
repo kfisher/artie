@@ -1,19 +1,33 @@
 // Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Database operations for [`OpticalDrive`] data.
+//! Database operations for optical drive data.
 
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::{Error, Result};
+use crate::error::ValidationError;
 use crate::models::OpticalDrive;
 
-use super::Operation;
-
-/// Creates a new [`OpticalDrive`] instance in the database.
+/// Create a new optical drive record in the database.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `serial_number`:  The serial number of the drive.
+///
+/// # Errors
+///
+/// [`Error::Database`] raised if the database operation fails.
+/// 
+/// [`Error::Validation`] raised if the provided serial number is invalid.
 pub fn create(conn: &Connection, serial_number: &str) -> Result<OpticalDrive> {
     if serial_number.trim().is_empty() {
-        return Err(Error::EmptyString { arg: String::from("serial_number") });
+        return Err(Error::Validation {
+            error: ValidationError::EmptyString,
+            arg: String::from("serial_number")
+        });
     }
 
     let sql = "
@@ -22,15 +36,9 @@ pub fn create(conn: &Connection, serial_number: &str) -> Result<OpticalDrive> {
           RETURNING id
     ";
 
-    let mut stmt = conn.prepare(sql).map_err(|error| Error::Db {
-            operation: Operation::Prepare,
-            error,
-        })?;
+    let mut stmt = conn.prepare(sql)?;
 
-    let id = stmt.query_row((serial_number,), |r| r.get::<_, u32>(0)).map_err(|error| Error::Db {
-        operation: Operation::Query,
-        error,
-    })?;
+    let id = stmt.query_row((serial_number,), |r| r.get::<_, u32>(0))?;
 
     let drive = OpticalDrive {
         id,
@@ -41,7 +49,17 @@ pub fn create(conn: &Connection, serial_number: &str) -> Result<OpticalDrive> {
     Ok(drive)
 }
 
-/// Gets an [`OpticalDrive`] from the database using its serial number if it exists.
+/// Gets an optical drive record from the database using its serial number if it exists.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `serial_number`:  The serial number of the drive.
+///
+/// # Errors
+///
+/// [`Error::Database`] raised if the database operation fails.
 pub fn get_by_serial_number(
     conn: &Connection,
     serial_number: &str
@@ -52,27 +70,30 @@ pub fn get_by_serial_number(
          WHERE serial_number=:serial_number
     ";
 
-    let mut stmt = conn.prepare(sql).map_err(|error| Error::Db {
-        operation: Operation::Prepare,
-        error,
-    })?;
+    let mut stmt = conn.prepare(sql)?;
 
     let drive = stmt.query_one(
         &[(":serial_number", serial_number)],
-        |r| Ok(OpticalDrive {
-            id: r.get::<_, u32>(0)?,
-            serial_number: r.get::<_, String>(1)?
-        })
-    ).optional().map_err(|error| Error::Db {
-        operation: Operation::Query,
-        error,
-    })?;
+        |r| Ok(OpticalDrive { id: r.get::<_, u32>(0)?, serial_number: r.get::<_, String>(1)? })
+    ).optional()?;
 
     Ok(drive)
 }
 
-/// Gets an [`OpticalDrive`] from the database using its serial number if it exists or creates a
-/// new instance if it does not exist.
+/// Gets an optical drive record from the database using its serial number if it exists or creates
+/// a new instance if it does not exist.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `serial_number`:  The serial number of the drive.
+///
+/// # Errors
+///
+/// [`Error::Database`] raised if the database operation fails.
+/// 
+/// [`Error::Validation`] raised if the provided serial number is invalid.
 pub fn get_or_create(conn: &Connection, serial_number: &str) -> Result<OpticalDrive> {
     match get_by_serial_number(conn, serial_number)? {
         Some(drive) => Ok(drive),
@@ -81,7 +102,15 @@ pub fn get_or_create(conn: &Connection, serial_number: &str) -> Result<OpticalDr
 }
 
 /// Creates the database table for storing optical drive data if it does not exist.
-pub(crate) fn create_table(conn: &Connection) -> Result<()> {
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// # Errors
+///
+/// [`Error::Database`] raised if the database operation fails.
+pub(super) fn create_table(conn: &Connection) -> Result<()> {
     let sql = "
         CREATE TABLE optical_drive (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,10 +118,7 @@ pub(crate) fn create_table(conn: &Connection) -> Result<()> {
         ) STRICT
     ";
 
-    let _ = conn.execute(sql, ()).map_err(|error| Error::Db {
-            operation: Operation::Execute,
-            error,
-        })?;
+    let _ = conn.execute(sql, ())?;
 
     tracing::info!("create optical_drive table");
     Ok(())

@@ -19,17 +19,15 @@ use gtk::{
     SignalListItemFactory
 };
 use gtk::gio::ListStore;
-use gtk::glib;
-use gtk::glib::Object;
+use gtk::glib::{self, Object};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
-use crate::drive::glib::OpticalDriveObject;
-use crate::ui::widget::DriveWidget;
 use crate::ui::ContextObject;
+use crate::ui::data::OpticalDriveObject;
+use crate::ui::widget::DriveWidget;
 
 glib::wrapper! {
-    /// Widget used to initiate, monitor, and terminate copy operations.
     pub struct CopyPageWidget(ObjectSubclass<imp::CopyPageWidget>)
         @extends gtk::Box,
                  gtk::Widget,
@@ -40,17 +38,24 @@ glib::wrapper! {
 }
 
 impl CopyPageWidget {
-    /// Creates a new [`CopyPageWidget`] instance.
+    /// Creates a new copy page instance.
+    ///
+    /// # Args
+    ///
+    /// `context`:  The application context fo the UI.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the GObject cannot be created.
     pub fn new(context: &ContextObject) -> Self {
         Object::builder()
             .property("context", context)
             .build()
     }
 
-    /// Builds the user interface.
+    /// Builds the widget.
     ///
-    /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::CopyPageWidget::constructed`].
+    /// Called by the implementation ([`imp::CopyPageWidget`]) when constructed.
     fn build_ui(&self) {
         let list_view = ListView::builder()
             .halign(Align::Center)
@@ -88,13 +93,12 @@ impl CopyPageWidget {
             .borrow()
             .as_ref()
             .expect("drive_list_view should not be None")
-            .set_model(Some(&NoSelection::new(context.drives_store())));
+            .set_model(Some(&NoSelection::new(context.drive_store())));
     }
 
     /// Configures the factory used in the drive list view.
     ///
-    /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::CopyPageWidget::constructed`].
+    /// Called by the implementation ([`imp::CopyPageWidget`]) when constructed.
     fn setup_factory(&self) {
         let factory = SignalListItemFactory::new();
 
@@ -140,20 +144,13 @@ impl CopyPageWidget {
             .set_factory(Some(&factory));
     }
 
-    /// Configures the signals and callbacks.
-    ///
-    /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::CopyPageWidget::constructed`].
-    fn setup_callbacks(&self) {
-    }
-
     /// Starts the future that will be responsible for monitoring the status of the optical drives
     /// and updating their status.
     fn start_drive_monitor(&self) {
         let drives_store = self.context()
             .expect("context not set")
-            .drives_store()
-            .expect("drives_store not set");
+            .drive_store()
+            .expect("drive_store not set");
 
         glib::spawn_future_local(async move {
             loop {
@@ -183,8 +180,7 @@ mod imp {
 
     use gtk::{Box, ListView};
 
-    use gtk::glib;
-    use gtk::glib::Properties;
+    use gtk::glib::{self, Properties};
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
@@ -225,7 +221,6 @@ mod imp {
             obj.build_ui();
             obj.setup_model();
             obj.setup_factory();
-            obj.setup_callbacks();
             obj.start_drive_monitor();
         }
     }
@@ -233,4 +228,9 @@ mod imp {
     impl WidgetImpl for CopyPageWidget {}
 
     impl BoxImpl for CopyPageWidget {}
+}
+
+#[cfg(test)]
+mod tests {
+    // TODO
 }

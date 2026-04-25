@@ -1,7 +1,7 @@
 // Copyright 2025 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Defines the widget for entering copy parameters.
+//! Widget for entering copy parameters.
 
 use std::fmt::{self, Display, Formatter};
 
@@ -14,17 +14,15 @@ use gtk::{
     Orientation,
     StringList
 };
-use gtk::glib;
-use gtk::glib::Object;
+use gtk::glib::{self, Object};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
-use crate::drive::data::FormData;
+use crate::drive::FormData;
 use crate::models::{CopyParamaters, MediaType};
 use crate::ui::helpers;
 
 glib::wrapper! {
-    /// Widget used to initiate, monitor, and terminate copy operations for an optical drive.
     pub struct CopyFormWidget(ObjectSubclass<imp::CopyFormWidget>)
         @extends gtk::Box,
                  gtk::Widget,
@@ -35,7 +33,11 @@ glib::wrapper! {
 }
 
 impl CopyFormWidget {
-    /// Creates a new [`CopyFormWidget`] instance.
+    /// Constructs a new copy form instance.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the GObject cannot be created.
     pub fn new() -> Self {
         Object::builder().build()
     }
@@ -52,6 +54,11 @@ impl CopyFormWidget {
     }
 
     /// Subscribe to changes to the media type.
+    ///
+    /// # Args
+    ///
+    /// `f`:  Callback function called when the media type changes. Will only be called when the
+    /// selected media type is valid.
     pub fn connect_media_type_changed<F>(&self, f: F)
     where
         F: Fn(MediaType) + 'static
@@ -64,6 +71,14 @@ impl CopyFormWidget {
     }
 
     /// Subscribe to changes to the title.
+    ///
+    /// # Args
+    ///
+    /// `f`:  Callback function called when the title changes.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the delegate for the entry is `None`.
     pub fn connect_title_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
@@ -76,11 +91,19 @@ impl CopyFormWidget {
                 f(&entry.text());
             });
         } else {
-            tracing::error!("failed to get delegate for title");
+            panic!("failed to get delegate for title");
         }
     }
 
     /// Subscribe to changes to the year.
+    ///
+    /// # Args
+    ///
+    /// `f`:  Callback function called when the year changes.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the delegate for the entry is `None`.
     pub fn connect_year_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
@@ -93,11 +116,19 @@ impl CopyFormWidget {
                 f(&entry.text());
             });
         } else {
-            tracing::error!("failed to get delegate for year");
+            panic!("failed to get delegate for year");
         }
     }
 
     /// Subscribe to changes to the disc number.
+    ///
+    /// # Args
+    ///
+    /// `f`:  Callback function called when the disc number changes.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the delegate for the entry is `None`.
     pub fn connect_disc_number_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
@@ -110,11 +141,19 @@ impl CopyFormWidget {
                 f(&entry.text());
             });
         } else {
-            tracing::error!("failed to get delegate for disc_number");
+            panic!("failed to get delegate for disc_number");
         }
     }
 
     /// Subscribe to changes to the season number.
+    ///
+    /// # Args
+    ///
+    /// `f`:  Callback function called when the season number changes.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the delegate for the entry is `None`.
     pub fn connect_season_number_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
@@ -127,11 +166,19 @@ impl CopyFormWidget {
                 f(&entry.text());
             });
         } else {
-            tracing::error!("failed to get delegate for season_number");
+            panic!("failed to get delegate for season_number");
         }
     }
 
     /// Subscribe to changes to the storage location.
+    ///
+    /// # Args
+    ///
+    /// `f`:  Callback function called when the storage location changes.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the delegate for the entry is `None`.
     pub fn connect_location_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
@@ -144,11 +191,19 @@ impl CopyFormWidget {
                 f(&entry.text());
             });
         } else {
-            tracing::error!("failed to get delegate for location");
+            panic!("failed to get delegate for location");
         }
     }
 
     /// Subscribe to changes to the memo.
+    ///
+    /// # Args
+    ///
+    /// `f`:  Callback function called when the memo changes.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the delegate for the entry is `None`.
     pub fn connect_memo_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
@@ -161,7 +216,7 @@ impl CopyFormWidget {
                 f(&entry.text());
             });
         } else {
-            tracing::error!("failed to get delegate for memo");
+            panic!("failed to get delegate for memo");
         }
     }
 
@@ -244,10 +299,9 @@ impl CopyFormWidget {
         valid.iter().all(|v| *v)
     }
 
-    /// Builds the user interface.
+    /// Builds the widget.
     ///
-    /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::CopyFormWidget::constructed`].
+    /// Called by the implementation ([`imp::CopyFormWidget`]) when constructed.
     fn build_ui(&self) {
         let type_model = StringList::new(&[
             MediaType::Movie.as_str(),
@@ -411,8 +465,7 @@ impl CopyFormWidget {
 
     /// Configures the bindings.
     ///
-    /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::CopyFormWidget::constructed`].
+    /// Called by the implementation ([`imp::CopyFormWidget`]) when constructed.
     fn setup_bindings(&self) {
         let imp = self.imp();
 
@@ -435,8 +488,11 @@ impl CopyFormWidget {
 
     /// Configures the signals and callbacks.
     ///
-    /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::CopyFormWidget::constructed`].
+    /// Called by the implementation ([`imp::CopyFormWidget`]) when constructed.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if any of the required delegates are `None`.
     fn setup_callbacks(&self) {
         let imp = self.imp();
 
@@ -446,7 +502,7 @@ impl CopyFormWidget {
         if let Some(delegate) = year_entry.delegate() {
             delegate.connect_insert_text(number_only_insert_text);
         } else {
-            tracing::error!("failed to get delegate for year");
+            panic!("failed to get delegate for year");
         }
 
         let disc_number_entry = imp.disc_number_entry
@@ -454,7 +510,7 @@ impl CopyFormWidget {
         if let Some(delegate) = disc_number_entry.delegate() {
             delegate.connect_insert_text(number_only_insert_text);
         } else {
-            tracing::error!("failed to get delegate for disc number");
+            panic!("failed to get delegate for disc number");
         }
 
         let season_number_entry = imp.season_number_entry
@@ -462,11 +518,13 @@ impl CopyFormWidget {
         if let Some(delegate) = season_number_entry.delegate() {
             delegate.connect_insert_text(number_only_insert_text);
         } else {
-            tracing::error!("failed to get delegate for season number");
+            panic!("failed to get delegate for season number");
         }
     }
 
-    /// Validates the title.
+    /// Validates the title and return the result.
+    ///
+    /// This will update the entry's CSS to reflect is validly.
     fn validate_title(&self) -> bool {
         let entry = self.imp().title_entry.borrow();
         let valid = !entry.text().trim().is_empty();
@@ -476,7 +534,9 @@ impl CopyFormWidget {
         valid
     }
 
-    /// Validates the release year.
+    /// Validates the release year and return the result.
+    ///
+    /// This will update the entry's CSS to reflect is validly.
     fn validate_release_year(&self) -> bool {
         let entry = self.imp().year_entry.borrow();
         if let Ok(year) = entry.text().parse::<u16>() && (1000..=9999).contains(&year) {
@@ -488,7 +548,9 @@ impl CopyFormWidget {
         false
     }
 
-    /// Validates the disc number.
+    /// Validates the disc number and return the result.
+    ///
+    /// This will update the entry's CSS to reflect is validly.
     fn validate_disc_number(&self) -> bool {
         let entry = self.imp().disc_number_entry.borrow();
         if let Ok(disc_number) = entry.text().parse::<u16>() && disc_number > 0 {
@@ -500,7 +562,9 @@ impl CopyFormWidget {
         false
     }
 
-    /// Validates the season number.
+    /// Validates the season number and return the result.
+    ///
+    /// This will update the entry's CSS to reflect is validly.
     fn validate_season_number(&self) -> bool {
         let entry = self.imp().season_number_entry.borrow();
 
@@ -519,7 +583,9 @@ impl CopyFormWidget {
         false
     }
 
-    /// Validates the location field.
+    /// Validates the location field and return the result.
+    ///
+    /// This will update the entry's CSS to reflect is validly.
     fn validate_location(&self) -> bool {
         let entry = self.imp().location_entry.borrow();
         let valid = !entry.text().trim().is_empty();
@@ -529,8 +595,12 @@ impl CopyFormWidget {
         valid
     }
 
-    /// Validates the memo field.
+    /// Validates the memo field and return the result.
+    ///
+    /// This will update the entry's CSS to reflect is validly.
     fn validate_memo(&self) -> bool {
+        // The memo is optional so it is always valid. This function was created anyways should we
+        // want to add requirements to the memo that would need checked in the future.
         true
     }
 }
@@ -571,18 +641,12 @@ fn number_only_insert_text(entry: &gtk::Editable, text: &str, _position: &mut i3
 }
 
 mod imp {
-    //! Implementation for the optical drive widget.
-
     use std::cell::RefCell;
 
     use gtk::{Box, Entry, DropDown};
     use gtk::glib;
-    use gtk::glib::Binding;
     use gtk::subclass::prelude::*;
 
-
-
-    /// Implementation for [`super::CopyFormWidget`].
     #[derive(Default)]
     pub struct CopyFormWidget {
         /// Dropdown used to select the type of media.
@@ -608,13 +672,6 @@ mod imp {
 
         /// The entry for the meoy.
         pub(super) memo_entry: RefCell<Entry>,
-
-        /// The widget's bindings.
-        ///
-        /// This is populated when the widget is bound to a optical drive object
-        /// and cleared when unbound. See ([`super::CopyFormWidget::bind`]) and
-        /// ([`super::CopyFormWidget::unbind`]) for more information.
-        pub bindings: RefCell<Vec<Binding>>,
     }
 
     #[glib::object_subclass]
@@ -638,4 +695,9 @@ mod imp {
     impl WidgetImpl for CopyFormWidget {}
 
     impl BoxImpl for CopyFormWidget {}
+}
+
+#[cfg(test)]
+mod tests {
+    // TODO
 }

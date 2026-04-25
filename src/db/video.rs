@@ -5,13 +5,22 @@
 
 use rusqlite::Connection;
 
-use crate::{Error, Result};
-use crate::error;
+use crate::Result;
 use crate::models::{Video, VideoSource};
 
-use super::Operation;
 use super::conv;
 
+/// Creates a new video record in the database.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `title`:   The video data to create the record from. If successful, the id field will be set.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
 pub fn create(conn: &Connection, video: &mut Video) -> Result<()> {
     let sql = "
         INSERT INTO video ( location_area
@@ -43,10 +52,7 @@ pub fn create(conn: &Connection, video: &mut Video) -> Result<()> {
 
     let (loc_area, loc_path) = conv::media_location_to_sql(&video.location);
 
-    let mut stmt = conn.prepare(sql).map_err(|error| Error::Db {
-            operation: Operation::Prepare,
-            error,
-        })?;
+    let mut stmt = conn.prepare(sql)?;
 
     let (copy_operation, transcode_operation) = match &video.source {
         VideoSource::CopyOperation(reference) => (Some(reference.id), None),
@@ -60,22 +66,16 @@ pub fn create(conn: &Connection, video: &mut Video) -> Result<()> {
         loc_path,
         checksum.as_str(),
         conv::container_type_to_sql(&video.container),
-        serde_json::to_string(&video.video_tracks)
-            .map_err(error::json_serialize)?,
-        serde_json::to_string(&video.audio_tracks)
-            .map_err(error::json_serialize)?,
-        serde_json::to_string(&video.subtitle_tracks)
-            .map_err(error::json_serialize)?,
+        serde_json::to_string(&video.video_tracks)?,
+        serde_json::to_string(&video.audio_tracks)?,
+        serde_json::to_string(&video.subtitle_tracks)?,
         copy_operation,
         transcode_operation,
         video.title.id,
         video.duration.as_secs(),
     ];
 
-    let id = stmt.query_row(params, |r| r.get::<_, u32>(0)).map_err(|error| Error::Db {
-        operation: Operation::Query,
-        error,
-    })?;
+    let id = stmt.query_row(params, |r| r.get::<_, u32>(0))?;
 
     video.id = id;
 
@@ -84,6 +84,14 @@ pub fn create(conn: &Connection, video: &mut Video) -> Result<()> {
 }
 
 /// Creates the database table for storing video data if it does not exist.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
 pub fn create_table(conn: &Connection) -> Result<()> {
     let sql = "
         CREATE TABLE video (
@@ -105,10 +113,7 @@ pub fn create_table(conn: &Connection) -> Result<()> {
         ) STRICT
     ";
 
-    let _ = conn.execute(sql, ()).map_err(|error| Error::Db {
-            operation: Operation::Execute,
-            error,
-        })?;
+    let _ = conn.execute(sql, ())?;
 
     tracing::info!("create video table");
     Ok(())

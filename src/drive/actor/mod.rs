@@ -1,55 +1,54 @@
 // Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! TODO: DOC
+//! Actors for interfacing with optical drives.
 
-pub mod handle;
 pub mod local;
 pub mod manager;
-pub mod worker;
 
 use tokio::sync::mpsc;
-use tokio::sync::oneshot;
 
 use tokio_util::sync::CancellationToken;
 
 use makemkv::{CommandOutput, CopyCommandOutput, InfoCommandOutput};
 
-use crate::Result;
-use crate::drive::{OpticalDriveState, OpticalDriveStatus};
-use crate::drive::data::{FormData, FormDataUpdate};
+use crate::actor::Response;
+use crate::drive::{OpticalDrive, OpticalDriveState, OsOpticalDrive};
 use crate::models::{CopyParamaters, MediaLocation};
 
-/// Maxium number of messages for a drive actor that can be queued.
-const ACTOR_CHANNEL_BUFFER_SIZE: usize = 10;
+pub use crate::drive::data::{FormData, FormDataUpdate};
 
-/// Specifies the messages and responses for the optical drive actor.
+/// Optical drive actor requests.
 #[derive(Debug)]
-pub enum DriveActorMessage {
-    /// Request to cancel and in-progress copy operation.
-    CancelCopyDisc,
-
-    /// Request to start copying the disc in the optical drive.
-    CopyDisc {
-        parameters: CopyParamaters,
+pub enum DriveRequest {
+    /// Begin copying a disc.
+    BeginCopyDisc {
+        params: CopyParamaters,
+        response: Response<()>,
     },
 
-    // TODO: Should the responses send a result?
-
-    /// Request the form data from the drive's persistent data.
-    GetFormData {
-        response: oneshot::Sender<FormData>,
+    /// Cancel an in-progress copy operation.
+    CancelCopyDisc {
+        response: Response<()>,
     },
 
-    /// Request the current status of the optical drive.
+    /// Get the current status of an optical drive.
     GetStatus {
-        response: oneshot::Sender<OpticalDriveStatus>,
+        response: Response<OpticalDrive>,
     },
 
-    /// Request to reset the drive state back to idle.
+    /// Get the last saved values for a drive's copy parameters.
+    ReadFormData {
+        response: Response<FormData>,
+    },
+
+    /// Reset the drive state back to idle.
     ///
-    /// Resets the state from `Success` or `Failed` back to `Idle`.
-    Reset,
+    /// Should only be requested if the drive state is currently in `Success` or `Failed`. Will
+    /// result in an error if in any other state.
+    Reset {
+        response: Response<()>,
+    },
 
     /// Request to run the MakeMKV info command to gather information about the titles on the disc.
     RunMakeMkvInfo {
@@ -57,7 +56,7 @@ pub enum DriveActorMessage {
         device_path: String,
         log_file: MediaLocation,
         cancellation_token: CancellationToken,
-        response: oneshot::Sender<Result<InfoCommandOutput>>,
+        response: Response<InfoCommandOutput>,
     },
 
     /// Request to run the MakeMKV copy command to copy titles from the disc to the file system.
@@ -67,51 +66,47 @@ pub enum DriveActorMessage {
         output_dir: MediaLocation,
         log_file: MediaLocation,
         cancellation_token: CancellationToken,
-        response: oneshot::Sender<Result<CopyCommandOutput>>,
+        response: Response<CopyCommandOutput>,
     },
 
-    /// Update the form data stored in the drive's persistent data.
-    ///
-    /// Each field is optional that are `Some` if the field was modified or `None` if the field
-    /// hasn't changed.
-    UpdateFormData {
+    /// Update the copy parameters stored in the drive's persistent data.
+    SaveFormData {
         data: FormDataUpdate,
+        response: Response<()>,
     },
 
-    /// Updates the optical drive state.
-    UpdateOpticalDriveState {
-        state: OpticalDriveState,
-    }
-}
-
-/// Handles copy operations and monitoring the state of an optical drive.
-pub trait DriveActor {
-    /// Process a message sent to the actor.
-    fn proc_msg(&mut self, msg: DriveActorMessage) -> Result<()>;
-
-    /// Get the serial number of the drive associated with the actor.
-    fn serial_number(&self) -> &str;
-
-    /// Get the next message in the queue.
+    /// Updates the current state of the drive.
     ///
-    /// This will return `None` when the message channel is closed and does not contain any queued
-    /// messages. If the message queue is empty, but the channel is not closed, this will sleep
-    /// until a message is sent or the channel is closed.
-    async fn recv_msg(&mut self) -> Option<DriveActorMessage>;
+    /// This will update the drive status information based on an in-progress copy operation or an
+    /// operation that completed, failed, or was cancelled.
+    UpdateFromCopy {
+        state: OpticalDriveState,
+        response: Response<()>,
+    },
+
+    /// Updates the current state of the drive.
+    ///
+    /// This will update the drive status information based on what is reported by the OS. It is 
+    /// mainly meant for use within the drive module only which is why there isn't a corresponding
+    /// helper function.
+    ///
+    /// If `info` is `None`, then the information was unavailable without any errors being
+    /// reported. This most likely means the drive is disconnected and will be treated as such.
+    UpdateFromOs {
+        info: Option<OsOpticalDrive>,
+        response: Response<()>,
+    },
 }
 
-/// Runs the processing loop for the provided actor.
-///
-/// This processing loop will run until the actor's message channel is closed.
-pub async fn run_actor<T: DriveActor>(mut actor: T) {
-    tracing::info!(sn=actor.serial_number(), "message processing started");
-
-    while let Some(msg) = actor.recv_msg().await {
-        if let Err(error) = actor.proc_msg(msg) {
-            tracing::error!(sn=actor.serial_number(), ?error, "failed to process message.");
-        }
-    }
-
-    tracing::info!(sn=actor.serial_number(), "message processing ended");
+/// Optical drive manager requests
+#[derive(Debug)]
+pub enum ManagerRequest {
+    /// Get list of drive serial numbers.
+    ///
+    /// This will return the serial numbers for all optical drives that have an associated drive
+    /// actor. This includes local drives and those on remote worker nodes. Use the appropriate
+    /// drive specific request to get details about the drives.
+    GetDrives {
+        response: Response<Vec<String>>,
+    },
 }
-
