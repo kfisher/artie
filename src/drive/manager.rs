@@ -6,11 +6,25 @@
 //! The drive manager actor is responsible for managing the other drive actor instances. It also
 //! serves as the broker for drive related requests coming from the message bus.
 
-use crate::{Error, Result};
+use crate::{Error, Mode, Result};
 use crate::actor::{self, Response};
 use crate::bus;
-use crate::drive::{self, Handle, Message, OsOpticalDrive};
-use crate::drive::actor::ManagerRequest;
+use crate::drive::{self, Handle, Message};
+use crate::drive::monitor;
+use crate::task;
+
+/// Optical drive manager requests
+#[derive(Debug)]
+pub enum ManagerRequest {
+    /// Get list of drive serial numbers.
+    ///
+    /// This will return the serial numbers for all optical drives that have an associated drive
+    /// actor. This includes local drives and those on remote worker nodes. Use the appropriate
+    /// drive specific request to get details about the drives.
+    GetDrives {
+        response: Response<Vec<String>>,
+    },
+}
 
 /// Create the drive actor manager and spawn the task used to process its requests.
 ///
@@ -18,12 +32,39 @@ use crate::drive::actor::ManagerRequest;
 ///
 /// `bus`:  Handle used to send messages to other actors via the message bus.
 ///
+/// `mode`:  The mode the application is running as. This will control what type of actor is
+/// created for each locally connected drives.
+///
 /// # Errors
 ///
 /// Will return errors if the command to get optical drive data from the OS fails. This will vary
 /// based on OS type.
-pub fn init(bus: &bus::Handle) -> Result<Handle> {
-    let drives = drive::get_optical_drives()?;
+pub fn init(bus: &bus::Handle, mode: Mode) -> Result<Handle> {
+    // TODO: Temporary
+    let drives = if mode == Mode::Worker {
+        drive::get_optical_drives()?
+    } else {
+        Vec::new()
+    };
+
+    let drives: Vec<DriveHandle> = drives.into_iter()
+        .map(|drive| {
+            let serial_number = drive.serial_number.clone();
+            let handle = if mode == Mode::Control {
+                drive::actor::init(bus.clone(), drive)
+            } else {
+                drive::worker::init(drive)
+            };
+
+            DriveHandle { serial_number, actor: handle }
+        })
+        .collect();
+
+    for drive in &drives {
+        let serial_number = drive.serial_number.clone();
+        task::spawn(monitor::monitor_drive(bus.clone(), serial_number));
+    }
+
     let msg_processor = MessageProcessor::new(bus.clone(), drives);
     Ok(actor::create_and_run("drive manager", msg_processor))
 }
@@ -62,14 +103,13 @@ impl MessageProcessor {
     ///
     /// `bus`:  Handle used to send messages to other actors via the message bus.
     ///
-    /// `drives`:  Initial list of optical drives. For each drive, the appropriate drive actor will
-    /// be created.
-    fn new(bus: bus::Handle, drives: Vec<OsOpticalDrive>) -> Self {
-        let drives = drives.into_iter()
-            // create_local_actor will log and error message if the actor could not be created for
-            // some reason.
-            .filter_map(|drive| create_local_actor(&bus, drive).ok())
-            .collect();
+    /// `drives`:  Initial list of optical drives.
+    fn new(bus: bus::Handle, drives: Vec<DriveHandle>) -> Self {
+        // let drives = drives.into_iter()
+        //     // create_local_actor will log and error message if the actor could not be created for
+        //     // some reason.
+        //     .filter_map(|drive| create_local_actor(&bus, drive).ok())
+        //     .collect();
 
         Self { bus, drives }
     }
@@ -115,25 +155,6 @@ impl actor::MessageProcessor<Message> for MessageProcessor {
     }
 }
 
-/// Create and initialize a local drive actor.
-///
-/// Local drive actors are the drive actors for the optical drives connected to the host that the
-/// control node is running on.
-///
-/// # Args
-///
-/// `bus`:  Handle used to send messages to other actors via the message bus.
-///
-/// `drive`:  The drive to create the actor for.
-fn create_local_actor(bus: &bus::Handle, drive: OsOpticalDrive) -> Result<DriveHandle> {
-    let serial_number = drive.serial_number.clone();
-    drive::actor::local::init(bus, drive)
-        .inspect_err(|error| {
-            tracing::error!(sn=serial_number, ?error, "failed to create drive actor");
-        })
-        .map(|actor| DriveHandle { serial_number, actor })
-}
-
 /// Log an error due to failure to send a response.
 /// 
 /// # Args
@@ -147,3 +168,4 @@ fn send_error_trace(request: &str) {
 mod tests {
     // TODO
 }
+

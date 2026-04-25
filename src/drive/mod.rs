@@ -32,6 +32,9 @@
 mod actor;
 mod copy;
 mod data;
+mod manager;
+mod monitor;
+mod worker;
 
 #[cfg(all(target_os = "linux", not(feature = "faux_drives")))]
 mod linux;
@@ -43,14 +46,15 @@ use std::time::Duration;
 
 use tokio::sync::oneshot;
 
-use crate::Result;
+use crate::{Error, Result};
 use crate::bus;
 use crate::models::CopyParamaters;
 
-pub use actor::manager::init;
+pub use manager::init;
 pub use data::{FormData, FormDataUpdate};
 
-use actor::{DriveRequest, ManagerRequest};
+use actor::DriveRequest;
+use manager::ManagerRequest;
 
 /// Handle used to communicate with the drive actors and manager.
 pub type Handle = crate::actor::Handle<Message>;
@@ -91,6 +95,32 @@ pub enum Message {
     Manager {
         request: ManagerRequest,
     },
+}
+
+impl Message {
+    /// Consume the message and return the drive request.
+    ///
+    /// # Args
+    ///
+    /// `serial_number`:  The serial number of the drive associated with the actor processing the
+    /// request. Used to verify the serial number matches the message serial number.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidDriveRequest`] if this message is not a drive message or if the message
+    /// serial number does not match the provided drive's serial number.
+    pub fn drive_request(self, serial_number: &str) -> Result<DriveRequest> {
+        let Message::Drive { serial_number: target_serial_number, request } = self else {
+            return Err(Error::InvalidDriveRequest);
+        };
+
+        if serial_number != target_serial_number {
+            return Err(Error::InvalidDriveRequest);
+        }
+
+        Ok(request)
+    }
+
 }
 
 /// Represents the state of the optical drive.

@@ -96,7 +96,7 @@ fn main() -> Result<()> {
     let (bus, bus_recv) = bus::init_channel();
 
     let db = db::init()?;
-    let drive_mgr = drive::init(&bus)?;
+    let drive_mgr = drive::init(&bus, mode)?;
 
     let net = if mode == Mode::Control {
         client::manager::init(&settings.net)

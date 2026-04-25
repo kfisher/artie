@@ -1,17 +1,11 @@
 // Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Actor for interfacing drives local to the control node.
-//!
-//! The actor components defined within are responsible for performing drive operations on drives
-//! connected to the same host the control node is running on. 
-
-use std::time::Duration;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
-use tokio::time;
 
 use tokio_util::sync::CancellationToken;
 
@@ -21,7 +15,6 @@ use crate::{Error, Result};
 use crate::actor::{self, Response};
 use crate::bus;
 use crate::drive::{
-    self,
     FormData,
     FormDataUpdate,
     Handle,
@@ -30,33 +23,108 @@ use crate::drive::{
     OpticalDriveState,
     OsOpticalDrive,
 };
-use crate::drive::actor::DriveRequest;
 use crate::drive::copy;
 use crate::drive::data::Data;
-use crate::path;
 use crate::models::{CopyParamaters, MediaLocation};
+use crate::path;
 use crate::task;
+
+/// Optical drive actor requests.
+#[derive(Debug)]
+pub enum DriveRequest {
+    /// Begin copying a disc.
+    BeginCopyDisc {
+        params: CopyParamaters,
+        response: Response<()>,
+    },
+
+    /// Cancel an in-progress copy operation.
+    CancelCopyDisc {
+        response: Response<()>,
+    },
+
+    /// Get the current status of an optical drive.
+    GetStatus {
+        response: Response<OpticalDrive>,
+    },
+
+    /// Get the last saved values for a drive's copy parameters.
+    ReadFormData {
+        response: Response<FormData>,
+    },
+
+    /// Reset the drive state back to idle.
+    ///
+    /// Should only be requested if the drive state is currently in `Success` or `Failed`. Will
+    /// result in an error if in any other state.
+    Reset {
+        response: Response<()>,
+    },
+
+    /// Request to run the MakeMKV info command to gather information about the titles on the disc.
+    RunMakeMkvInfo {
+        command_output: mpsc::UnboundedSender<CommandOutput>,
+        device_path: String,
+        log_file: MediaLocation,
+        cancellation_token: CancellationToken,
+        response: Response<InfoCommandOutput>,
+    },
+
+    /// Request to run the MakeMKV copy command to copy titles from the disc to the file system.
+    RunMakeMkvCopy {
+        command_output: mpsc::UnboundedSender<CommandOutput>,
+        device_path: String,
+        output_dir: MediaLocation,
+        log_file: MediaLocation,
+        cancellation_token: CancellationToken,
+        response: Response<CopyCommandOutput>,
+    },
+
+    /// Update the copy parameters stored in the drive's persistent data.
+    SaveFormData {
+        data: FormDataUpdate,
+        response: Response<()>,
+    },
+
+    /// Updates the current state of the drive.
+    ///
+    /// This will update the drive status information based on an in-progress copy operation or an
+    /// operation that completed, failed, or was cancelled.
+    UpdateFromCopy {
+        state: OpticalDriveState,
+        response: Response<()>,
+    },
+
+    /// Updates the current state of the drive.
+    ///
+    /// This will update the drive status information based on what is reported by the OS. It is 
+    /// mainly meant for use within the drive module only which is why there isn't a corresponding
+    /// helper function.
+    ///
+    /// If `info` is `None`, then the information was unavailable without any errors being
+    /// reported. This most likely means the drive is disconnected and will be treated as such.
+    UpdateFromOs {
+        info: Option<OsOpticalDrive>,
+        response: Response<()>,
+    },
+}
 
 /// Create the drive actor instance for the provided drive.
 ///
-/// This will create the actor, spawn the task for processing its requests, and spawn the task for
-/// monitoring the state of the drive itself.
+/// This will create the actor and spawn the task for processing its requests.
 ///
 /// # Args
 ///
 /// `bus`:  Handle used to send messages to other actors via the message bus.
 ///
 /// `drive`:  The drive the actor is being created for.
-pub fn init(bus: &bus::Handle, drive: OsOpticalDrive) -> Result<Handle> {
-    let name = format!("drive {}", &drive.serial_number);
-    let serial_number = drive.serial_number.clone();
+pub fn init(bus: bus::Handle, drive: OsOpticalDrive) -> Handle {
     let msg_processor = MessageProcessor::new(bus.clone(), drive);
-    let handle = actor::create_and_run(&name, msg_processor);
-    task::spawn(monitor_drive(handle.clone(), serial_number));
-    Ok(handle)
+    let name = format!("drive {}", &msg_processor.drive.serial_number);
+    actor::create_and_run(&name, msg_processor)
 }
 
-/// Processes messages sent to the local drive actor.
+/// Processes messages sent to the drive actor.
 struct MessageProcessor {
     /// Handle used to send messages to other actors via the message bus.
     bus: bus::Handle,
@@ -270,7 +338,7 @@ impl MessageProcessor {
     /// [`Error::InvalidMediaLocation`] if the provided log file location isn't valid
     ///
     /// [`Error::MakeMkv`] if an error occures while running the MakeMKV command.
-    pub fn run_makemkv_info(
+    fn run_makemkv_info(
         &self,
         cmd_output: mpsc::UnboundedSender<CommandOutput>,
         device: String,
@@ -318,7 +386,7 @@ impl MessageProcessor {
     /// [`Error::InvalidMediaLocation`] if one of the provided media locations is invalid.
     ///
     /// [`Error::MakeMkv`] if an error occures while running the MakeMKV command.
-    pub fn run_makemkv_copy(
+    fn run_makemkv_copy(
         &self,
         cmd_output: mpsc::UnboundedSender<CommandOutput>,
         device: String,
@@ -482,22 +550,8 @@ impl MessageProcessor {
 }
 
 impl actor::MessageProcessor<Message> for MessageProcessor {
-    async fn process(&mut self, msg: Message) -> crate::Result<()> {
-        let Message::Drive { serial_number, request } = msg else {
-            tracing::error!(
-                serial_number=self.drive.serial_number,
-                "cannot process message: invalid message type"
-            );
-            return Err(Error::InvalidDriveRequest);
-        };
-
-        if self.drive.serial_number != serial_number {
-            tracing::error!(
-                serial_number=self.drive.serial_number,
-                "cannot process message: serial number mismatch"
-            );
-            return Err(Error::InvalidDriveRequest);
-        }
+    async fn process(&mut self, msg: Message) -> Result<()> {
+        let request = msg.drive_request(&self.drive.serial_number)?;
 
         match request {
             DriveRequest::BeginCopyDisc { params, response } => {
@@ -560,36 +614,6 @@ impl actor::MessageProcessor<Message> for MessageProcessor {
     }
 }
 
-/// Task for periodically checking the status of the drive.
-///
-/// This will not exit until the receiving end of the actor's channel is closed.
-async fn monitor_drive(actor: Handle, serial_number: String) {
-    // TODO: Should there be some sort of max error count, increase the time between checks on
-    //       error, or both.
-    loop {
-        match drive::get_optical_drive(&serial_number) {
-            Ok(info) => {
-                let (tx, rx) = oneshot::channel();
-                let msg = Message::Drive {
-                    serial_number: serial_number.clone(),
-                    request: DriveRequest::UpdateFromOs { info, response: tx },
-                };
-                let _ = actor.send(msg).await
-                    .inspect_err(|_| send_error_trace(&serial_number, "UpdateFromOs"));
-                let _ = rx.await
-                    .inspect_err(
-                        |error| tracing::error!(sn=serial_number, ?error, "update request failed")
-                    );
-            },
-            Err(error) => {
-                tracing::error!(sn=serial_number, ?error, "failed to get drive info from OS");
-            }
-        }
-
-        time::sleep(Duration::from_secs(1)).await;
-    }
-}
-
 /// Log an error due to failure to send a response.
 /// 
 /// # Args
@@ -600,9 +624,3 @@ async fn monitor_drive(actor: Handle, serial_number: String) {
 fn send_error_trace(serial_number: &str, request: &str) {
     tracing::error!(sn=serial_number, "failed to send {} response", request);
 }
-
-#[cfg(test)]
-mod tests {
-    // TODO
-}
-
