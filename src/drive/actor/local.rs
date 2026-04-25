@@ -39,7 +39,7 @@ use crate::task;
 
 /// Create the drive actor instance for the provided drive.
 ///
-/// This will created the actor, spawn the task for processing its requests, and spawn the task for
+/// This will create the actor, spawn the task for processing its requests, and spawn the task for
 /// monitoring the state of the drive itself.
 ///
 /// # Args

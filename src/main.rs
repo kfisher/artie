@@ -9,6 +9,7 @@ mod bus;
 mod db;
 mod drive;
 mod library;
+mod net;
 mod path;
 mod models;
 mod settings;
@@ -94,11 +95,19 @@ fn main() -> Result<()> {
     let drive_mgr = drive::init(&bus)?;
 
     // Start the message bus processing task.
-    bus::init_processor(db, drive_mgr,bus_recv);
+    let join_handle = bus::init_processor(db, drive_mgr,bus_recv);
 
     tracing::info!(?mode, "starting");
 
-    let _ = ui::run(mode, &bus)?;
+    // TODO: Eventually, we will want to use feature flags so that we can compile a version without
+    //       the UI all together.
+
+    if mode == Mode::Control {
+        let _ = ui::run(mode, &bus)?;
+    } else {
+        task::block_on(join_handle).unwrap()
+    }
+
     Ok(())
 }
 

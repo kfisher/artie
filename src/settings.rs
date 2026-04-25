@@ -1,7 +1,7 @@
 // Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! TODO
+//! Manages application settings.
 
 use std::fs;
 use std::io::Write;
@@ -18,9 +18,8 @@ pub struct Settings {
     /// File path settings.
     pub paths: path::Settings,
 
-    // TODO: Dont forget test.
-    // /// Network settings.
-    // pub net: crate::net::Settings,
+    /// Network settings.
+    pub net: crate::net::Settings,
 }
 
 impl Settings {
@@ -71,12 +70,12 @@ mod tests {
                 archive: PathBuf::from("/archive"),
                 data: PathBuf::from("/data"),
             },
-//          net: crate::net::Settings {
-//              workers: vec![
-//                  String::from("127.0.0.1:0001"),
-//                  String::from("127.0.0.1:0002"),
-//              ],
-//          }
+            net: crate::net::Settings {
+                workers: vec![
+                    String::from("127.0.0.1:0001"),
+                    String::from("127.0.0.1:0002"),
+                ],
+            }
         };
 
         settings.save(path.path()).unwrap();
@@ -88,8 +87,8 @@ mod tests {
         assert_eq!(settings.paths.archive, loaded_settings.paths.archive);
         assert_eq!(settings.paths.data, loaded_settings.paths.data);
 
-//      assert_eq!(2, loaded_settings.net.workers.len());
-//      assert_eq!(settings.net.workers[0], loaded_settings.net.workers[0]);
-//      assert_eq!(settings.net.workers[1], loaded_settings.net.workers[1]);
+        assert_eq!(2, loaded_settings.net.workers.len());
+        assert_eq!(settings.net.workers[0], loaded_settings.net.workers[0]);
+        assert_eq!(settings.net.workers[1], loaded_settings.net.workers[1]);
     }
 }

@@ -31,6 +31,10 @@ use crate::models::{CopyOperation, CopyParamaters, OperationState, Reference};
 // TODO: Is this only expected to be called on the control node? If so, should specifiy that in the
 //       function comment.
 
+// TODO: The bus is used to send messages back to the drive actor. Since its the drive actor that
+//       is calling this, could pass that as well and avoid the extra hop. Revisit this once remote
+//       nodes are working.
+
 /// Copies the disc in the optical drive.
 ///
 /// # Args

@@ -41,7 +41,7 @@ pub fn block_on<F>(future: F) -> F::Output
 where
     F: Future,
 {
-    Runtime::new().expect("Failed to create blocking runtime").block_on(future)
+    runtime().block_on(future)
 }
 
 /// Gets the tokio runtime.
@@ -53,3 +53,4 @@ fn runtime() -> &'static Runtime {
         Runtime::new().expect("Failed to init runtime")
     })
 }
+

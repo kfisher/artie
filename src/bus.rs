@@ -4,6 +4,7 @@
 //! Application messaging bus.
 
 use tokio::sync::mpsc::{self, Receiver};
+use tokio::task::JoinHandle;
 
 use crate::Result;
 use crate::actor::{self, Actor};
@@ -71,12 +72,17 @@ pub fn init_channel() -> (Handle, Receiver<Message>) {
 /// `drive_mgr`:  Handle used to send messages to the drive manager actor and drive actors.
 ///
 /// `bus_send`:  The transmission end of the message bus communication channel.
-/// 
-/// `
-pub fn init_processor(db: db::Handle, drive_mgr: drive::Handle, bus_recv: Receiver<Message>) {
+pub fn init_processor(
+    db: db::Handle,
+    drive_mgr: drive::Handle,
+    bus_recv: Receiver<Message>,
+) -> JoinHandle<()> {
     let msg_processor = MessageBus::new(db, drive_mgr);
     let actor = Actor::new("message bus", bus_recv, msg_processor);
-    task::spawn(actor::run(actor));
+
+    // Unlike other actors, return the JoinHandle so that headless mode (no GUI) has something to
+    // wait on an not exit immediately.
+    task::spawn(actor::run(actor))
 }
 
 /// Creates the message bus and spawn its processing task so it can begin handling requests.
