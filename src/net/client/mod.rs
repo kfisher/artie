@@ -163,7 +163,7 @@ async fn process_stream(
                     },
                     Ok(_) => {
                         // TODO: Parse message and then relay it to the server via the handle.
-                        print!("Received: {line}");
+                        tracing::info!(?line, "received");
                         line.clear();
                     },
                     Err(error) => {

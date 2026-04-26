@@ -44,6 +44,8 @@ mod faux;
 
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
+
 use tokio::sync::oneshot;
 
 use crate::{Error, Result};
@@ -60,7 +62,7 @@ use manager::ManagerRequest;
 pub type Handle = crate::actor::Handle<Message>;
 
 /// Represents the state of the optical drive's disc.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum DiscState {
     /// No disc is inserted in the optical drive.
     None,
@@ -265,7 +267,7 @@ impl OpticalDrive {
 }
 
 /// Information reported by the operating system for the optical drive.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct OsOpticalDrive {
     /// The device path of the drive, such as "/dev/sr0".
     pub path: String,

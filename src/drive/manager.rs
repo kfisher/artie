@@ -53,7 +53,7 @@ pub fn init(bus: &bus::Handle, mode: Mode) -> Result<Handle> {
             let handle = if mode == Mode::Control {
                 drive::actor::init(bus.clone(), drive)
             } else {
-                drive::worker::init(drive)
+                drive::worker::init(bus.clone(), drive)
             };
 
             DriveHandle { serial_number, actor: handle }

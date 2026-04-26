@@ -107,13 +107,19 @@ pub fn init_processor(
 /// drive, it can send a request to the actor responsible for interfacing with that drive which
 /// would then send the status as its response.
 struct MessageBus {
-    /// Handle used to send messages to the database actor..
+    /// Handle used to send messages to the database actor.
+    ///
+    /// All [`Message::Database`] messages will be forwarded to this handle.
     db: db::Handle,
 
     /// Handle used to send messages to the drive manager actor and drive actors.
+    ///
+    /// All [`Message::Drive`] messages will be forwarded to this handle.
     drive_mgr: drive::Handle,
 
     /// Handle used to send messages to a client or server actor.
+    ///
+    /// All [`Message::Net`] messages will be forwarded to this handle.
     net: net::Handle,
 }
 
@@ -122,11 +128,9 @@ impl MessageBus {
     ///
     /// # Args
     ///
-    /// `db`:  Handle used to send messages to the database actor. All [`Message::Database`]
-    /// messages will be forwarded to this handle.
+    /// `db`:  Handle used to send messages to the database actor.
     ///
-    /// `drive_mgr`:  Handle used to send messages to the drive manager actor. All
-    /// [`Message::Drive`] messages will be forwarded to this handle.
+    /// `drive_mgr`:  Handle used to send messages to the drive manager actor.
     ///
     /// `net`:  Handle used to send messages to a client or server actor.
     fn new(db: db::Handle, drive_mgr: drive::Handle, net: net::Handle) -> Self {
@@ -145,6 +149,9 @@ impl actor::MessageProcessor<Message> for MessageBus {
                 self.drive_mgr.send(msg).await
             },
             Message::MessageBus(_) => Ok(()),
+            Message::Net(msg) => {
+                self.net.send(msg).await
+            },
             Message::UI(_) => Ok(()),
         }
     }

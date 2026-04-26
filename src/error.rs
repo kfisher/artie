@@ -12,6 +12,7 @@ use crate::bus;
 use crate::db;
 use crate::drive;
 use crate::models::MediaLocation;
+use crate::net;
 
 /// Specifies the errors that can occur throughout the application.
 #[derive(Debug)]
@@ -37,6 +38,10 @@ pub enum Error {
 
     /// Raised when database operations fail.
     Database(rusqlite::Error),
+
+    /// Raised when attempting to send a message to the control or worker node when they are not
+    /// connected.
+    Disconnected,
 
     /// Raised when a drive request fails because a drive actor associated with the specified
     /// serial number could not be found.
@@ -95,6 +100,12 @@ pub enum Error {
     MissingVideoCodecMapping {
         codec_short: String,
     },
+
+    /// Raised as a response to a send request when the message cannot be sent over the network.
+    ///
+    /// This will be the error sent to the requester as the response to the request. The true cause
+    /// will be logged prior to sending the response.
+    NetworkSend,
 
     /// Raised when attempting to receive a response to a message.
     ResponseRecv(oneshot::error::RecvError),
@@ -168,6 +179,12 @@ impl From<mpsc::error::SendError<drive::Message>> for Error {
     }
 }
 
+impl From<mpsc::error::SendError<net::Message>> for Error {
+    fn from(value: mpsc::error::SendError<net::Message>) -> Self {
+        Error::ChannelSend(ChannelSendError::Net(value))
+    }
+}
+
 impl From<oneshot::error::RecvError> for Error {
     fn from(value: oneshot::error::RecvError) -> Self {
         Error::ResponseRecv(value)
@@ -219,8 +236,11 @@ pub enum ChannelSendError {
     /// Error raised when sending a message to the drive manager or a drive actor fails.
     Drive(mpsc::error::SendError<drive::Message>),
 
-    /// Error raised when sending a message to message bus fails.
+    /// Error raised when sending a message to the message bus fails.
     MessageBus(mpsc::error::SendError<bus::Message>),
+
+    /// Error raised when sending a message to the client or server fails.
+    Net(mpsc::error::SendError<net::Message>),
 }
 
 /// Specifies the errors that can occur when attempting to invalid arguments.
