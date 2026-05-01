@@ -9,17 +9,12 @@ pub mod manager;
 
 use std::time::Duration;
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
-use crate::Result;
-use crate::actor;
-use crate::net::{Handle, Message};
+use crate::bus;
+use crate::net::{self, Handle, OutgoingMessage};
 use crate::task;
-
-/// Maxium number of messages for a client actor that can be queued.
-const CLIENT_CHANNEL_BUFFER_SIZE: usize = 10;
 
 /// Initial amount of time to wait before attempting to connect to a worker node after a failed
 /// attempt or disconnection.
@@ -35,24 +30,15 @@ const MAX_DELAY: Duration = Duration::from_secs(60);
 /// maximum delay. `2^6=64` which is greater than the [`MAX_DELAY`] of 60 seconds.
 const MAX_BACKOFF_COUNT: u32 = 6;
 
-// TODO
-enum TmpMsg {
-}
-
 /// Create the client actor.
 ///
 /// This will create the actor and spawn the tasks for handling communication with the application
 /// and handling communication with the worker node.
 ///
 /// # Args
-pub fn init(addr: &str) -> Handle {
-    // Channel used for the client actor to send messages over the network.
-    let (net_tx, net_rx) = mpsc::channel(CLIENT_CHANNEL_BUFFER_SIZE);
-
-    let msg_processor = MessageProcessor::new(net_tx);
-
+pub fn init(bus: &bus::Handle, addr: &str) -> Handle {
     let name = format!("client {}", &addr);
-    let handle = actor::create_and_run(&name, msg_processor);
+    let (handle, net_rx) = net::actor::init(&name, bus);
 
     let addr = addr.to_owned();
     let handle_clone = handle.clone();
@@ -61,30 +47,6 @@ pub fn init(addr: &str) -> Handle {
     });
 
     handle
-}
-
-/// Processes messages sent to the client actor.
-struct MessageProcessor {
-    /// Transmission end of the channel used to send messages to the connected worker node.
-    net_tx: mpsc::Sender<TmpMsg>,
-}
-
-impl MessageProcessor {
-    /// Create a new instance of the message processor.
-    ///
-    /// # Args
-    ///
-    /// `net_tx`:  Transmission end of the channel used to send messages to the connected worker.
-    /// node.
-    fn new(net_tx: mpsc::Sender<TmpMsg>) -> Self {
-        Self { net_tx }
-    }
-}
-
-impl actor::MessageProcessor<Message> for MessageProcessor {
-    async fn process(&mut self, _msg: Message) -> Result<()> {
-        todo!()
-    }
 }
 
 /// Connect to the worker node.
@@ -97,7 +59,7 @@ impl actor::MessageProcessor<Message> for MessageProcessor {
 ///
 /// `net_rx`:  Receiving end of the channel used by the server actor to send messages to the
 /// connected client.
-async fn connect(addr: String, client: Handle, mut net_rx: mpsc::Receiver<TmpMsg>) {
+async fn connect(addr: String, client: Handle, mut net_rx: mpsc::Receiver<OutgoingMessage>) {
     let mut attempt: u32 = 0;
 
     loop {
@@ -106,7 +68,7 @@ async fn connect(addr: String, client: Handle, mut net_rx: mpsc::Receiver<TmpMsg
                 attempt = 0;
 
                 tracing::info!(?addr, "client connected");
-                process_stream(stream, &addr, &client, &mut net_rx).await;
+                net::process_stream(stream, &addr, &client, &mut net_rx).await;
                 tracing::warn!(?addr, "connection lost, will attempt to reconnect");
             }
             Err(error) => {
@@ -123,72 +85,6 @@ async fn connect(addr: String, client: Handle, mut net_rx: mpsc::Receiver<TmpMsg
 
         tracing::trace!(?addr, attempt, ?delay, "reconnecting after delay");
         tokio::time::sleep(delay).await;
-    }
-}
-
-/// Process communication with a connected worker node.
-///
-/// # Args
-///
-/// This will run until the worker drops the connection or the client actor closes the channel it
-/// uses to send messages.
-///
-/// `stream`:  The stream for the connected worker.
-///
-/// `addr`:  The address of the connected worker.
-///
-/// `client`:  Handle to the client actor. Used to forward messages from the connected worker node
-/// to the actor for processing.
-///
-/// `net_rx`:  Receiving end of the channel used by the client actor to send messages to the
-/// connected worker node.
-async fn process_stream(
-    stream: TcpStream,
-    addr: &str,
-    _client: &Handle,
-    net_rx: &mut mpsc::Receiver<TmpMsg>,
-) {
-    let (reader, mut writer) = stream.into_split();
-
-    let mut reader = BufReader::new(reader);
-    let mut line = String::new();
-
-    loop {
-        tokio::select! {
-            result = reader.read_line(&mut line) => {
-                match result {
-                    Ok(0) => {
-                        tracing::info!(?addr, "connection close by remote");
-                        break;
-                    },
-                    Ok(_) => {
-                        // TODO: Parse message and then relay it to the server via the handle.
-                        tracing::info!(?line, "received");
-                        line.clear();
-                    },
-                    Err(error) => {
-                        tracing::error!(?addr, ?error, "failed to read message");
-                        break;
-                    },
-                }
-            }
-            msg = net_rx.recv() => {
-                match msg {
-                    Some(_) => {
-                        // TODO: Serialize the message and send to the client.
-                        if let Err(error) = writer.write_all("TODO".as_bytes()).await {
-                            tracing::error!(?addr, ?error, "failed to send message");
-                            break;
-                        }
-                    },
-                    None => {
-                        tracing::info!("client channel closed. exiting");
-                        break;
-                    }
-                }
-            }
-
-        }
     }
 }
 

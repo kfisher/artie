@@ -101,6 +101,10 @@ pub enum Error {
         codec_short: String,
     },
 
+    /// Raised when a message cannot be sent to or from the task responsible for handling network
+    /// communication.
+    NetworkChannelSend(NetworkChannelSendError),
+
     /// Raised as a response to a send request when the message cannot be sent over the network.
     ///
     /// This will be the error sent to the requester as the response to the request. The true cause
@@ -185,6 +189,18 @@ impl From<mpsc::error::SendError<net::Message>> for Error {
     }
 }
 
+impl From<mpsc::error::SendError<net::IncomingMessage>> for Error {
+    fn from(value: mpsc::error::SendError<net::IncomingMessage>) -> Self {
+        Error::NetworkChannelSend(NetworkChannelSendError::Incoming(value))
+    }
+}
+
+impl From<mpsc::error::SendError<net::OutgoingMessage>> for Error {
+    fn from(value: mpsc::error::SendError<net::OutgoingMessage>) -> Self {
+        Error::NetworkChannelSend(NetworkChannelSendError::Outgoing(value))
+    }
+}
+
 impl From<oneshot::error::RecvError> for Error {
     fn from(value: oneshot::error::RecvError) -> Self {
         Error::ResponseRecv(value)
@@ -241,6 +257,14 @@ pub enum ChannelSendError {
 
     /// Error raised when sending a message to the client or server fails.
     Net(mpsc::error::SendError<net::Message>),
+}
+
+/// Specifies the errors that can occur when attempting to send a message message to or from the
+/// task handing network communication.
+#[derive(Debug)]
+pub enum NetworkChannelSendError {
+    Incoming(mpsc::error::SendError<net::IncomingMessage>),
+    Outgoing(mpsc::error::SendError<net::OutgoingMessage>),
 }
 
 /// Specifies the errors that can occur when attempting to invalid arguments.

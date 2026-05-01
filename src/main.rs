@@ -99,9 +99,9 @@ fn main() -> Result<()> {
     let drive_mgr = drive::init(&bus, mode)?;
 
     let net = if mode == Mode::Control {
-        client::manager::init(&settings.net)
+        client::manager::init(&bus, &settings.net)
     } else {
-        server::init()
+        server::init(&bus)
     };
 
     // Start the message bus processing task.

@@ -7,6 +7,7 @@
 
 use crate::Result;
 use crate::actor;
+use crate::bus;
 use crate::net::{Handle, Message, Settings};
 use crate::client;
 
@@ -14,11 +15,15 @@ use crate::client;
 ///
 /// This will create the actor and spawn the task for processing requests. It will also initialize
 /// the client for each of the configured worker nodes.
-pub fn init(settings: &Settings) -> Handle {
-    let msg_processor = MessageProcessor::new(&settings.workers);
-
+///
+/// # Args
+///
+/// `bus`:  Handle used to send messages to other actors via the message bus.
+/// 
+/// `settings`:  Settings containing the list of worker nodes to connect to.
+pub fn init(bus: &bus::Handle, settings: &Settings) -> Handle {
+    let msg_processor = MessageProcessor::new(bus.clone(), &settings.workers);
     let handle = actor::create_and_run("client manager", msg_processor);
-
     handle
 }
 
@@ -39,6 +44,9 @@ struct ClientHandle {
 /// The client manager actor may receive messages for itself or one of the clients. Any message for
 /// a client, the message will be forwarded to that client.
 struct MessageProcessor {
+    /// Handle used to send messages to other actors via the message bus.
+    bus: bus::Handle,
+
     /// List of handles for all available clients.
     /// 
     /// The client actors will remain active even if they cannot connect to their associated worker
@@ -52,12 +60,14 @@ impl MessageProcessor {
     /// 
     /// # Args
     ///
+    /// `bus`:  Handle used to send messages to other actors via the message bus.
+    ///
     /// `clients`:  List of network addresses for the worker nodes to create clients for.
-    fn new(clients: &[String]) -> Self {
+    fn new(bus: bus::Handle, clients: &[String]) -> Self {
         let clients = clients.iter()
-            .map(create_client)
+            .map(|addr| create_client(&bus, addr))
             .collect();
-        Self { clients }
+        Self { bus, clients }
     }
 }
 
@@ -74,10 +84,12 @@ impl actor::MessageProcessor<Message> for MessageProcessor {
 ///
 /// # Args
 ///
+/// `bus`:  Handle used to send messages to other actors via the message bus.
+///
 /// `addr`:  The address of the client.
-fn create_client(addr: &String) -> ClientHandle {
+fn create_client(bus: &bus::Handle, addr: &String) -> ClientHandle {
     ClientHandle {
         addr: addr.to_owned(),
-        actor: client::init(addr),
+        actor: client::init(bus, addr),
     }
 }

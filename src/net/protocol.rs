@@ -8,8 +8,7 @@ use serde_json;
 
 use crate::Result;
 use crate::drive::OsOpticalDrive;
-
-const NEWLINE: u8 = '\n' as u8;
+use crate::net::{self, IncomingMessage};
 
 /// Messages that can be send between the control and worker nodes.
 #[derive(Debug, Serialize, Deserialize)]
@@ -50,7 +49,16 @@ impl Message {
     /// [`crate::Error::SerdeJson`] if the bytes cannot be serialized.
     pub fn serialize(&self) -> Result<Vec<u8>> {
         let mut bytes = serde_json::to_vec(self)?;
-        bytes.push(NEWLINE);
+        bytes.push('\n' as u8);
         Ok(bytes)
     }
+
+    /// Convert the network message into a incoming message for the network actor.
+    pub fn to_incoming_message(self) -> net::Message {
+        let msg = IncomingMessage {
+            msg: self,
+        };
+        net::Message::Incoming(msg)
+    }
 }
+
