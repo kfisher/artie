@@ -40,32 +40,19 @@ pub enum ManagerRequest {
 /// Will return errors if the command to get optical drive data from the OS fails. This will vary
 /// based on OS type.
 pub fn init(bus: &bus::Handle, mode: Mode) -> Result<Handle> {
-    // TODO: Temporary
+    // TODO: This is a temporary hack for testing multi-node on a single system. 
     let drives = if mode == Mode::Worker {
         drive::get_optical_drives()?
     } else {
         Vec::new()
     };
 
-    let drives: Vec<DriveHandle> = drives.into_iter()
-        .map(|drive| {
-            let serial_number = drive.serial_number.clone();
-            let handle = if mode == Mode::Control {
-                drive::actor::init(bus.clone(), drive)
-            } else {
-                drive::worker::init(bus.clone(), drive)
-            };
-
-            DriveHandle { serial_number, actor: handle }
-        })
-        .collect();
-
     for drive in &drives {
         let serial_number = drive.serial_number.clone();
         task::spawn(monitor::monitor_drive(bus.clone(), serial_number));
     }
 
-    let msg_processor = MessageProcessor::new(bus.clone(), drives);
+    let msg_processor = MessageProcessor::new(bus.clone(), mode);
     Ok(actor::create_and_run("drive manager", msg_processor))
 }
 
@@ -94,6 +81,9 @@ struct MessageProcessor {
     /// If the application instance is the control node, this can contain both local actors and
     /// worker client actors. If this is a worker node, this will only contain worker actors.
     drives: Vec<DriveHandle>,
+
+    /// The mode the application is running in.
+    mode: Mode,
 }
 
 impl MessageProcessor {
@@ -103,15 +93,43 @@ impl MessageProcessor {
     ///
     /// `bus`:  Handle used to send messages to other actors via the message bus.
     ///
-    /// `drives`:  Initial list of optical drives.
-    fn new(bus: bus::Handle, drives: Vec<DriveHandle>) -> Self {
-        // let drives = drives.into_iter()
-        //     // create_local_actor will log and error message if the actor could not be created for
-        //     // some reason.
-        //     .filter_map(|drive| create_local_actor(&bus, drive).ok())
-        //     .collect();
+    /// `mode`:  The mode the application is running in.
+    fn new(bus: bus::Handle, mode: Mode) -> Self {
+        Self { bus, drives: Vec::new(), mode }
+    }
 
-        Self { bus, drives }
+    /// Gets the handle for optical drive actor.
+    ///
+    /// If a handle does not exist, a new actor instance will be created for it. The type of actor
+    /// will depend on the mode the application instance is running in.
+    ///
+    /// # Args
+    ///
+    /// `serial_number`:  The serial number of the optical drive whose actor handle should be
+    /// returned.
+    fn get_or_add_drive(&mut self, serial_number: &str) -> &DriveHandle {
+        if let Some(pos) = self.drives.iter().position(|d| d.serial_number == serial_number) {
+            return &self.drives[pos];
+        }
+
+        let drive = match self.mode {
+            Mode::Control => {
+                drive::actor::init(self.bus.clone(), serial_number)
+            },
+            Mode::Worker => {
+                drive::worker::init(self.bus.clone(), serial_number)
+            },
+        };
+
+        let drive = DriveHandle {
+            serial_number: serial_number.to_owned(),
+            actor: drive,
+        };
+
+        self.drives.push(drive);
+
+        // Since we just added an item to the vector, its should be safe to unwrap.
+        self.drives.last().unwrap()
     }
 
     /// Get list of drive serial numbers.
@@ -139,9 +157,7 @@ impl actor::MessageProcessor<Message> for MessageProcessor {
     async fn process(&mut self, msg: Message) -> Result<()> {
         match msg {
             Message::Drive { ref serial_number, request: _ } => {
-                let drive = self.drives.iter()
-                    .find(|drive| drive.serial_number == *serial_number)
-                    .ok_or(Error::DriveNotFound { serial_number: serial_number.clone() })?;
+                let drive = self.get_or_add_drive(serial_number);
                 drive.actor.send(msg).await
             },
             Message::Manager { request } => {

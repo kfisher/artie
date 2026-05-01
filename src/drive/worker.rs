@@ -6,7 +6,7 @@
 use crate::{Error, Result};
 use crate::actor::{self, Response};
 use crate::bus;
-use crate::drive::{DriveRequest, Handle, Message, OsOpticalDrive};
+use crate::drive::{DiscState, DriveRequest, Handle, Message, OsOpticalDrive};
 use crate::net;
 use crate::task;
 
@@ -14,10 +14,10 @@ use crate::task;
 ///
 /// `bus`:  Handle used to send messages to other actors via the message bus.
 ///
-/// `drive`:  The drive the actor is being created for.
-pub fn init(bus: bus::Handle, drive: OsOpticalDrive) -> Handle {
-    let msg_processor = MessageProcessor::new(bus, drive);
-    let name = format!("drive {}", &msg_processor.drive.serial_number);
+/// `serial_number`:  The serial number of the drive the actor is being created for.
+pub fn init(bus: bus::Handle, serial_number: &str) -> Handle {
+    let msg_processor = MessageProcessor::new(bus, serial_number);
+    let name = format!("drive {}", &serial_number);
     actor::create_and_run(&name, msg_processor)
 }
 
@@ -38,10 +38,18 @@ impl MessageProcessor {
     ///
     /// `bus`:  Handle used to send messages to other actors via the message bus.
     ///
-    /// `drive`:  The optical drive associated with the actor instance that this message processor
-    /// will be processing messages for.
-    fn new(bus: bus::Handle, drive: OsOpticalDrive) -> Self {
-        Self { bus, drive }
+    /// `serial_number`:  The serial number of the optical drive associated with the actor instance
+    /// that this message processor will be processing messages for.
+    fn new(bus: bus::Handle, serial_number: &str) -> Self {
+        Self {
+            bus,
+            drive: OsOpticalDrive {
+                path: String::default(),
+                serial_number: serial_number.to_owned(),
+                disc: DiscState::None,
+                hostname: String::default(),
+            },
+        }
     }
 
     /// Send the updated drive information to the control node.

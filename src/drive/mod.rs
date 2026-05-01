@@ -52,8 +52,8 @@ use crate::{Error, Result};
 use crate::bus;
 use crate::models::CopyParamaters;
 
-pub use manager::init;
 pub use data::{FormData, FormDataUpdate};
+pub use manager::init;
 
 use actor::DriveRequest;
 use manager::ManagerRequest;
@@ -444,6 +444,29 @@ pub async fn save_form_data(
     let msg = Message::Drive {
         serial_number: serial_number.to_owned(),
         request: DriveRequest::SaveFormData { data, response: tx },
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Update the status of a drive based off information reported by the OS.
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  Serial number of the drive whose status is being updated.
+///
+/// `info`:  The optical drive information reported by the OS. If `None`, then the OS has stopped
+/// reporting information for the drive meaning the drive was disconnected or suffered some sort of
+/// hardware failure. 
+pub async fn update_from_os(
+    bus: &bus::Handle,
+    serial_number: &str,
+    info: Option<OsOpticalDrive>,
+) -> Result<()> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number: serial_number.to_owned(),
+        request: DriveRequest::UpdateFromOs { info, response: tx },
     };
     bus.send(msg).await?;
     rx.await?

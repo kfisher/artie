@@ -5,11 +5,10 @@
 
 use std::time::Duration;
 
-use tokio::sync::oneshot;
 use tokio::time;
 
 use crate::bus;
-use crate::drive::{self, DriveRequest, Message};
+use crate::drive;
 
 /// Task for periodically checking the status of the drive.
 ///
@@ -20,19 +19,7 @@ pub async fn monitor_drive(bus: bus::Handle, serial_number: String) {
     loop {
         match drive::get_optical_drive(&serial_number) {
             Ok(info) => {
-                let (tx, rx) = oneshot::channel();
-                let msg = Message::Drive {
-                    serial_number: serial_number.clone(),
-                    request: DriveRequest::UpdateFromOs { info, response: tx },
-                };
-                let _ = bus.send(msg).await
-                    .inspect_err(|_| {
-                        tracing::error!(sn=serial_number, "failed to send UpdateFromOs response")
-                    });
-                let _ = rx.await
-                    .inspect_err(
-                        |error| tracing::error!(sn=serial_number, ?error, "update request failed")
-                    );
+                let _ = drive::update_from_os(&bus, &serial_number, info).await;
             },
             Err(error) => {
                 tracing::error!(sn=serial_number, ?error, "failed to get drive info from OS");

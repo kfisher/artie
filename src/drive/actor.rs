@@ -117,11 +117,30 @@ pub enum DriveRequest {
 ///
 /// `bus`:  Handle used to send messages to other actors via the message bus.
 ///
-/// `drive`:  The drive the actor is being created for.
-pub fn init(bus: bus::Handle, drive: OsOpticalDrive) -> Handle {
-    let msg_processor = MessageProcessor::new(bus.clone(), drive);
-    let name = format!("drive {}", &msg_processor.drive.serial_number);
+/// `serial_number`:  The serial number of the drive the actor is being created for.
+pub fn init(bus: bus::Handle, serial_number: &str) -> Handle {
+    let msg_processor = MessageProcessor::new(bus.clone(), serial_number);
+    let name = format!("drive {}", &serial_number);
     actor::create_and_run(&name, msg_processor)
+}
+
+/// Indicates if the optical drive is attached to the host that the application instance is running
+/// on or one of the remote worker nodes.
+enum Locality {
+    Unknown,
+    Local,
+    Remote,
+}
+
+impl Locality {
+    /// Determine the locality by comparing the provided hostname with the one reported by the OS.
+    fn get(hostname: &str) -> Self {
+        if gethostname::gethostname().to_string_lossy().eq_ignore_ascii_case(hostname) {
+            Self::Local
+        } else {
+            Self::Remote
+        }
+    }
 }
 
 /// Processes messages sent to the drive actor.
@@ -136,6 +155,9 @@ struct MessageProcessor {
     ///
     /// This will only be `Some` during a copy operation.
     copy_ct: Option<CancellationToken>,
+
+    /// Indicates if the drive attached to the local host or a remote worker node.
+    locality: Locality,
 }
 
 impl MessageProcessor {
@@ -145,13 +167,14 @@ impl MessageProcessor {
     ///
     /// `bus`:  Handle used to send messages to other actors via the message bus.
     ///
-    /// `drive`:  The optical drive associated with the actor instance that this message processor
-    /// will be processing messages for.
-    fn new(bus: bus::Handle, drive: OsOpticalDrive) -> Self {
+    /// `serial_number`:  The serial number of the optical drive associated with the actor instance
+    /// that this message processor will be processing messages for.
+    fn new(bus: bus::Handle, serial_number: &str) -> Self {
         Self { 
             bus,
-            drive: OpticalDrive::from_os(drive),
+            drive: OpticalDrive::disconnected(serial_number),
             copy_ct: None,
+            locality: Locality::Unknown,
         }
     }
 
@@ -514,6 +537,12 @@ impl MessageProcessor {
             .map_err(|_| Error::ResponseSend)
     }
 
+    // TODO: There is a potential bug with update_from_os if a drive is disconnected from one
+    //       worker and attached to another. The first worker will continue to send a disconnected
+    //       drive status update which will conflict with the status update from the second worker.
+    //
+    //       Since this is not expected to be a common case, will hold off addressing it for now.
+
     /// Update drive information based on information from the OS.
     ///
     /// This will always update the path, hostname, and disc state. It will only update the drive
@@ -521,6 +550,16 @@ impl MessageProcessor {
     /// or `Disconnected` respectively.
     ///
     /// The name and serial number will never be updated.
+    ///
+    /// # Args
+    ///
+    /// `info`:  The optical drive information reported by the OS. If `None`, then the OS has
+    /// stopped reporting information for the drive meaning the drive was disconnected or suffered
+    /// some sort of hardware failure. 
+    ///
+    /// `resp`:  The transmission end of the channel to send the response. See
+    /// [`crate::drive::update_from_os`] for more information on the response, including potential
+    /// errors that could result.
     ///
     /// # Errors
     ///
@@ -530,7 +569,10 @@ impl MessageProcessor {
             // Only update fields associated with info provided by the OS that can change. Serial
             // number should be constant for a drive.
             self.drive.path = info.path;
-            self.drive.hostname = info.hostname;
+            if self.drive.hostname != info.hostname {
+                self.locality = Locality::get(&info.hostname);
+                self.drive.hostname = info.hostname;
+            }
             self.drive.disc = info.disc;
             if self.drive.state == OpticalDriveState::Disconnected {
                 self.drive.state = OpticalDriveState::Idle;
