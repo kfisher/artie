@@ -6,8 +6,6 @@
 //! The copy page is the page used to initiate, monitor, and terminate copy operations for all
 //! connected optical drives.
 
-use std::time::Duration;
-
 use gtk::{
     Align,
     ListItem,
@@ -18,7 +16,6 @@ use gtk::{
     ScrolledWindow,
     SignalListItemFactory
 };
-use gtk::gio::ListStore;
 use gtk::glib::{self, Object};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
@@ -143,34 +140,6 @@ impl CopyPageWidget {
             .expect("drive_list_view was None")
             .set_factory(Some(&factory));
     }
-
-    /// Starts the future that will be responsible for monitoring the status of the optical drives
-    /// and updating their status.
-    fn start_drive_monitor(&self) {
-        let drives_store = self.context()
-            .expect("context not set")
-            .drive_store()
-            .expect("drive_store not set");
-
-        glib::spawn_future_local(async move {
-            loop {
-                update_drive_status(&drives_store).await;
-                glib::timeout_future(Duration::from_millis(33)).await;
-            }
-        });
-    }
-}
-
-/// Iterates over all drives in the provided drive store and updates their current status.
-async fn update_drive_status(drives_store: &ListStore) {
-    let n_items = drives_store.n_items();
-    for i in 0..n_items {
-        if let Some(item) = drives_store.item(i) {
-            let drive = item.downcast::<OpticalDriveObject>()
-                .expect("item not a OpticalDriveObject");
-            drive.update_status().await;
-        }
-    }
 }
 
 mod imp {
@@ -221,7 +190,6 @@ mod imp {
             obj.build_ui();
             obj.setup_model();
             obj.setup_factory();
-            obj.start_drive_monitor();
         }
     }
 

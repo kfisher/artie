@@ -9,9 +9,9 @@ use gtk::glib::{self, Object};
 use gtk::subclass::prelude::*;
 
 use crate::bus::Handle;
-use crate::drive::{self, FormData, FormDataUpdate};
-use crate::ui::data::OpticalDriveState;
+use crate::drive::{self, FormData, FormDataUpdate, OpticalDrive};
 use crate::models::CopyParamaters;
+use crate::ui::data::OpticalDriveState;
 
 glib::wrapper! {
     pub struct OpticalDriveObject(ObjectSubclass<imp::OpticalDriveObject>);
@@ -102,20 +102,10 @@ impl OpticalDriveObject {
 
     /// Updates the status of the drive.
     ///
-    /// This will request the current status from the drive's actor instance and then send the
-    /// property change notifications if required.
-    pub async fn update_status(&self) {
-        let bus = self.bus();
-        let serial_number = self.serial_number();
-
-        let drive = match drive::get(&bus, &serial_number).await {
-            Ok(drive) => drive,
-            Err(error) => {
-                tracing::error!(sn=serial_number, ?error, "failed to update status");
-                return;
-            },
-        };
-
+    /// # Args
+    ///
+    /// `drive`:  The updated optical drive data.
+    pub fn update_status(&self, drive: OpticalDrive) {
         self.set_name(drive.name);
         self.set_path(drive.path);
 
