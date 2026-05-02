@@ -118,6 +118,11 @@ impl DriveWidget {
         disc_label.set_halign(Align::Start);
         disc_label.set_hexpand(true);
 
+        let host_label = imp.host_label
+            .borrow()
+            .clone();
+        host_label.set_hexpand(false);
+
         let path_label = imp.path_label
             .borrow()
             .clone();
@@ -136,6 +141,7 @@ impl DriveWidget {
             .margin_top(4)
             .build();
         footer_row.append(&disc_label);
+        footer_row.append(&host_label);
         footer_row.append(&path_label);
         footer_row.append(&serial_number_label);
         footer_row.add_css_class("drive-widget-footer");
@@ -468,6 +474,16 @@ impl DriveWidget {
             .sync_create()
             .build();
         bindings.push(name_binding);
+
+        let host_label = imp.host_label.borrow();
+        let host_binding = drive_object
+            .bind_property("host", &host_label.clone(), "label")
+            .transform_to(|_, d: String| {
+                Some(format!("[ {} ]", d).to_value())
+            })
+            .sync_create()
+            .build();
+        bindings.push(host_binding);
   
         let path_label = imp.path_label.borrow();
         let path_binding = drive_object
@@ -800,6 +816,9 @@ mod imp {
 
         /// Label widget for displaying the device path of the drive.
         pub(super) path_label: RefCell<Label>,
+
+        /// Label widget for displaying the hostname of the drive.
+        pub(super) host_label: RefCell<Label>,
 
         /// Label widget for displaying the serial number of the drive.
         pub(super) serial_number_label: RefCell<Label>,

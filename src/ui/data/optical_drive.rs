@@ -108,6 +108,7 @@ impl OpticalDriveObject {
     pub fn update_status(&self, drive: OpticalDrive) {
         self.set_name(drive.name);
         self.set_path(drive.path);
+        self.set_host(drive.hostname);
 
         match drive.disc {
             crate::drive::DiscState::None => {
@@ -204,6 +205,10 @@ mod imp {
         /// This may be a shortened version of the serial number assigned by the manufacturer.
         #[property(name = "serial-number", get, set, type = String, construct_only)]
         pub(super) serial_number: RefCell<String>,
+
+        /// The hostname of the system the drive is installed in.
+        #[property(name = "host", get, set, type = String)]
+        pub(super) hostname: RefCell<String>,
 
         /// The state of the disc in the optical drive.
         #[property(name = "disc-label", get, set, type = String)]
