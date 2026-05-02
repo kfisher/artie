@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
@@ -29,6 +29,9 @@ use crate::models::{CopyParamaters, MediaLocation};
 use crate::path;
 use crate::task;
 
+/// Amount of time with getting a status update when the drive should be considered disconnected.
+const DRIVE_TIMEOUT: Duration = Duration::from_secs(3);
+
 /// Optical drive actor requests.
 #[derive(Debug)]
 pub enum DriveRequest {
@@ -40,6 +43,13 @@ pub enum DriveRequest {
 
     /// Cancel an in-progress copy operation.
     CancelCopyDisc {
+        response: Response<()>,
+    },
+
+    /// Check the drive for stale status information.
+    ///
+    /// If a drive hasn't received an update in a while, its status will be marked as disconnected.
+    CheckDriveStatus {
         response: Response<()>,
     },
 
@@ -158,6 +168,10 @@ struct MessageProcessor {
 
     /// Indicates if the drive attached to the local host or a remote worker node.
     locality: Locality,
+
+    /// The last time a status update was received from the optical drive monitor task or from a
+    /// running copy operation.
+    last_update: Instant,
 }
 
 impl MessageProcessor {
@@ -175,6 +189,7 @@ impl MessageProcessor {
             drive: OpticalDrive::disconnected(serial_number),
             copy_ct: None,
             locality: Locality::Unknown,
+            last_update: Instant::now(),
         }
     }
 
@@ -244,6 +259,30 @@ impl MessageProcessor {
 
         resp.send(reply)
             .inspect_err(|_| send_error_trace(&self.drive.serial_number, "CancelCopyDisc"))
+            .map_err(|_| Error::ResponseSend)
+    }
+
+    /// Check the status of the drive for stale data.
+    ///
+    /// If the drive has not received a status update from the drive monitor task or a running copy
+    /// operation in a while, the status will be set to disconnected.
+    ///
+    /// # Args
+    ///
+    /// `resp`:  The transmission end of the channel to send the response.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::ResponseSend`] if the response cannot be sent.
+    fn check_status(&mut self, resp: Response<()>) -> Result<()> {
+        if self.drive.state == OpticalDriveState::Idle {
+            if self.last_update.elapsed() >= DRIVE_TIMEOUT {
+                tracing::info!(sn=self.drive.serial_number, "drive timeout reached");
+                self.drive.state = OpticalDriveState::Disconnected;
+            }
+        }
+        resp.send(Ok(()))
+            .inspect_err(|_| send_error_trace(&self.drive.serial_number, "CheckDriveStatus"))
             .map_err(|_| Error::ResponseSend)
     }
 
@@ -510,6 +549,8 @@ impl MessageProcessor {
     ///
     /// [`Error::ResponseSend`] if the response cannot be sent.
     fn update_from_copy(&mut self, state: OpticalDriveState, resp: Response<()>) -> Result<()> {
+        self.last_update = Instant::now();
+
         // If our current state is Disconnected, then we shouldn't be running a copy operation. If
         // the drive is disconnected while running a copy operation, its expected to go to the
         // failed state instead.
@@ -565,6 +606,8 @@ impl MessageProcessor {
     ///
     /// [`Error::ResponseSend`] if the response cannot be sent.
     fn update_from_os(&mut self, info: Option<OsOpticalDrive>, resp: Response<()>) -> Result<()> {
+        self.last_update = Instant::now();
+
         let result = if let Some(info) = info {
             // Only update fields associated with info provided by the OS that can change. Serial
             // number should be constant for a drive.
@@ -601,6 +644,9 @@ impl actor::MessageProcessor<Message> for MessageProcessor {
             },
             DriveRequest::CancelCopyDisc { response } => {
                 self.cancel_copy_disc(response)
+            },
+            DriveRequest::CheckDriveStatus { response } => {
+                self.check_status(response)
             },
             DriveRequest::GetStatus { response } => {
                 self.get_status(response)

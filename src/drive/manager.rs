@@ -6,16 +6,27 @@
 //! The drive manager actor is responsible for managing the other drive actor instances. It also
 //! serves as the broker for drive related requests coming from the message bus.
 
+use tokio::sync::oneshot;
+
 use crate::{Error, Mode, Result};
 use crate::actor::{self, Response};
 use crate::bus;
-use crate::drive::{self, Handle, Message};
+use crate::drive::{self, DriveRequest, Handle, Message};
 use crate::drive::monitor;
 use crate::task;
 
 /// Optical drive manager requests
 #[derive(Debug)]
 pub enum ManagerRequest {
+    /// Check each drive for stale status information.
+    ///
+    /// This will send a check request to each drive to check its status information for stale
+    /// data. If a drive hasn't received an update in a while, its status will be marked as
+    /// disconnected.
+    CheckDriveStatus {
+        response: Response<()>,
+    },
+
     /// Get list of drive serial numbers.
     ///
     /// This will return the serial numbers for all optical drives that have an associated drive
@@ -40,17 +51,7 @@ pub enum ManagerRequest {
 /// Will return errors if the command to get optical drive data from the OS fails. This will vary
 /// based on OS type.
 pub fn init(bus: &bus::Handle, mode: Mode) -> Result<Handle> {
-    // TODO: This is a temporary hack for testing multi-node on a single system. 
-    let drives = if mode == Mode::Worker {
-        drive::get_optical_drives()?
-    } else {
-        Vec::new()
-    };
-
-    for drive in &drives {
-        let serial_number = drive.serial_number.clone();
-        task::spawn(monitor::monitor_drive(bus.clone(), serial_number));
-    }
+    task::spawn(monitor::monitor_drives(bus.clone(), mode));
 
     let msg_processor = MessageProcessor::new(bus.clone(), mode);
     Ok(actor::create_and_run("drive manager", msg_processor))
@@ -151,6 +152,37 @@ impl MessageProcessor {
             .inspect_err(|_| send_error_trace("GetDrives"))
             .map_err(|_| Error::ResponseSend)
     }
+
+    /// Check the status of each drive for stale data.
+    /// 
+    /// # Args
+    ///
+    /// `resp`:  The transmission end of the channel to send the response.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::ResponseSend`] if the response cannot be sent.
+    async fn run_health_check(&self, resp: Response<()>) -> Result<()> {
+        for drive in &self.drives {
+            let (tx, rx) = oneshot::channel();
+            let msg = Message::Drive {
+                serial_number: drive.serial_number.to_owned(),
+                request: DriveRequest::CheckDriveStatus { response: tx }
+            };
+            if let Err(error) = drive.actor.send(msg).await {
+                tracing::error!(sn=drive.serial_number, ?error, "drive status check failed");
+                continue;
+            }
+            if let Err(error) = rx.await {
+                tracing::error!(sn=drive.serial_number, ?error, "drive status check failed");
+                continue;
+            }
+        }
+
+        resp.send(Ok(()))
+            .inspect_err(|_| send_error_trace("CheckDriveStatus"))
+            .map_err(|_| Error::ResponseSend)
+    }
 }
 
 impl actor::MessageProcessor<Message> for MessageProcessor {
@@ -162,6 +194,9 @@ impl actor::MessageProcessor<Message> for MessageProcessor {
             },
             Message::Manager { request } => {
                 match request {
+                    ManagerRequest::CheckDriveStatus { response } => {
+                        self.run_health_check(response).await
+                    },
                     ManagerRequest::GetDrives { response } => {
                         self.get_drives(response).await
                     },

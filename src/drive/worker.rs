@@ -92,6 +92,14 @@ impl actor::MessageProcessor<Message> for MessageProcessor {
                 // ?
                 todo!()
             },
+            DriveRequest::CheckDriveStatus { response } => {
+                // The worker node can ignore this check
+                response.send(Ok(()))
+                    .inspect_err(|_| {
+                        send_error_trace(&self.drive.serial_number, "CheckDriveStatus")
+                    })
+                    .map_err(|_| Error::ResponseSend)
+            },
             DriveRequest::GetStatus { response: _ } => {
                 // Not supported.
                 todo!()
