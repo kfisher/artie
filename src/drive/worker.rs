@@ -52,6 +52,19 @@ impl MessageProcessor {
         }
     }
 
+    /// Handler for a request not supported on the worker node.
+    ///
+    /// # Args
+    ///
+    /// `request`:  The name of the request.
+    ///
+    /// `resp`:  The transmission end of the channel to send the response.
+    fn unsupported_request<T>(&self, request: &str, resp: Response<T>) -> Result<()> {
+        resp.send(Err(Error::UnsupportedRequest { request: request.to_owned() }))
+            .inspect_err(|_| send_error_trace(&self.drive.serial_number, request))
+            .map_err(|_| Error::ResponseSend)
+    }
+
     /// Send the updated drive information to the control node.
     ///
     /// # Args
@@ -84,33 +97,23 @@ impl actor::MessageProcessor<Message> for MessageProcessor {
         let request = msg.drive_request(&self.drive.serial_number)?;
 
         match request {
-            DriveRequest::BeginCopyDisc { params: _, response: _ } => {
-                // Not supported.
-                todo!()
+            DriveRequest::BeginCopyDisc { params: _, response } => {
+                self.unsupported_request("BeginCopyDisc", response)
             },
-            DriveRequest::CancelCopyDisc { response: _ } => {
-                // ?
-                todo!()
+            DriveRequest::CancelCopyDisc { response } => {
+                self.unsupported_request("CancelCopyDisc", response)
             },
             DriveRequest::CheckDriveStatus { response } => {
-                // The worker node can ignore this check
-                response.send(Ok(()))
-                    .inspect_err(|_| {
-                        send_error_trace(&self.drive.serial_number, "CheckDriveStatus")
-                    })
-                    .map_err(|_| Error::ResponseSend)
+                self.unsupported_request("CheckDriveStatus", response)
             },
-            DriveRequest::GetStatus { response: _ } => {
-                // Not supported.
-                todo!()
+            DriveRequest::GetStatus { response } => {
+                self.unsupported_request("GetStatus", response)
             },
-            DriveRequest::ReadFormData { response: _ } => {
-                // Not supported.
-                todo!()
+            DriveRequest::ReadFormData { response } => {
+                self.unsupported_request("ReadFormData", response)
             },
-            DriveRequest::Reset { response: _ } => {
-                // Not supported.
-                todo!()
+            DriveRequest::Reset { response } => {
+                self.unsupported_request("Reset", response)
             },
             DriveRequest::RunMakeMkvCopy {
                 command_output: _,
@@ -133,13 +136,11 @@ impl actor::MessageProcessor<Message> for MessageProcessor {
                 // Same as local.
                 todo!()
             },
-            DriveRequest::SaveFormData { data: _, response: _ } => {
-                // Not supported.
-                todo!()
+            DriveRequest::SaveFormData { data: _, response } => {
+                self.unsupported_request("SaveFormData", response)
             },
-            DriveRequest::UpdateFromCopy { state: _, response: _ } => {
-                // Send update to the control node.
-                todo!()
+            DriveRequest::UpdateFromCopy { state: _, response } => {
+                self.unsupported_request("UpdateFromCopy", response)
             },
             DriveRequest::UpdateFromOs { info, response } => {
                 self.update_from_os(info, response)

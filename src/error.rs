@@ -140,6 +140,14 @@ pub enum Error {
         actual: String,
     },
 
+    /// Error raised when an actor gets a request that it does not support.
+    ///
+    /// This will mainly be seen on actors where requests are handled differently on the control
+    /// node vs the worker node.
+    UnsupportedRequest {
+        request: String,
+    },
+
     /// Raised when an array of bytes cannot be converted into a UTF-8 string.
     UtfConversion(std::string::FromUtf8Error),
 
