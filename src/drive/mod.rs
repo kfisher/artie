@@ -32,6 +32,7 @@
 mod actor;
 mod copy;
 mod data;
+mod makemkv;
 mod manager;
 mod monitor;
 mod worker;
@@ -455,18 +456,12 @@ pub async fn save_form_data(
 ///
 /// `serial_number`:  Serial number of the drive whose status is being updated.
 ///
-/// `info`:  The optical drive information reported by the OS. If `None`, then the OS has stopped
-/// reporting information for the drive meaning the drive was disconnected or suffered some sort of
-/// hardware failure. 
-pub async fn update_from_os(
-    bus: &bus::Handle,
-    serial_number: &str,
-    info: Option<OsOpticalDrive>,
-) -> Result<()> {
+/// `drive`:  The optical drive information reported by the OS.
+pub async fn update_from_os(bus: &bus::Handle, drive: OsOpticalDrive,) -> Result<()> {
     let (tx, rx) = oneshot::channel();
     let msg = Message::Drive {
-        serial_number: serial_number.to_owned(),
-        request: DriveRequest::UpdateFromOs { info, response: tx },
+        serial_number: drive.serial_number.clone(),
+        request: DriveRequest::UpdateFromOs { drive, response: tx },
     };
     bus.send(msg).await?;
     rx.await?

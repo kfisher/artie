@@ -1,6 +1,8 @@
 // Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
+//! TODO
+
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -15,6 +17,7 @@ use crate::{Error, Result};
 use crate::actor::{self, Response};
 use crate::bus;
 use crate::drive::{
+    self,
     FormData,
     FormDataUpdate,
     Handle,
@@ -106,15 +109,8 @@ pub enum DriveRequest {
     },
 
     /// Updates the current state of the drive.
-    ///
-    /// This will update the drive status information based on what is reported by the OS. It is 
-    /// mainly meant for use within the drive module only which is why there isn't a corresponding
-    /// helper function.
-    ///
-    /// If `info` is `None`, then the information was unavailable without any errors being
-    /// reported. This most likely means the drive is disconnected and will be treated as such.
     UpdateFromOs {
-        info: Option<OsOpticalDrive>,
+        drive: OsOpticalDrive,
         response: Response<()>,
     },
 }
@@ -377,6 +373,65 @@ impl MessageProcessor {
             .map_err(|_| Error::ResponseSend)
     }
 
+    /// Runs the MakeMKV copy command to copy the titles on the disc to the file system.
+    ///
+    /// # Args
+    ///
+    /// `cmd_output`:  Channel used by the MakeMKV command to relay output from the command as well
+    /// as progress information.
+    ///
+    /// `device`:  Device path (or name) of the optical drive to perform the copy operation on
+    /// (e.g. "/dev/sr0").
+    ///
+    /// `output_dir`:  The directory location where the video files should be written to.
+    ///
+    /// `log_file`:  The file location where the output of the command should be logged to.
+    ///
+    /// `ct`:  Cancellation token used to cancel the copy operation. It is assumed that the token
+    /// is not already cancelled.
+    ///
+    /// `resp`:  Channel used to send the result of the command once its complete. This will
+    /// include the extracted disc information.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidMediaLocation`] if one of the provided media locations is invalid.
+    ///
+    /// [`Error::MakeMkv`] if an error occures while running the MakeMKV command.
+    fn run_makemkv_copy(
+        &self,
+        cmd_output: mpsc::UnboundedSender<CommandOutput>,
+        device: String,
+        output_dir: MediaLocation,
+        log_file: MediaLocation,
+        ct: CancellationToken,
+        response: oneshot::Sender<Result<CopyCommandOutput>>,
+    ) -> Result<()> {
+        match self.locality {
+            Locality::Unknown => {
+                let reply = Err(
+                    Error::UnsupportedRequest { request: String::from("RunMakeMkvCopy") }
+                );
+                response.send(reply)
+                    .inspect_err(|_| send_error_trace(&self.drive.serial_number, "RunMakeMkvCopy"))
+                    .map_err(|_| Error::ResponseSend)
+            },
+            Locality::Local => {
+                drive::makemkv::run_makemkv_copy(
+                    cmd_output,
+                    device,
+                    output_dir,
+                    log_file,
+                    ct,
+                    response,
+                )
+            },
+            Locality::Remote => {
+                todo!()
+            },
+        }
+    }
+
     /// Runs the MakeMKV info command to gather information about the disc's titles.
     ///
     /// # Args
@@ -408,70 +463,22 @@ impl MessageProcessor {
         ct: CancellationToken,
         response: oneshot::Sender<Result<InfoCommandOutput>>,
     ) -> Result<()> {
-        let log_path = path::location_path(&log_file)
-            .ok_or(Error::InvalidMediaLocation { location: log_file })?;
-
-        task::spawn(async move {
-            let output = makemkv::get_disc_info(&device, &cmd_output, &log_path, &ct)
-                .await
-                .map_err(|e| e.into());
-            if let Err(error) = response.send(output) {
-                tracing::error!(?error, "failed to send info command response");
-            }
-        });
-
-        Ok(())
-    }
-
-    /// Runs the MakeMKV copy command to copy the titles on the disc to the file system.
-    ///
-    /// # Args
-    ///
-    /// `cmd_output`:  Channel used by the MakeMKV command to relay output from the command as well
-    /// as progress information.
-    ///
-    /// `device`:  Device path (or name) of the optical drive to perform the copy operation on
-    /// (e.g. "/dev/sr0").
-    ///
-    /// `output_dir`:  The directory location where the video files should be written to.
-    ///
-    /// `log_file`:  The file location where the output of the command should be logged to.
-    ///
-    /// `ct`:  Cancellation token used to cancel the copy operation. It is assumed that the token
-    /// is not already cancelled.
-    ///
-    /// `response`:  Channel used to send the result of the command once its complete. This will
-    /// include the extracted disc information.
-    ///
-    /// # Errors
-    ///
-    /// [`Error::InvalidMediaLocation`] if one of the provided media locations is invalid.
-    ///
-    /// [`Error::MakeMkv`] if an error occures while running the MakeMKV command.
-    fn run_makemkv_copy(
-        &self,
-        cmd_output: mpsc::UnboundedSender<CommandOutput>,
-        device: String,
-        output_dir: MediaLocation,
-        log_file: MediaLocation,
-        ct: CancellationToken,
-        response: oneshot::Sender<Result<CopyCommandOutput>>,
-    ) -> Result<()> {
-        let output_path = path::location_path(&output_dir)
-            .ok_or(Error::InvalidMediaLocation { location: output_dir })?;
-        let log_path = path::location_path(&log_file)
-            .ok_or(Error::InvalidMediaLocation { location: log_file })?;
-
-        task::spawn(async move {
-            let output = makemkv::copy_disc(&device, &output_path, &cmd_output, &log_path, &ct)
-                .await
-                .map_err(|e| e.into());
-            if let Err(error) = response.send(output) {
-                tracing::error!(?error, "failed to send copy command response");
-            }
-        });
-
-        Ok(())
+        match self.locality {
+            Locality::Unknown => {
+                let reply = Err(
+                    Error::UnsupportedRequest { request: String::from("RunMakeMkvInfo") }
+                );
+                response.send(reply)
+                    .inspect_err(|_| send_error_trace(&self.drive.serial_number, "RunMakeMkvInfo"))
+                    .map_err(|_| Error::ResponseSend)
+            },
+            Locality::Local => {
+                drive::makemkv::run_makemkv_info(cmd_output, device, log_file, ct, response)
+            },
+            Locality::Remote => {
+                todo!()
+            },
+        }
     }
 
     /// Saves the copy parameters for the drive.
@@ -578,12 +585,6 @@ impl MessageProcessor {
             .map_err(|_| Error::ResponseSend)
     }
 
-    // TODO: There is a potential bug with update_from_os if a drive is disconnected from one
-    //       worker and attached to another. The first worker will continue to send a disconnected
-    //       drive status update which will conflict with the status update from the second worker.
-    //
-    //       Since this is not expected to be a common case, will hold off addressing it for now.
-
     /// Update drive information based on information from the OS.
     ///
     /// This will always update the path, hostname, and disc state. It will only update the drive
@@ -594,9 +595,7 @@ impl MessageProcessor {
     ///
     /// # Args
     ///
-    /// `info`:  The optical drive information reported by the OS. If `None`, then the OS has
-    /// stopped reporting information for the drive meaning the drive was disconnected or suffered
-    /// some sort of hardware failure. 
+    /// `drive`:  The optical drive information reported by the OS.
     ///
     /// `resp`:  The transmission end of the channel to send the response. See
     /// [`crate::drive::update_from_os`] for more information on the response, including potential
@@ -605,30 +604,31 @@ impl MessageProcessor {
     /// # Errors
     ///
     /// [`Error::ResponseSend`] if the response cannot be sent.
-    fn update_from_os(&mut self, info: Option<OsOpticalDrive>, resp: Response<()>) -> Result<()> {
+    fn update_from_os(&mut self, drive: OsOpticalDrive, resp: Response<()>) -> Result<()> {
         self.last_update = Instant::now();
 
-        let result = if let Some(info) = info {
-            // Only update fields associated with info provided by the OS that can change. Serial
-            // number should be constant for a drive.
-            self.drive.path = info.path;
-            if self.drive.hostname != info.hostname {
-                self.locality = Locality::get(&info.hostname);
-                self.drive.hostname = info.hostname;
-            }
-            self.drive.disc = info.disc;
-            if self.drive.state == OpticalDriveState::Disconnected {
-                self.drive.state = OpticalDriveState::Idle;
-            }
-            Ok(())
-        } else {
-            if self.drive.state == OpticalDriveState::Idle {
-                self.drive.state = OpticalDriveState::Disconnected;
-            }
-            Ok(())
-        };
+        // Only update fields associated with info provided by the OS that can change. Serial
+        // number should be constant for a drive.
 
-        resp.send(result)
+        self.drive.path = drive.path;
+
+        // When the drive actor is first created, its locality is unknown and will be updated here.
+        // This also accounts for the rare edge case where a drive us disconnected from one host
+        // and connected to another changing the expected locality in the process.
+        if self.drive.hostname != drive.hostname {
+            self.locality = Locality::get(&drive.hostname);
+            self.drive.hostname = drive.hostname;
+        }
+
+        self.drive.disc = drive.disc;
+
+        // Only need change states if currently disconnected since getting a status update means
+        // the drive is no longer considered disconnected.
+        if self.drive.state == OpticalDriveState::Disconnected {
+            self.drive.state = OpticalDriveState::Idle;
+        }
+
+        resp.send(Ok(()))
             .inspect_err(|_| send_error_trace(&self.drive.serial_number, "UpdateFromOs"))
             .map_err(|_| Error::ResponseSend)
     }
@@ -695,8 +695,8 @@ impl actor::MessageProcessor<Message> for MessageProcessor {
             DriveRequest::UpdateFromCopy { state, response } => {
                 self.update_from_copy(state, response )
             },
-            DriveRequest::UpdateFromOs { info, response } => {
-                self.update_from_os(info, response)
+            DriveRequest::UpdateFromOs { drive, response } => {
+                self.update_from_os(drive, response)
             },
         }
     }

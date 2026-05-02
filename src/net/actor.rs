@@ -47,21 +47,13 @@ impl MessageProcessor {
     ///
     /// # Args
     ///
-    /// `serial_number`:  The serial number of the drive the status update is for.
-    ///
-    /// `info`:  The optical drive information reported by the OS. If `None`, then the OS has
-    /// stopped reporting information for the drive meaning the drive was disconnected or suffered
-    /// some sort of hardware failure. 
+    /// `info`:  The optical drive information reported by the OS.
     ///
     /// # Errors
     ///
     /// See [`drive::update_from_os`] for list of potential errors.
-    async fn process_drive_status_update(
-        &self,
-        serial_number: &str,
-        info: Option<OsOpticalDrive>,
-    ) -> Result<()> {
-        drive::update_from_os(&self.bus, serial_number, info).await
+    async fn process_drive_status_update(&self, drive: OsOpticalDrive,) -> Result<()> {
+        drive::update_from_os(&self.bus, drive).await
     }
 
     /// Process a message that was received from the network.
@@ -76,12 +68,32 @@ impl MessageProcessor {
     /// The potential errors will depend on the received message.
     async fn process_incoming(&self, incoming: IncomingMessage) -> Result<()> {
         match incoming.msg {
+            protocol::Message::CancelMakeMkvOperation => {
+                todo!()
+            },
             protocol::Message::DriveStatusUpdate { drive } => {
-                let serial_number = drive.as_ref().unwrap().serial_number.clone(); // FIXME
-                self.process_drive_status_update(&serial_number, drive).await
-            }
+                self.process_drive_status_update(drive).await
+            },
+            protocol::Message::RunMakeMkvCopy { device_path: _, output_dir: _, log_file: _ } => {
+                todo!()
+            },
+            protocol::Message::RunMakeMkvInfo { device_path: _, log_file: _ } => {
+                todo!()
+            },
+            protocol::Message::MakeMkvCopyResult { log: _ } => {
+                todo!()
+            },
+            protocol::Message::MakeMkvInfoResult { disc_info: _, log: _ } => {
+                todo!()
+            },
+            protocol::Message::MakeMkvProgress { op: _, op_prog: _, subop: _, subop_prog: _ } => {
+                todo!()
+            },
         }
     }
+
+            // protocol::Message::DriveStatusUpdate { drive } => {
+            // }
 
     /// Process a request to send a message over the network.
     ///

@@ -38,7 +38,7 @@ pub async fn monitor_drives(bus: bus::Handle, mode: Mode) {
                 let (tx, rx) = oneshot::channel();
                 let msg = Message::Drive {
                     serial_number: drive.serial_number.clone(),
-                    request: DriveRequest::UpdateFromOs { info: Some(drive), response: tx },
+                    request: DriveRequest::UpdateFromOs { drive, response: tx },
                 };
                 if let Err(error) = bus.send(msg).await {
                     tracing::error!(?error, "update drive status request failed");

@@ -6,21 +6,63 @@
 use serde::{self, Deserialize, Serialize};
 use serde_json;
 
+use makemkv::DiscInfo;
+
 use crate::Result;
 use crate::drive::OsOpticalDrive;
+use crate::models::MediaLocation;
 use crate::net::{self, IncomingMessage};
 
 /// Messages that can be send between the control and worker nodes.
+///
+/// For each variant, the documentation contains one of the following notations:
+///
+/// - (c -> w): Indicates the message is meant to be sent from the control node to a worker node.
+/// - (w -> c): Indicates the message is meant to be sent from a worker node to the control node.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data")]
 pub enum Message {
+    /// (c -> w) Cancel an in-progress MakeMKV operation (copy or info).
+    CancelMakeMkvOperation,
+
     /// (w -> c) The updated status of an optical drive.
-    ///
-    /// If `drive` is `None`, then the drive information was no longer being reported by the OS
-    /// meaning it was disconnected.
     DriveStatusUpdate {
-        drive: Option<OsOpticalDrive>,
-    }
+        drive: OsOpticalDrive,
+    },
+
+    /// (c -> w) Request to run the MakeMKV copy command to copy titles from the disc to the file
+    /// system.
+    RunMakeMkvCopy {
+        device_path: String,
+        output_dir: MediaLocation,
+        log_file: MediaLocation,
+    },
+
+    /// (c -> w) Request to run the MakeMKV info command to gather information about the titles on
+    /// the disc.
+    RunMakeMkvInfo {
+        device_path: String,
+        log_file: MediaLocation,
+    },
+
+    /// (w -> c) The result of running the MakeMKV copy command.
+    MakeMkvCopyResult {
+        log: String,
+    },
+
+    /// (w -> c) The result of running the MakeMKV info command.
+    MakeMkvInfoResult {
+        disc_info: DiscInfo,
+        log: String,
+    },
+
+    /// (w -> c) Progress information about a running MakeMKV command.
+    MakeMkvProgress {
+        op: String,
+        op_prog: u8,
+        subop: String,
+        subop_prog: u8,
+    },
 }
 
 impl Message {

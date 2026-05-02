@@ -115,18 +115,14 @@ pub struct Settings {
 ///
 /// `bus`:  Handle for sending the request to the network actor.
 ///
-/// `drive`:  The updated drive information. If `None`, then it is assumed that the drive is
-/// disconnected.
+/// `drive`:  The updated drive information.
 ///
 /// # Errors
 ///
 /// [`crate::Error::Disconnected`] if the node is not connected to the control node.
 ///
 /// [`crate::Error::NetworkSend`] if the message could not be sent.
-pub async fn send_drive_status_update(
-    bus: &bus::Handle,
-    drive: Option<OsOpticalDrive>
-) -> Result<()> {
+pub async fn send_drive_status_update(bus: &bus::Handle, drive: OsOpticalDrive) -> Result<()> {
     let msg = protocol::Message::DriveStatusUpdate { drive };
     let (msg, rx) = Message::server(msg);
     bus.send(msg).await?;

@@ -164,7 +164,7 @@ pub enum ContainerType {
 ///
 /// There is also the [`MediaLocation::Deleted`] location. This is used mainly for path fields in
 /// the database for a file that was deleted by the user.
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum MediaLocation {
     /// File path is relative to the media inbox root directory.
     Inbox(PathBuf),

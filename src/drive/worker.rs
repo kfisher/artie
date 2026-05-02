@@ -3,10 +3,18 @@
 
 //! TODO
 
+use tokio::sync::mpsc;
+use tokio::sync::oneshot;
+
+use tokio_util::sync::CancellationToken;
+
+use makemkv::{CommandOutput, CopyCommandOutput, InfoCommandOutput};
+
 use crate::{Error, Result};
 use crate::actor::{self, Response};
 use crate::bus;
-use crate::drive::{DiscState, DriveRequest, Handle, Message, OsOpticalDrive};
+use crate::drive::{self, DiscState, DriveRequest, Handle, Message, OsOpticalDrive};
+use crate::models::MediaLocation;
 use crate::net;
 use crate::task;
 
@@ -52,6 +60,77 @@ impl MessageProcessor {
         }
     }
 
+    /// Runs the MakeMKV copy command to copy the titles on the disc to the file system.
+    ///
+    /// # Args
+    ///
+    /// `cmd_output`:  Channel used by the MakeMKV command to relay output from the command as well
+    /// as progress information.
+    ///
+    /// `device`:  Device path (or name) of the optical drive to perform the copy operation on
+    /// (e.g. "/dev/sr0").
+    ///
+    /// `output_dir`:  The directory location where the video files should be written to.
+    ///
+    /// `log_file`:  The file location where the output of the command should be logged to.
+    ///
+    /// `ct`:  Cancellation token used to cancel the copy operation. It is assumed that the token
+    /// is not already cancelled.
+    ///
+    /// `response`:  Channel used to send the result of the command once its complete. This will
+    /// include the extracted disc information.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidMediaLocation`] if one of the provided media locations is invalid.
+    ///
+    /// [`Error::MakeMkv`] if an error occures while running the MakeMKV command.
+    fn run_makemkv_copy(
+        &self,
+        cmd_output: mpsc::UnboundedSender<CommandOutput>,
+        device: String,
+        output_dir: MediaLocation,
+        log_file: MediaLocation,
+        ct: CancellationToken,
+        response: oneshot::Sender<Result<CopyCommandOutput>>,
+    ) -> Result<()> {
+        drive::makemkv::run_makemkv_copy(cmd_output, device, output_dir, log_file, ct, response)
+    }
+
+    /// Runs the MakeMKV info command to gather information about the disc's titles.
+    ///
+    /// # Args
+    ///
+    /// `cmd_output`:  Channel used by the MakeMKV command to relay output from the command as well
+    /// as progress information.
+    ///
+    /// `device`:  Device path (or name) of the optical drive to perform the operation on
+    /// (e.g. "/dev/sr0").
+    ///
+    /// `log_file`:  The file location where the output of the command should be logged to.
+    ///
+    /// `ct`:  Cancellation token used to cancel the copy operation. It is assumed that the token
+    /// is not already cancelled.
+    ///
+    /// `response`:  Channel used to send the result of the command once its complete. This will
+    /// include the extracted disc information.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidMediaLocation`] if the provided log file location isn't valid
+    ///
+    /// [`Error::MakeMkv`] if an error occures while running the MakeMKV command.
+    fn run_makemkv_info(
+        &self,
+        cmd_output: mpsc::UnboundedSender<CommandOutput>,
+        device: String,
+        log_file: MediaLocation,
+        ct: CancellationToken,
+        response: oneshot::Sender<Result<InfoCommandOutput>>,
+    ) -> Result<()> {
+        drive::makemkv::run_makemkv_info(cmd_output, device, log_file, ct, response)
+    }
+
     /// Handler for a request not supported on the worker node.
     ///
     /// # Args
@@ -73,7 +152,7 @@ impl MessageProcessor {
     /// become disconnected.
     ///
     /// `resp`:  The transmission end of the channel to send the response.
-    fn update_from_os(&mut self, drive: Option<OsOpticalDrive>, resp: Response<()>) -> Result<()> {
+    fn update_from_os(&mut self, drive: OsOpticalDrive, resp: Response<()>) -> Result<()> {
         // TODO: Should be updating the internal state as well.
         //
         // TODO: Should only send a message if something changed or if this is the first update
@@ -142,8 +221,8 @@ impl actor::MessageProcessor<Message> for MessageProcessor {
             DriveRequest::UpdateFromCopy { state: _, response } => {
                 self.unsupported_request("UpdateFromCopy", response)
             },
-            DriveRequest::UpdateFromOs { info, response } => {
-                self.update_from_os(info, response)
+            DriveRequest::UpdateFromOs { drive, response } => {
+                self.update_from_os(drive, response)
             },
         }
     }
