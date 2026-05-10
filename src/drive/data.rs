@@ -23,6 +23,9 @@ pub struct Data {
     /// The display name of the drive.
     pub name: String,
 
+    /// Used to determine the order the drives are displayed.
+    pub rank: u8,
+
     /// The current form data.
     pub form: FormData,
 }
@@ -31,6 +34,7 @@ impl Data {
     pub fn new(serial_number: &str) -> Self {
         Self {
             name: serial_number.to_owned(),
+            rank: u8::MAX,
             form: FormData::default(),
         }
     }
@@ -224,6 +228,23 @@ pub fn get_data(serial_number: &str) -> Result<Data> {
 /// not existing is not treated as an error.
 pub fn get_drive_name(serial_number: &str) -> Result<String> {
     get_data(serial_number).map(|data| data.name)
+}
+
+/// Get the drive's ordering rank.
+///
+/// If the drive does not yet have a data file, the default will be returned which will be the
+/// highest possible value which will result in the drive being placed last.
+///
+/// # Args
+///
+/// `serial_number`:  The serial number of the drive.
+///
+/// # Errors
+///
+/// See [`Data::load`] for errors that can occur when attempting to read the data file. The file
+/// not existing is not treated as an error.
+pub fn get_drive_rank(serial_number: &str) -> Result<u8> {
+    get_data(serial_number).map(|data| data.rank)
 }
 
 /// Gets the saved copy parameters for a drive.

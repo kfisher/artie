@@ -69,6 +69,11 @@ struct DriveHandle {
 
     /// The underlying actor handle.
     actor: Handle,
+
+    /// Determines where in the drive list the handle will be placed.
+    ///
+    /// The list of drives will be ordered based on the rank from lowest to highest.
+    rank: u8,
 }
 
 /// Processes messages sent to the actor manager.
@@ -127,12 +132,18 @@ impl MessageProcessor {
         let drive = DriveHandle {
             serial_number: serial_number.to_owned(),
             actor: drive,
+            rank: drive::data::get_drive_rank(serial_number)
+                .inspect_err(|error| {
+                    tracing::warn!(sn=serial_number, ?error, "failed to lookup drive rank");
+                })
+                .unwrap_or(u8::MAX),
         };
 
-        self.drives.push(drive);
+        let idx = self.drives.partition_point(|d| d.rank <= drive.rank);
+        self.drives.insert(idx, drive);
 
-        // Since we just added an item to the vector, its should be safe to unwrap.
-        self.drives.last().unwrap()
+        // Since we just added an item to the vector, it should be safe to unwrap.
+        &self.drives[idx]
     }
 
     /// Get list of drive serial numbers.
