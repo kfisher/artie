@@ -10,6 +10,7 @@ mod icon_button;
 mod window;
 
 pub use copy_form::CopyFormWidget;
+pub use copy_page::CopyPageWidget;
 pub use drive::DriveWidget;
 pub use icon_button::IconButton;
 pub use window::Window;

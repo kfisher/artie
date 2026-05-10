@@ -1,7 +1,7 @@
 // Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Defines the optical drive widget.
+//! Optical drive widget.
 //!
 //! The optical drive widget is used to initiate, monitor, and terminate copy operations.
 
@@ -14,18 +14,16 @@ use gtk::{
     Orientation,
     Stack
 };
-use gtk::glib;
-use gtk::glib::Object;
+use gtk::glib::{self, Object};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
-use crate::drive::data::FormDataUpdate;
-use crate::drive::glib::{OpticalDriveObject, OpticalDriveState};
-use crate::task;
+use crate::drive::FormDataUpdate;
+use crate::ui::data::{OpticalDriveState, OpticalDriveObject};
 use crate::ui::widget::{CopyFormWidget, IconButton};
+use crate::task;
 
 glib::wrapper! {
-    /// Widget used to initiate, monitor, and terminate copy operations for an optical drive.
     pub struct DriveWidget(ObjectSubclass<imp::DriveWidget>)
         @extends gtk::Box,
                  gtk::Widget,
@@ -36,15 +34,18 @@ glib::wrapper! {
 }
 
 impl DriveWidget {
-    /// Creates a new [`DriveWidget`] instance.
+    /// Creates a new drive widget instance.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the GObject cannot be created.
     pub fn new() -> Self {
         Object::builder().build()
-    }                      
+    }
 
-    /// Builds the user interface.
+    /// Builds the widget.
     ///
-    /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::DriveWidget::constructed`].
+    /// Called by the implementation ([`imp::DriveWidget`]) when constructed.
     fn build_ui(&self) {
         let imp = self.imp();
 
@@ -117,6 +118,11 @@ impl DriveWidget {
         disc_label.set_halign(Align::Start);
         disc_label.set_hexpand(true);
 
+        let host_label = imp.host_label
+            .borrow()
+            .clone();
+        host_label.set_hexpand(false);
+
         let path_label = imp.path_label
             .borrow()
             .clone();
@@ -135,6 +141,7 @@ impl DriveWidget {
             .margin_top(4)
             .build();
         footer_row.append(&disc_label);
+        footer_row.append(&host_label);
         footer_row.append(&path_label);
         footer_row.append(&serial_number_label);
         footer_row.add_css_class("drive-widget-footer");
@@ -153,6 +160,10 @@ impl DriveWidget {
     }
 
     /// Builds the view when the drive is not connected.
+    ///
+    /// # Args
+    ///
+    /// `stack`:  The stack widget that the view should be added to..
     fn build_disconnected_ui(&self, stack: &Stack) {
         let icon_box = self.build_icon_box(
             Some("fontawesome.v7.solid.plug-circle-minus-symbolic"),
@@ -179,7 +190,17 @@ impl DriveWidget {
         self.imp().disconnected_view.replace(disconnected_view);
     }
 
-    /// Builds the icon box.
+    /// Builds an icon box.
+    ///
+    /// The icon box is the icon that is displayed on the left side of the widget. It changes based
+    /// on the current state of the drive.
+    ///
+    /// # Args
+    ///
+    /// `icon`:  If `Some`, the name of the icon that should be displayed. This is the file name
+    /// of the SVG file without the path or extension. `None` if an icon should not be displayed.
+    ///
+    /// `class`:  The CSS class to assign the box.
     fn build_icon_box(&self, icon: Option<&str>, class: &str) -> Box {
         let icon_box = Box::builder()
             .height_request(128)
@@ -206,6 +227,10 @@ impl DriveWidget {
     }
 
     /// Builds the view used when the drive is empty.
+    ///
+    /// # Args
+    ///
+    /// `stack`:  The stack widget that the view should be added to..
     fn build_empty_ui(&self, stack: &Stack) {
         let icon_box = self.build_icon_box(None, "idle");
 
@@ -231,9 +256,13 @@ impl DriveWidget {
 
     /// Builds the view used when a disc is inserted into the drive and the drive is waiting for a
     /// copy operation to be started.
+    ///
+    /// # Args
+    ///
+    /// `stack`:  The stack widget that the view should be added to..
     fn build_idle_ui(&self, stack: &Stack) {
         let icon_box = self.build_icon_box(
-            Some("fontawesome.v7.solid.compact-disc-symbolic"), 
+            Some("fontawesome.v7.solid.compact-disc-symbolic"),
             "idle"
         );
 
@@ -253,9 +282,13 @@ impl DriveWidget {
     }
 
     /// Builds the view used when a copy operation is in progress.
+    ///
+    /// # Args
+    ///
+    /// `stack`:  The stack widget that the view should be added to..
     fn build_copying_ui(&self, stack: &Stack) {
         let icon_box = self.build_icon_box(
-            Some("fontawesome.v7.solid.compact-disc-symbolic"), 
+            Some("fontawesome.v7.solid.compact-disc-symbolic"),
             "copying"
         );
 
@@ -325,6 +358,10 @@ impl DriveWidget {
     }
 
     /// Builds the view used when a copy operation has completed successfully.
+    ///
+    /// # Args
+    ///
+    /// `stack`:  The stack widget that the view should be added to..
     fn build_success_ui(&self, stack: &Stack) {
         let icon_box = self.build_icon_box(
             Some("fontawesome.v7.solid.circle-check-symbolic"),
@@ -352,6 +389,10 @@ impl DriveWidget {
     }
 
     /// Builds the view used when a copy operation failed or was cancelled.
+    ///
+    /// # Args
+    ///
+    /// `stack`:  The stack widget that the view should be added to..
     fn build_failed_ui(&self, stack: &Stack) {
         let icon_box = self.build_icon_box(
             Some("fontawesome.v7.solid.exclamation-triangle"),
@@ -405,8 +446,7 @@ impl DriveWidget {
 
     /// Configures the signals and callbacks.
     ///
-    /// It is expected that this will be called as part of the underlying widget's construction.
-    /// See [`imp::DriveWidget::constructed`]. 
+    /// Called by the implementation ([`imp::DriveWidget`]) when constructed.
     fn setup_callbacks(&self) {
         let imp = self.imp();
 
@@ -419,6 +459,10 @@ impl DriveWidget {
     }
 
     /// Binds the widget to the provided optical drive object.
+    ///
+    /// # Args
+    ///
+    /// `drive_object`:  The drive object to bind to.
     pub fn bind(&self, drive_object: &OpticalDriveObject) {
         let imp = self.imp();
 
@@ -430,6 +474,16 @@ impl DriveWidget {
             .sync_create()
             .build();
         bindings.push(name_binding);
+
+        let host_label = imp.host_label.borrow();
+        let host_binding = drive_object
+            .bind_property("host", &host_label.clone(), "label")
+            .transform_to(|_, d: String| {
+                Some(format!("[ {} ]", d).to_value())
+            })
+            .sync_create()
+            .build();
+        bindings.push(host_binding);
 
         let path_label = imp.path_label.borrow();
         let path_binding = drive_object
@@ -510,7 +564,7 @@ impl DriveWidget {
             .sync_create()
             .build();
         bindings.push(task_binding);
-        
+
         let task_progress = imp.task_progress.borrow();
         let task_binding = drive_object
             .bind_property("task-progress", &task_progress.clone(), "fraction")
@@ -552,14 +606,14 @@ impl DriveWidget {
             .build();
         bindings.push(copy_visibility_binding);
 
-        if let Some(form_data) = task::block_on(drive_object.get_form_data()) {
+        if let Some(form_data) = task::block_on(drive_object.read_form_data()) {
             imp.copy_form.borrow().set_form_data(&form_data);
         };
 
         let copy_form = imp.copy_form
             .borrow()
             .clone();
-        let drive_object_clone = drive_object
+        let drive = drive_object
             .clone();
         copy_button.connect_clicked(move |_| {
             if !copy_form.validate() {
@@ -570,10 +624,10 @@ impl DriveWidget {
             let copy_parameters = copy_form.get_copy_parameters();
 
             glib::spawn_future_local(glib::clone!(
-                #[strong]
-                drive_object_clone,
+                #[weak]
+                drive,
                 async move {
-                    drive_object_clone.copy_disc(copy_parameters).await;
+                    drive.copy_disc(copy_parameters).await;
                 }
             ));
         });
@@ -588,14 +642,14 @@ impl DriveWidget {
             .build();
         bindings.push(reset_visibility_binding);
 
-        let drive_object_clone = drive_object
+        let drive = drive_object
             .clone();
         imp.reset_button.borrow().connect_clicked(move |_| {
             glib::spawn_future_local(glib::clone!(
-                #[strong]
-                drive_object_clone,
+                #[weak]
+                drive,
                 async move {
-                    drive_object_clone.reset().await;
+                    drive.reset().await;
                 }
             ));
         });
@@ -610,114 +664,113 @@ impl DriveWidget {
             .build();
         bindings.push(cancel_visibility_binding);
 
-        let drive_object_clone = drive_object
+        let drive = drive_object
             .clone();
         imp.cancel_button.borrow().connect_clicked(move |_| {
             glib::spawn_future_local(glib::clone!(
-                #[strong]
-                drive_object_clone,
+                #[weak]
+                drive,
                 async move {
-                    drive_object_clone.cancel_copy_disc().await;
+                    drive.cancel_copy_disc().await;
                 }
             ));
         });
 
         let copy_form = imp.copy_form.borrow();
 
-        let drive_object_clone = drive_object
+        let drive = drive_object
             .clone();
         copy_form.connect_media_type_changed(move |media_type| {
             glib::spawn_future_local(glib::clone!(
-                #[strong]
-                drive_object_clone,
+                #[weak]
+                drive,
                 async move {
-                    drive_object_clone.update_form_data(
-                        FormDataUpdate::media_type(media_type.as_str().to_owned())
-                    ).await;
+                    let data = FormDataUpdate::media_type(media_type.as_str().to_owned());
+                    drive.save_form_data(data).await;
                 }
             ));
         });
 
-        let drive_object_clone = drive_object
+        let drive = drive_object
             .clone();
         copy_form.connect_title_changed(move |title| {
             let title = title.to_owned();
             glib::spawn_future_local(glib::clone!(
-                #[strong]
-                drive_object_clone,
+                #[weak]
+                drive,
                 async move {
-                    drive_object_clone.update_form_data(FormDataUpdate::title(title)).await;
+                    drive.save_form_data(FormDataUpdate::title(title)).await;
                 }
             ));
         });
 
-        let drive_object_clone = drive_object
+        let drive = drive_object
             .clone();
         copy_form.connect_year_changed(move |year| {
             let year = year.to_owned();
             glib::spawn_future_local(glib::clone!(
-                #[strong]
-                drive_object_clone,
+                #[weak]
+                drive,
                 async move {
-                    drive_object_clone.update_form_data(FormDataUpdate::year(year)).await;
+                    drive.save_form_data(FormDataUpdate::year(year)).await;
                 }
             ));
         });
 
-        let drive_object_clone = drive_object
+        let drive = drive_object
             .clone();
         copy_form.connect_disc_number_changed(move |disc_number| {
             let disc_number = disc_number.to_owned();
             glib::spawn_future_local(glib::clone!(
-                #[strong]
-                drive_object_clone,
+                #[weak]
+                drive,
                 async move {
-                    drive_object_clone.update_form_data(
+                    drive.save_form_data(
                         FormDataUpdate::disc_number(disc_number),
                     ).await;
                 }
             ));
         });
 
-        let drive_object_clone = drive_object
+        let drive = drive_object
             .clone();
         copy_form.connect_season_number_changed(move |season_number| {
             let season_number = season_number.to_owned();
             glib::spawn_future_local(glib::clone!(
-                #[strong]
-                drive_object_clone,
+                #[weak]
+                drive,
                 async move {
-                    drive_object_clone.update_form_data(
+                    drive.save_form_data(
                         FormDataUpdate::season_number(season_number)
                     ).await;
                 }
             ));
         });
 
-        let drive_object_clone = drive_object
+        let drive = drive_object
             .clone();
         copy_form.connect_location_changed(move |location| {
             let location = location.to_owned();
             glib::spawn_future_local(glib::clone!(
-                #[strong]
-                drive_object_clone,
+                #[weak]
+                drive,
                 async move {
-                    drive_object_clone.update_form_data(
+                    drive.save_form_data(
                         FormDataUpdate::storage_location(location)
                     ).await;
                 }
             ));
         });
 
-        let drive_object_clone = drive_object
+        let drive = drive_object
             .clone();
         copy_form.connect_memo_changed(move |memo| {
             let memo = memo.to_owned();
             glib::spawn_future_local(glib::clone!(
-                #[strong]
-                drive_object_clone,
+                #[weak]
+                drive,
                 async move {
-                    drive_object_clone.update_form_data(FormDataUpdate::memo(memo)).await;
+                    drive.save_form_data(FormDataUpdate::memo(memo)).await;
                 }
             ));
         });
@@ -738,11 +791,9 @@ mod imp {
     use std::cell::RefCell;
 
     use gtk::{Box, Label, ProgressBar, Stack};
-    use gtk::glib;
-    use gtk::glib::Binding;
+    use gtk::glib::{self, Binding};
     use gtk::subclass::prelude::*;
 
-    
     use crate::ui::widget::{CopyFormWidget, IconButton};
 
     /// Implementation for [`super::DriveWidget`].
@@ -765,6 +816,9 @@ mod imp {
 
         /// Label widget for displaying the device path of the drive.
         pub(super) path_label: RefCell<Label>,
+
+        /// Label widget for displaying the hostname of the drive.
+        pub(super) host_label: RefCell<Label>,
 
         /// Label widget for displaying the serial number of the drive.
         pub(super) serial_number_label: RefCell<Label>,
@@ -819,9 +873,8 @@ mod imp {
 
         /// The widget's bindings.
         ///
-        /// This is populated when the widget is bound to a optical drive object
-        /// and cleared when unbound. See ([`super::DriveWidget::bind`]) and
-        /// ([`super::DriveWidget::unbind`]) for more information.
+        /// This is populated when the widget is bound to a optical drive object and cleared when
+        /// unbound. See ([`super::DriveWidget::bind`]) and ([`super::DriveWidget::unbind`]).
         pub(super) bindings: RefCell<Vec<Binding>>,
     }
 
@@ -845,4 +898,9 @@ mod imp {
     impl WidgetImpl for DriveWidget {}
 
     impl BoxImpl for DriveWidget {}
+}
+
+#[cfg(test)]
+mod tests {
+    // TODO[TESTS]
 }

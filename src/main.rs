@@ -1,39 +1,74 @@
 // Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
+mod actor;
+mod app;
 mod compress;
+mod error;
+mod bus;
 mod db;
 mod drive;
-mod error;
-mod fs;
 mod library;
+mod net;
+mod path;
 mod models;
 mod settings;
+mod task;
 mod ui;
 
 #[cfg(test)]
-pub(crate) mod test_utils;
+mod test_utils;
 
-use gtk::Application;
-use gtk::gio;
-use gtk::gio::prelude::{ApplicationExt, ApplicationExtManual};
-use gtk::glib;
+use std::path::PathBuf;
+
+use clap::{ArgAction, Parser};
 
 use tracing::Level;
 use tracing_subscriber::Layer;
 use tracing_subscriber::filter::Targets;
 use tracing_subscriber::prelude::*;
 
-pub use crate::error::Error;
+pub use error::Error;
 
-// TODO: Need to determine the actual ID. Make sure to update the resources configuration as well
-//       to match.
-pub const APP_ID: &str = "org.example.Artie";
+use net::client;
+use net::server;
+use settings::Settings;
+
+/// Specifies the application's modes of operation.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Mode {
+    /// Application is running as the control node instance.
+    #[default]
+    Control,
+
+    /// Application is running as a worker node instance.
+    Worker,
+}
 
 /// Result type for the application.
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = core::result::Result<T, Error>;
 
-fn main() -> glib::ExitCode {
+/// Defines the command line arguments.
+#[derive(Parser, Debug)]
+#[command(name = "artie", about = "Media library creation orchestration tool.")]
+struct Args {
+    /// Indicates that the application should be run as a worker node.
+    #[arg(short = 'w', long = "worker", action = ArgAction::SetTrue)]
+    worker: bool,
+}
+
+/// Get the path to the application's config file.
+///
+/// TODO: This currently just returns a hard-coded path for the purposes of development. It will
+///       need to be updated to look at an environment variable first, then fallback to a standard
+///       location based on the OS (e.g. ~/.config/artie or %AppData%/artie).
+fn get_config_path() -> PathBuf {
+    PathBuf::from("artie.toml")
+}
+
+fn main() -> Result<()> {
+    let args = Args::parse();
+
 
     let filter = Targets::new()
         .with_target("artie", Level::DEBUG)
@@ -44,65 +79,48 @@ fn main() -> glib::ExitCode {
         .with(tracing_subscriber::fmt::layer().with_filter(filter))
         .init();
 
-    gio::resources_register_include!("compiled.gresource")
-        .expect("Failed to register resources.");
+    let mode = if args.worker {
+        Mode::Worker
+    } else {
+        Mode::Control
+    };
 
-    let app = Application::builder()
-        .application_id(APP_ID)
-        .build();
-    app.connect_activate(move |app| {
-        ui::build(app);
-    });
-    app.run()
+    tracing::info!(?mode, "starting");
+
+    let settings = Settings::from_file(&get_config_path())?;
+
+    path::init(settings.paths)?;
+
+    // Initialize the message bus channel first. Bus initialization is done in two parts so that
+    // the channel can be provided to the other actors.
+    let (bus, bus_recv) = bus::init_channel();
+
+    let db = if mode == Mode::Control {
+        Some(db::init()?)
+    } else {
+        None
+    };
+
+    let drive_mgr = drive::init(&bus, mode)?;
+
+    let net = if mode == Mode::Control {
+        client::manager::init(&bus, &settings.net)
+    } else {
+        server::init(&bus, &settings.net)
+    };
+
+    // Start the message bus processing task.
+    let join_handle = bus::init_processor(db, drive_mgr, net, bus_recv);
+
+    // TODO: Eventually, we will want to use feature flags so that we can compile a version without
+    //       the UI all together.
+
+    if mode == Mode::Control {
+        let _ = ui::run(mode, &bus)?;
+    } else {
+        task::block_on(join_handle).unwrap()
+    }
+
+    Ok(())
 }
 
-pub mod task {
-    //! Utilities for running asynchronous tasks.
-
-    use std::sync::OnceLock;
-
-    use tokio::runtime::Runtime;
-    use tokio::task::JoinHandle;
-
-    /// Spawns a new asynchronous task returning the join handle for it.
-    ///
-    /// This is essentially just a drop-in for the tokio::spawn method which can't be used because
-    /// the runtime is manually setup instead of using `tokio::main` macro.
-    pub fn spawn<F>(future: F) -> JoinHandle<F::Output>
-    where
-        F: Future + Send + 'static,
-        F::Output: Send + 'static,
-    {
-        runtime().spawn(future)
-    }
-
-    /// Runs the provided closure on a thread where blocking is acceptable.
-    ///
-    /// This is essentially just a drop-in for the `tokio::spawn_blocking` method which can't be
-    /// used because the runtime is manually setup instead of using `tokio::main` macro.
-    pub fn spawn_blocking<F, R>(func: F) -> JoinHandle<R>
-    where
-        F: FnOnce() -> R + Send + 'static,
-        R: Send + 'static,
-    {
-        runtime().spawn_blocking(func)
-    }
-
-    /// Runs a future blocking until it completes.
-    pub fn block_on<F>(future: F) -> F::Output 
-    where
-        F: Future,
-    {
-        Runtime::new().expect("Failed to create blocking runtime").block_on(future)
-    }
-
-    /// Gets the tokio runtime.
-    ///
-    /// On the first call, the runtime will be initialized.
-    fn runtime() -> &'static Runtime {
-        static RUNTIME: OnceLock<Runtime> = OnceLock::new();
-        RUNTIME.get_or_init(|| {
-            Runtime::new().expect("Failed to init runtime")
-        })
-    }
-}

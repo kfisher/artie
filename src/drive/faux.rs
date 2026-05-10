@@ -3,8 +3,6 @@
 
 //! Faux implementation for development and testing purposes.
 
-//! Faux implementation for development and testing purposes.
-
 use std::fs;
 use std::path::PathBuf;
 
@@ -12,14 +10,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::Result;
 
-use super::{DiscState, OpticalDrive};
+use super::{DiscState, OsOpticalDrive};
 
 /// Gets the optical drive information for all available optical drives.
 ///
 /// This is a fake implementation only meant for development and testing where the development
 /// system may not have optical drives or when it might not be desireable to use actual drives
 /// such as automated tests.
-pub fn get_optical_drives() -> Result<Vec<OpticalDrive>> {
+pub fn get_optical_drives() -> Result<Vec<OsOpticalDrive>> {
     let drives = get_faux_optical_drives()?.into_iter()
         .map(|fd| fd.into_os_drive())
         .collect();
@@ -36,7 +34,7 @@ pub fn get_optical_drives() -> Result<Vec<OpticalDrive>> {
 /// This is a fake implementation only meant for development and testing where the development
 /// system may not have optical drives or when it might not be desireable to use actual drives
 /// such as automated tests.
-pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
+pub fn get_optical_drive(serial_number: &str) -> Result<Option<OsOpticalDrive>> {
     let drive = get_faux_optical_drive(serial_number)?
         .map(|fd| fd.into_os_drive());
     Ok(drive)
@@ -59,38 +57,41 @@ struct FauxDrive {
 }
 
 impl FauxDrive {
-    pub fn into_os_drive(self) -> OpticalDrive {
-        OpticalDrive { 
+    pub fn into_os_drive(self) -> OsOpticalDrive {
+        OsOpticalDrive {
             path: self.path,
             serial_number: self.serial_number,
             disc: match self.disc {
                 Some(disc) => DiscState::Inserted { label: disc.label, uuid: disc.uuid },
                 None => DiscState::None,
             },
+            hostname: gethostname::gethostname()
+                .to_string_lossy()
+                .into(),
         }
     }
 }
 
 fn get_faux_optical_drives() -> Result<Vec<FauxDrive>> {
     let drives_dir = PathBuf::from(FAUX_DRIVES_DIR);
-    
+
     if !drives_dir.exists() {
         return Ok(Vec::new());
     }
 
     let mut drives = Vec::new();
-    
+
     for entry in fs::read_dir(&drives_dir).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
-        
+
         if path.extension().and_then(|s| s.to_str()) == Some("json") {
             let contents = fs::read_to_string(&path).unwrap();
             let drive: FauxDrive = serde_json::from_str(&contents).unwrap();
             drives.push(drive);
         }
     }
-    
+
     Ok(drives)
 }
 

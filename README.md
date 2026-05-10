@@ -10,7 +10,7 @@ This project is still in the very early stages of development.
 
 ## License
 
-Copyright (C) 2025  Kevin Fisher
+Copyright (C) 2025-2026  Kevin Fisher
 
 This program is free software: you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software

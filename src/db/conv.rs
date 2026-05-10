@@ -7,9 +7,9 @@ use std::path::PathBuf;
 
 use crate::models::{
     ContainerType,
-    MediaType, 
+    MediaType,
     MediaLocation,
-    OperationState, 
+    OperationState,
     SpecialFeature,
     SpecialFeatureType
 };
@@ -23,7 +23,7 @@ pub fn container_type_to_sql(container_type: &ContainerType) -> u8 {
 }
 
 /// Converts media location to its database values.
-/// 
+///
 /// The returned result will be a two value tuple where the first value is the numeric value
 /// representing the area and the second is a string representing the path relative to the area's
 /// root folder.
@@ -35,8 +35,7 @@ pub fn media_location_to_sql(media_location: &MediaLocation) -> (u8, String) {
         MediaLocation::Deleted => (4, PathBuf::default()),
     };
 
-    // TODO: Proper error handling?
-    (area, path.to_str().unwrap().to_owned())
+    (area, path.to_str().expect("path contained non UTF-8 characters").to_owned())
 }
 
 /// Converts media type to the integral value for use in the database.
@@ -65,7 +64,7 @@ pub fn operation_state_to_sql(state: &OperationState) -> (u8, String) {
 
 /// Converts special feature to its database values.
 ///
-/// The returned result will be a two value tuple where the first value is the numeric value for 
+/// The returned result will be a two value tuple where the first value is the numeric value for
 /// the special feature type and the second value is the name of the special feature.
 ///
 /// If the provided special feature is `None`, the result will be the default values for the

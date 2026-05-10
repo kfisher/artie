@@ -1,50 +1,54 @@
 // Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-use std::time::Duration;
+//! Performs the copy operation.
+//!
+//! The copy operation can be performed by calling [`copy_disc`].
+
+use std::fs;
 
 use chrono::Utc;
 
 use rusqlite::Connection;
 
-use tokio::sync::mpsc;
+use tokio::sync::oneshot;
 
-use tokio_util::future::FutureExt;
 use tokio_util::sync::CancellationToken;
 
-use makemkv;
-use makemkv::CommandOutput;
-
-use crate::Error;
+use crate::{Error, Result};
+use crate::bus;
 use crate::db;
-use crate::db::Database;
-use crate::fs::FileSystem;
+use crate::drive::{DiscState, DriveRequest, Message, OsOpticalDrive};
+use crate::path;
 use crate::library;
 use crate::models::{CopyOperation, CopyParamaters, OperationState, Reference};
 
-use super::{DiscState, OpticalDriveState, OpticalDrive};
-use super::actor::DriveActorHandle;
-
-// TODO: Make sure the numbered errors (system and database) are ordered correctly or come up with
-//       a better option.
-
 /// Copies the disc in the optical drive.
+///
+/// # Args
+///
+/// `bus`:  Handle for messages to the various application actors. Mainly used to communicate with
+/// the drive actor performing the copy operation.
+///
+/// `drive`:  The drive the copy operation is being performed on.
+///
+/// `copy_parameters`:  The parameters provided by the user for the copy operation.
+///
+/// `cancellation_token`:  Used to cancel the copy operation.
 pub async fn copy_disc(
-    drive: OpticalDrive,
+    bus: bus::Handle,
+    drive: OsOpticalDrive,
     copy_parameters: CopyParamaters,
-    fs: FileSystem,
-    db: Database,
-    actor: DriveActorHandle,
-    ct: CancellationToken,
+    cancellation_token: CancellationToken,
 ) {
     tracing::info!(sn=drive.serial_number, "starting copy operation");
 
-    let mut conn = match db.connect() {
-        Ok(db) => db,
+    let mut conn = match db::connect(&bus).await {
+        Ok(conn) => conn,
         Err(error) => {
             tracing::error!(sn=drive.serial_number, ?error, "database connection failed");
             operation_failed(
-                &actor,
+                &bus,
                 &drive.serial_number,
                 None,
                 ErrorMessage::ConnectFailed(error),
@@ -54,9 +58,9 @@ pub async fn copy_disc(
     };
 
     let DiscState::Inserted { label: _disc_label, uuid: disc_uuid } = drive.disc else {
-        tracing::error!("cannot copy from empty drive");
+        tracing::error!(sn=drive.serial_number,"cannot copy from empty drive");
         operation_failed(
-            &actor, 
+            &bus,
             &drive.serial_number,
             None,
             ErrorMessage::InvalidDiscState,
@@ -69,11 +73,11 @@ pub async fn copy_disc(
         Err(error) => {
             tracing::error!(
                 sn=drive.serial_number,
-                ?error, 
+                ?error,
                 "failed to get/create optical drive db record"
             );
             operation_failed(
-                &actor,
+                &bus,
                 &drive.serial_number,
                 None,
                 ErrorMessage::DbOpOpticalDriveFailed(error),
@@ -82,22 +86,14 @@ pub async fn copy_disc(
         }
     };
 
-    // Don't expect a computer's hostname to contain invalid unicode characters. If it does, then
-    // something likely went very wrong with fetching the hostname to the point where we would
-    // prefer an application crash anyways.
-    // 
-    // TODO: When worker nodes are added, the following will need to be updated.
-    // 
-    let hostname = gethostname::gethostname()
-        .into_string()
-        .unwrap();
+    tracing::info!(sn=drive.serial_number, id=db_drive.id, "got drive record");
 
-    let host = match db::host::get_or_create(&conn, &hostname) {
+    let host = match db::host::get_or_create(&conn, &drive.hostname) {
         Ok(host) => host,
         Err(error) => {
             tracing::error!(sn=drive.serial_number, ?error, "failed to get/create host db record");
             operation_failed(
-                &actor,
+                &bus,
                 &drive.serial_number,
                 None,
                 ErrorMessage::DbOpHostFailed(error),
@@ -105,6 +101,8 @@ pub async fn copy_disc(
             return;
         }
     };
+
+    tracing::info!(sn=drive.serial_number, id=host.id, host=host.hostname, "got host record");
 
     let mut copy_operation = CopyOperation {
         started: Utc::now(),
@@ -130,7 +128,7 @@ pub async fn copy_disc(
     if let Err(error) = db::copy_operation::create(&conn, &mut copy_operation) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to get/create host db record");
         operation_failed(
-            &actor,
+            &bus,
             &drive.serial_number,
             None,
             ErrorMessage::DbOpCopyOperationCreateFailed(error),
@@ -138,10 +136,12 @@ pub async fn copy_disc(
         return;
     };
 
+    tracing::info!(sn=drive.serial_number, id=copy_operation.id, "created copy operation record");
+
     // Don't check for cancellation until now because we want there to be a database entry.
-    if ct.is_cancelled() {
+    if cancellation_token.is_cancelled() {
         tracing::info!(sn=drive.serial_number, "copy operation cancelled");
-        operation_canceled(&actor, &drive.serial_number, conn, copy_operation).await;
+        operation_canceled(&bus, &drive.serial_number, conn, copy_operation).await;
         return;
     }
 
@@ -152,7 +152,7 @@ pub async fn copy_disc(
     ) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to set running state in db");
         operation_failed(
-            &actor,
+            &bus,
             &drive.serial_number,
             None,
             ErrorMessage::DbOpSetStateRunning(error),
@@ -160,14 +160,25 @@ pub async fn copy_disc(
         return;
     }
 
-    let output_dir = fs.inbox_folder(&copy_operation);
+    let output_location = path::inbox_location(&copy_operation, None);
+    let Some(output_path) = path::location_path(&output_location) else {
+        let error = Error::InvalidMediaLocation { location: output_location };
+        tracing::error!(sn=drive.serial_number, ?error, "failed to get output path");
+        operation_failed(
+            &bus,
+            &drive.serial_number,
+            None,
+            ErrorMessage::DbOpSetStateRunning(error),
+        ).await;
+        return;
+    };
 
     // The folder name should almost guaranteed to be unique. Even so, if it does, exit because
     // something has gone wrong so we don't override stuff we don't intend to.
-    if output_dir.exists() {
-        tracing::error!(sn=drive.serial_number, ?output_dir, "output directory already exists");
+    if output_path.exists() {
+        tracing::error!(sn=drive.serial_number, ?output_path, "output directory already exists");
         operation_failed(
-            &actor,
+            &bus,
             &drive.serial_number,
             Some((conn, copy_operation)),
             ErrorMessage::OutputDirExists,
@@ -175,95 +186,70 @@ pub async fn copy_disc(
         return;
     }
 
-    if let Err(error) = std::fs::create_dir(&output_dir) {
+    if let Err(error) = fs::create_dir(&output_path) {
         tracing::error!(
             sn=drive.serial_number,
-            ?output_dir,
+            ?output_path,
             ?error,
             "failed to create output directory"
         );
-        let error = Error::FileIo { 
-            path: output_dir, 
-            error 
-        };
         operation_failed(
-            &actor,
+            &bus,
             &drive.serial_number,
             Some((conn, copy_operation)),
-            ErrorMessage::OutputDirCreateFailed(error),
+            ErrorMessage::OutputDirCreateFailed(error.into()),
         ).await;
         return;
     }
 
-    tracing::info!(sn=drive.serial_number, path=?output_dir, "created inbox folder");
+    tracing::info!(sn=drive.serial_number, path=?output_path, "created inbox folder");
 
-    let (tx, mut rx) = mpsc::unbounded_channel::<CommandOutput>();
-    let device_path = drive.path.clone();
-    let tx_clone = tx.clone();
-    let log_path = fs.mkv_info_log_file(&copy_operation);
-    let ct_clone = ct.clone();
-    let handle = tokio::spawn(async move {
-        makemkv::get_disc_info(&device_path, &tx_clone, &log_path, &ct_clone).await
-    }).with_cancellation_token(&ct);
+    let (response_tx, response_rx) = oneshot::channel();
 
-    // Must drop the original sender to avoid blocking indefinitely.
-    drop(tx);
-
-    while let Some(data) = rx.recv().await {
-        match data {
-            CommandOutput::Message(_message) => {
-                // TODO
-            },
-            CommandOutput::Progress(progress) => {
-                let state = OpticalDriveState::Copying {
-                    stage: String::from("Gathering Disc Info"),
-                    task: progress.op.clone(),
-                    task_progress: (progress.op_prog as f32) / 100.0,
-                    subtask: progress.subop.clone(),
-                    subtask_progress: (progress.subop_prog as f32) / 100.0,
-                    elapsed_time: Duration::ZERO,
-                };
-                send_state(&actor, state).await;
-            },
-            CommandOutput::Error(_error) => {
-                // TODO
-            },
-        }
-    }
-
-    if ct.is_cancelled() {
-        tracing::info!(sn=drive.serial_number, "copy operation cancelled");
-        operation_canceled(&actor, &drive.serial_number, conn, copy_operation).await;
-        return;
-    }
-
-
-    let result = handle.await;
-
-    // NOTE: If we make it this far, result should not be None. If its None, its because the token
-    //       is cancelled which means we would have exited above. Leaving this hear just in case
-    //       there are other conditions then the token being cancelled that can result in None that
-    //       aren't documented or something changes in the future.
-    let Some(result) = result else {
-        tracing::error!(sn=drive.serial_number, "attempted to run info task with cancelled token");
-        operation_failed(
-            &actor,
-            &drive.serial_number,
-            Some((conn, copy_operation)),
-            ErrorMessage::InfoCommandHandleAwait,
-        ).await;
-        return;
+    let request = DriveRequest::RunMakeMkvInfo {
+        log_file: path::mkv_info_log_location(&copy_operation),
+        cancellation_token: cancellation_token.clone(),
+        response: response_tx,
     };
+
+    let msg = Message::Drive {
+        serial_number: drive.serial_number.clone(),
+        request,
+    };
+
+    tracing::info!(sn=drive.serial_number, "makemkv info started");
+
+    if let Err(error) = bus.send(msg).await {
+        tracing::error!(sn=drive.serial_number, ?error, "failed to send info command request");
+        operation_failed(
+            &bus,
+            &drive.serial_number,
+            Some((conn, copy_operation)),
+            ErrorMessage::InfoCommandSendError(error),
+        ).await;
+        return;
+    }
+
+    let result = response_rx.await;
+
+    tracing::info!(sn=drive.serial_number, "makemkv info ended");
+
+    if cancellation_token.is_cancelled() {
+        tracing::info!(sn=drive.serial_number, "copy operation cancelled");
+        operation_canceled(&bus, &drive.serial_number, conn, copy_operation).await;
+        return;
+    }
 
     let result = match result {
         Ok(result) => result,
         Err(error) => {
-            tracing::error!(sn=drive.serial_number, ?error, "failed to join info task");
+            let error: Error = error.into();
+            tracing::error!(sn=drive.serial_number, ?error, "failed to read info command response");
             operation_failed(
-                &actor,
+                &bus,
                 &drive.serial_number,
                 Some((conn, copy_operation)),
-                ErrorMessage::InfoCommandJoinError,
+                ErrorMessage::InfoCommandResponseError(error),
             ).await;
             return;
         },
@@ -273,9 +259,8 @@ pub async fn copy_disc(
         Ok(output) => (output.disc_info, output.log),
         Err(error) => {
             tracing::error!(sn=drive.serial_number, ?error, "disc info command failed");
-            let error = Error::MakeMKV { error };
             operation_failed(
-                &actor,
+                &bus,
                 &drive.serial_number,
                 Some((conn, copy_operation)),
                 ErrorMessage::MkvInfoCommandFailed(error),
@@ -284,12 +269,12 @@ pub async fn copy_disc(
         },
     };
 
-    let path = fs.disc_info_file(&copy_operation);
+    let path = path::disc_info_path(&copy_operation);
     if let Err(error) = disc_info.save(&path) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to save disc info to disc");
-        let error = Error::MakeMKV { error };
+        let error = error.into();
         operation_failed(
-            &actor,
+            &bus,
             &drive.serial_number,
             Some((conn, copy_operation)),
             ErrorMessage::DiscInfoSaveFailed(error),
@@ -297,10 +282,12 @@ pub async fn copy_disc(
         return;
     }
 
+    tracing::info!(sn=drive.serial_number, "saved disc info to file system");
+
     if let Err(error) = db::copy_operation::set_metadata(&conn, &mut copy_operation, &disc_info) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to write disc info to db");
         operation_failed(
-            &actor,
+            &bus,
             &drive.serial_number,
             Some((conn, copy_operation)),
             ErrorMessage::DbOpSetMetadataFailed(error),
@@ -308,10 +295,12 @@ pub async fn copy_disc(
         return;
     }
 
+    tracing::info!(sn=drive.serial_number, "saved disc info to db");
+
     if let Err(error) = db::copy_operation::set_info_log(&conn, &mut copy_operation, &log_text) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to write info log to db");
         operation_failed(
-            &actor,
+            &bus,
             &drive.serial_number,
             Some((conn, copy_operation)),
             ErrorMessage::DbOpSetInfoLogFailed(error),
@@ -319,72 +308,55 @@ pub async fn copy_disc(
         return;
     }
 
-    let (tx, mut rx) = mpsc::unbounded_channel::<CommandOutput>();
-    let device_path = drive.path.clone();
-    let tx_clone = tx.clone();
-    let log_path = fs.mkv_copy_log_file(&copy_operation);
-    let ct_clone = ct.clone();
-    let handle = tokio::spawn(async move {
-        makemkv::copy_disc(&device_path, &output_dir, &tx_clone, &log_path, &ct_clone).await
-    }).with_cancellation_token(&ct);
+    tracing::info!(sn=drive.serial_number, "saved makemkv info log to db");
 
-    // Must drop the original sender to avoid blocking indefinitely.
-    drop(tx);
+    let (response_tx, response_rx) = oneshot::channel();
 
-    while let Some(data) = rx.recv().await {
-        match data {
-            CommandOutput::Message(_message) => {
-                // TODO
-            },
-            CommandOutput::Progress(progress) => {
-                let state = OpticalDriveState::Copying {
-                    stage: String::from("Copying Disc"),
-                    task: progress.op.clone(),
-                    task_progress: (progress.op_prog as f32) / 100.0,
-                    subtask: progress.subop.clone(),
-                    subtask_progress: (progress.subop_prog as f32) / 100.0,
-                    elapsed_time: Duration::ZERO,
-                };
-                send_state(&actor, state).await;
-            },
-            CommandOutput::Error(_error) => {
-                // TODO
-            },
-        }
-    }
+    let request = DriveRequest::RunMakeMkvCopy {
+        output_dir: output_location,
+        log_file: path::mkv_copy_log_location(&copy_operation),
+        cancellation_token: cancellation_token.clone(),
+        response: response_tx,
+    };
 
-    if ct.is_cancelled() {
-        tracing::info!(sn=drive.serial_number, "copy operation cancelled");
-        operation_canceled(&actor, &drive.serial_number, conn, copy_operation).await;
-        return;
-    }
+    let msg = Message::Drive {
+        serial_number: drive.serial_number.clone(),
+        request,
+    };
 
-    let result = handle.await;
+    tracing::info!(sn=drive.serial_number, "makemkv copy started");
 
-    // NOTE: If we make it this far, result should not be None. If its None, its because the token
-    //       is cancelled which means we would have exited above. Leaving this hear just in case
-    //       there are other conditions then the token being cancelled that can result in None that
-    //       aren't documented or something changes in the future.
-    let Some(result) = result else {
-        tracing::error!(sn=drive.serial_number, "attempted to run copy task with cancelled token");
+    if let Err(error) = bus.send(msg).await {
+        tracing::error!(sn=drive.serial_number, ?error, "failed to send copy command request");
         operation_failed(
-            &actor,
+            &bus,
             &drive.serial_number,
             Some((conn, copy_operation)),
-            ErrorMessage::CopyCommandHandleAwait,
+            ErrorMessage::CopyCommandSendError(error),
         ).await;
         return;
-    };
+    }
+
+    let result = response_rx.await;
+
+    if cancellation_token.is_cancelled() {
+        tracing::info!(sn=drive.serial_number, "copy operation cancelled");
+        operation_canceled(&bus, &drive.serial_number, conn, copy_operation).await;
+        return;
+    }
+
+    tracing::info!(sn=drive.serial_number, "makemkv copy ended");
 
     let result = match result {
         Ok(result) => result,
         Err(error) => {
-            tracing::error!(sn=drive.serial_number, ?error, "failed to join copy task");
+            let error: Error = error.into();
+            tracing::error!(sn=drive.serial_number, ?error, "failed to read copy command response");
             operation_failed(
-                &actor,
+                &bus,
                 &drive.serial_number,
                 Some((conn, copy_operation)),
-                ErrorMessage::CopyCommandJoinError,
+                ErrorMessage::CopyCommandResponseError(error),
             ).await;
             return;
         },
@@ -394,9 +366,8 @@ pub async fn copy_disc(
         Ok(output) => output.log,
         Err(error) => {
             tracing::error!(sn=drive.serial_number, ?error, "disc copy command failed");
-            let error = Error::MakeMKV { error };
             operation_failed(
-                &actor,
+                &bus,
                 &drive.serial_number,
                 Some((conn, copy_operation)),
                 ErrorMessage::MkvCopyCommandFailed(error),
@@ -408,7 +379,7 @@ pub async fn copy_disc(
     if let Err(error) = db::copy_operation::set_copy_log(&conn, &mut copy_operation, &log_text) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to write copy log to db");
         operation_failed(
-            &actor,
+            &bus,
             &drive.serial_number,
             Some((conn, copy_operation)),
             ErrorMessage::DbOpSetCopyLogFailed(error),
@@ -416,22 +387,25 @@ pub async fn copy_disc(
         return;
     }
 
+    tracing::info!(sn=drive.serial_number, "saved makemkv copy log to db");
+
     if let Err(error) = library::process_copy_operation(
-        &fs,
+        &copy_operation,
         &drive.serial_number,
-        &mut conn,
         &disc_info,
-        &copy_operation
+        &mut conn,
     ) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to generate videos and titles");
         operation_failed(
-            &actor,
+            &bus,
             &drive.serial_number,
             Some((conn, copy_operation)),
             ErrorMessage::CreateVideosAndTitlesFailed(error),
         ).await;
         return;
     }
+
+    tracing::info!(sn=drive.serial_number, "created title and video db records");
 
     if let Err(error) = db::copy_operation::set_state(
         &conn,
@@ -440,15 +414,17 @@ pub async fn copy_disc(
     ) {
         tracing::error!(sn=drive.serial_number, ?error, "failed to set state to completed");
         operation_failed(
-            &actor,
+            &bus,
             &drive.serial_number,
             Some((conn, copy_operation)),
             ErrorMessage::DbOpSetCopyLogFailed(error),
         ).await;
         return;
     }
-    
-    send_state(&actor, OpticalDriveState::Success).await;
+
+    let (tx, rx) = oneshot::channel();
+    let request = DriveRequest::CopyCompleted { response: tx };
+    send_copy_result(&bus, &drive.serial_number, request, rx).await;
 
     tracing::info!(sn=drive.serial_number, "copy operation completed successfully");
 }
@@ -458,8 +434,8 @@ pub async fn copy_disc(
 #[derive(Debug)]
 enum ErrorMessage {
     ConnectFailed(Error),
-    CopyCommandHandleAwait,
-    CopyCommandJoinError,
+    CopyCommandResponseError(Error),
+    CopyCommandSendError(Error),
     CreateVideosAndTitlesFailed(Error),
     DbOpCopyOperationCreateFailed(Error),
     DbOpHostFailed(Error),
@@ -471,8 +447,8 @@ enum ErrorMessage {
     DbOpSetStateRunning(Error),
     DiscInfoSaveFailed(Error),
     DiscInfoSerializationError(Error),
-    InfoCommandHandleAwait,
-    InfoCommandJoinError,
+    InfoCommandResponseError(Error),
+    InfoCommandSendError(Error),
     InvalidDiscState,
     MkvCopyCommandFailed(Error),
     MkvInfoCommandFailed(Error),
@@ -484,14 +460,14 @@ impl ErrorMessage {
     /// Creates the error message for the user.
     fn user_message(&self) -> String {
         match self {
-            ErrorMessage::ConnectFailed(_) => { 
+            ErrorMessage::ConnectFailed(_) => {
                 String::from("Database connection failed.")
             },
-            ErrorMessage::CopyCommandHandleAwait => {
-                String::from("System Error (copy-await).")
+            ErrorMessage::CopyCommandResponseError(_) => {
+                String::from("System Error (copy-response).")
             },
-            ErrorMessage::CopyCommandJoinError => {
-                String::from("System Error (copy-join).")
+            ErrorMessage::CopyCommandSendError(_) => {
+                String::from("System Error (copy-send).")
             },
             ErrorMessage::CreateVideosAndTitlesFailed(_) => {
                 String::from("Database operation failed: Failed to create title/video data")
@@ -526,11 +502,11 @@ impl ErrorMessage {
             ErrorMessage::DiscInfoSerializationError(_) => {
                 String::from("Failed to serialize disc information.")
             },
-            ErrorMessage::InfoCommandHandleAwait => {
-                String::from("System Error (info-await).")
+            ErrorMessage::InfoCommandResponseError(_) => {
+                String::from("System Error (info-response).")
             },
-            ErrorMessage::InfoCommandJoinError => {
-                String::from("System Error (info-join).")
+            ErrorMessage::InfoCommandSendError(_) => {
+                String::from("System Error (info-send).")
             },
             ErrorMessage::InvalidDiscState => {
                 String::from("Cannot copy from empty drive.")
@@ -558,15 +534,11 @@ impl ErrorMessage {
 
 /// Updates the drive actor state to failed with a message indicating operation was cancelled.
 async fn operation_canceled(
-    actor: &DriveActorHandle,
+    bus: &bus::Handle,
     serial_number: &str,
     conn: Connection,
     copy_operation: CopyOperation,
 ) {
-    let state = OpticalDriveState::Failed {
-        error: String::from("Copy operation was cancelled."),
-    };
-
     let mut copy_operation = copy_operation;
 
     if let Err(error) = db::copy_operation::set_state(
@@ -577,21 +549,23 @@ async fn operation_canceled(
         tracing::info!(sn=serial_number, ?error, "failed to set cancelled state in database");
     }
 
-    send_state(actor, state).await;
+    let (tx, rx) = oneshot::channel();
+    let request = DriveRequest::CopyFailed {
+        error: String::from("Copy operation was cancelled."),
+        response: tx,
+    };
+
+    send_copy_result(bus, serial_number, request, rx).await
 }
 
 /// Updates the drive actor state to failed with the provided message.
 async fn operation_failed(
-    actor: &DriveActorHandle,
+    bus: &bus::Handle,
     serial_number: &str,
     data: Option<(Connection, CopyOperation)>,
     msg: ErrorMessage
 ) {
-    let state = OpticalDriveState::Failed {
-        error: msg.user_message(),
-    };
-
-    let operation_state = OperationState::Failed { 
+    let operation_state = OperationState::Failed {
         reason: msg.database_message(),
     };
 
@@ -604,11 +578,47 @@ async fn operation_failed(
             tracing::info!(sn=serial_number, ?error, "failed to set failed state in database");
         }
 
-    send_state(actor, state).await;
+    let (tx, rx) = oneshot::channel();
+    let request = DriveRequest::CopyFailed {
+        error: msg.user_message(),
+        response: tx,
+    };
+
+    send_copy_result(bus, serial_number, request, rx).await
 }
 
-/// Updates the actor state.
-async fn send_state(actor: &DriveActorHandle, state: OpticalDriveState) {
-    actor.update_optical_drive_state(state).await.unwrap(); // FIXME
+/// Send the result of the copy operation to the drive actor.
+async fn send_copy_result(
+    bus: &bus::Handle,
+    serial_number: &str,
+    request: DriveRequest,
+    rx: oneshot::Receiver<Result<()>>
+) {
+    let msg = Message::Drive {
+        serial_number: serial_number.to_owned(),
+        request,
+    };
+
+    if let Err(error) = bus.send(msg).await {
+        tracing::error!(sn=serial_number, ?error, "failed to send request");
+        return;
+    }
+
+
+    let result: crate::Result<()> = match rx.await {
+        Ok(result) => result,
+        Err(error) => {
+            tracing::error!(sn=serial_number, ?error, "failed to process request response");
+            return;
+        }
+    };
+
+    if let Err(error) = result {
+        tracing::error!(sn=serial_number, ?error, "received error response");
+    }
 }
 
+#[cfg(test)]
+mod tests {
+    // TODO[TESTS]
+}

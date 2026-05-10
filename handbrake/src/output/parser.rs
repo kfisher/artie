@@ -16,7 +16,7 @@ pub enum Output {
 }
 
 /// Parses progress information from Handbrake's output.
-/// 
+///
 /// Handbrake will output progress information as JSON formatted text that gets printed over
 /// multiple lines of output. This parser will store a buffer of those lines and then parse the
 /// output to generate a progress update when it has the complete JSON object.
@@ -72,9 +72,9 @@ impl Parser {
 
         // Start the JSON object in the internal buffer. Just need the opening bracket, not the
         // label that prefixed it.
-        self.cursor.write(b"{").map_err(|e| Error::ProgressBufferWriteError { 
+        self.cursor.write(b"{").map_err(|e| Error::ProgressBufferWriteError {
             text: text.to_owned(),
-            error: e 
+            error: e
         })?;
 
         Ok(Output::None)
@@ -89,7 +89,7 @@ impl Parser {
         // Add the next line of output to the internal buffer.
         self.cursor.write(text.as_bytes()).map_err(|e| Error::ProgressBufferWriteError {
             text: text.to_owned(),
-            error: e 
+            error: e
         })?;
 
         // Check for end of the root JSON object. It is currently assumed to be when a line
@@ -114,7 +114,7 @@ impl Parser {
 
         // Move the cursor back to the start prior to starting to write the next JSON object to the
         // buffer. Don't need to clear the existing data since we'll only ever read what was
-        // written since this reset. 
+        // written since this reset.
         self.rewind()?;
 
         self.state = ParserState::Waiting;
@@ -145,13 +145,13 @@ pub(crate) enum ParserState {
 ///
 /// This expects the content between the current position in the reader plus the provided number of
 /// bites to contain a complete JSON object.
-fn parse_progress<T>(reader: &mut T, bytes: u64) -> Result<Output> 
+fn parse_progress<T>(reader: &mut T, bytes: u64) -> Result<Output>
 where
     T: Read
 {
     let mut reader = reader.take(bytes);
     let progress = json::parse_progress(&mut reader)?;
-    
+
     let Some(progress) = progress.working else {
         return Ok(Output::None);
     };
@@ -169,7 +169,7 @@ where
 ///
 /// This expects the content between the current position in the reader plus the provided number of
 /// bites to contain a complete JSON object.
-fn parse_version<T>(reader: &mut T, bytes: u64) -> Result<Output> 
+fn parse_version<T>(reader: &mut T, bytes: u64) -> Result<Output>
 where
     T: Read
 {

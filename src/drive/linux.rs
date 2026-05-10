@@ -8,24 +8,40 @@ use std::process::Command;
 use serde::Deserialize;
 
 use crate::{Error, Result};
-use crate::error;
 
-use super::{DiscState, OpticalDrive};
+use super::{DiscState, OsOpticalDrive};
 
 /// Gets the optical drive information for all available optical drives.
-pub fn get_optical_drives() -> Result<Vec<OpticalDrive>> {
+///
+/// # Errors
+///
+/// [`Error::StdIo`] if the external command fails to run.
+///
+/// [`Error::CommandReturnedErrorCode`] if the external command exits with a non-zero exit code.
+///
+/// [`Error::UtfConversion`] if the output from the command cannot be converted into a string.
+pub fn get_optical_drives() -> Result<Vec<OsOpticalDrive>> {
     get_optical_drives_impl(run_lsblk_command)
 }
 
-/// Gets the optical drive information for an optical drive with serial number
-/// `serial_number`.
-///
-/// Returns `None` if an optical drive cannot be found with the provided serial
-/// number. Returns an error if something goes wrong when querying the operating
-/// system.
+/// Gets the optical drive information for an optical drive with serial number `serial_number`.
 ///
 /// This is the Linux specific implementation.
-pub fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
+///
+/// # Returns
+///
+/// Returns `Some` if a drive can be found with the provided serial number or `None` otherwise.
+///
+/// # Errors
+///
+/// [`Error::StdIo`] if the external command fails to run.
+///
+/// [`Error::CommandReturnedErrorCode`] if the external command exits with a non-zero exit code.
+///
+/// [`Error::UtfConversion`] if the output from the command cannot be converted into a string.
+///
+/// [`Error::SerdeJson`] If the JSON returned by the provided command running cannot be parsed.
+pub fn get_optical_drive(serial_number: &str) -> Result<Option<OsOpticalDrive>> {
     get_optical_drive_impl(serial_number, run_lsblk_command)
 }
 
@@ -85,15 +101,23 @@ impl BlockDevice {
     /// Panics if called on a block device that is not a valid optical drive
     /// block device. Use [`BlockDevice::is_optical_drive`] to check if the
     /// device is a valid optical drive.
-    fn to_optical_drive(&self) -> OpticalDrive {
+    fn to_optical_drive(&self) -> OsOpticalDrive {
         let Some(sn) = &self.serial_number else {
             panic!("Block device is not a valid optical drive.");
         };
 
-        let mut drive = OpticalDrive {
+        // Don't expect a computer's hostname to contain invalid unicode characters. If it does,
+        // then something likely went very wrong with fetching the hostname to the point where we
+        // would prefer an application crash anyways.
+        let hostname = gethostname::gethostname()
+            .into_string()
+            .unwrap();
+
+        let mut drive = OsOpticalDrive {
             path: self.name.clone(),
             serial_number: sn.clone(),
             disc: DiscState::None,
+            hostname,
         };
 
         if let Some(label) = &self.label {
@@ -127,8 +151,15 @@ struct BlockDeviceData {
 }
 
 /// Runs the `lsblk` command and return the output which is a JSON string that
-/// can be deserialized into a [`BlockDeviceData`] instance. Returns an error if
-/// the command fails to run or exits with an error status code.
+/// can be deserialized into a [`BlockDeviceData`] instance.
+///
+/// # Errors
+///
+/// [`Error::StdIo`] if the external command fails to run.
+///
+/// [`Error::CommandReturnedErrorCode`] if the external command exits with a non-zero exit code.
+///
+/// [`Error::UtfConversion`] if the output from the command cannot be converted into a string.
 fn run_lsblk_command() -> Result<String> {
     let mut command = Command::new("lsblk");
     command.arg("--json");
@@ -137,24 +168,48 @@ fn run_lsblk_command() -> Result<String> {
     command.arg("--output");
     command.arg("NAME,SERIAL,LABEL,TYPE,UUID");
 
-    let output = command.output().map_err(|e| error::command_io(&command, e))?;
+    let output = command.output()?;
 
     if !output.status.success() {
-        return Err(error::command_exit(&command, &output));
+        return Err(Error::CommandReturnedErrorCode {
+            command: command
+                .get_program()
+                .to_string_lossy()
+                .into_owned(),
+            args: command.get_args()
+                .map(|s| s.to_string_lossy())
+                .collect::<Vec<_>>()
+                .join(" "),
+            code: output.status.code(),
+            stdout: String::from_utf8_lossy(output.stdout.as_slice())
+                .into_owned(),
+            stderr: String::from_utf8_lossy(output.stderr.as_slice())
+                .into_owned(),
+        });
     }
 
-    String::from_utf8(output.stdout).map_err(|e| Error::ConversionError { error: e })
+    Ok(String::from_utf8(output.stdout)?)
 }
 
 // NOTE: The internal implementation allows for the bulk of the function to be
 //       tested without having to make an actual call to the OS.
 
 /// Internal implementation of [`get_optical_drives`].
-fn get_optical_drives_impl<F: Fn() -> Result<String>>(run_cmd: F) -> Result<Vec<OpticalDrive>> {
+///
+/// # Args
+///
+/// `run_cmd`:  Function that should be called to get the optical drive data. It is expected to
+/// return a string that can be deserialized into a [`BlockDeviceData`] instance.
+///
+/// # Errors
+///
+/// [`Error::SerdeJson`] If the JSON returned by the provided command running cannot be parsed.
+///
+/// The remaining possible errors depend on the provided command runner.
+fn get_optical_drives_impl<F: Fn() -> Result<String>>(run_cmd: F) -> Result<Vec<OsOpticalDrive>> {
     let json = run_cmd()?;
 
-    let block_device_data = serde_json::from_str::<BlockDeviceData>(&json)
-        .map_err(error::json_deserialize)?;
+    let block_device_data = serde_json::from_str::<BlockDeviceData>(&json)?;
 
     let drives = block_device_data.block_devices.iter()
         .filter(|bd| bd.is_optical_drive())
@@ -166,18 +221,29 @@ fn get_optical_drives_impl<F: Fn() -> Result<String>>(run_cmd: F) -> Result<Vec<
 
 /// Internal implementation of [`get_optical_drive`].
 ///
-/// This method gets the optional drive information from the operating system
-/// for a drive with serial number `serial_number`. Returns `None` if an optical
-/// drive cannot be found or an error if the command fails or its results cannot
-/// be processed.
+/// # Args
+///
+/// `serial_number`:  The serial number of the optical drive to get the drive info for.
+///
+/// `run_cmd`:  Function that should be called to get the optical drive data. It is expected to
+/// return a string that can be deserialized into a [`BlockDeviceData`] instance.
+///
+/// # Returns
+///
+/// Returns `Some` if a drive can be found with the provided serial number or `None` otherwise.
+///
+/// # Errors
+///
+/// [`Error::SerdeJson`] If the JSON returned by the provided command running cannot be parsed.
+///
+/// The remaining possible errors depend on the provided command runner.
 fn get_optical_drive_impl<F: Fn() -> Result<String>>(
     serial_number: &str,
     run_cmd: F,
-) -> Result<Option<OpticalDrive>> {
+) -> Result<Option<OsOpticalDrive>> {
     let json = run_cmd()?;
 
-    let block_device_data = serde_json::from_str::<BlockDeviceData>(&json)
-        .map_err(error::json_deserialize)?;
+    let block_device_data = serde_json::from_str::<BlockDeviceData>(&json)?;
 
     for bd in block_device_data.block_devices {
         if !bd.is_optical_drive() {
@@ -429,13 +495,13 @@ mod tests {
 
     #[test]
     fn test_get_optical_drive_command_error() {
-        let cmd = || -> Result<String> { 
+        let cmd = || -> Result<String> {
             Err(Error::CommandReturnedErrorCode {
                 command: String::from("test_command"),
                 args: String::from("test_args"),
-                code: Some(47), 
+                code: Some(47),
                 stdout: String::from("stdout text"),
-                stderr: String::from("stderr text") 
+                stderr: String::from("stderr text")
             })
         };
         match get_optical_drive_impl(&String::from("SN0001"), cmd) {
@@ -472,7 +538,7 @@ mod tests {
         match get_optical_drive_impl(&String::from("SN0001"), cmd) {
             Ok(_) => panic!("Expected an error when the command returns an error"),
             Err(err) => match err {
-                Error::Serialization { .. } => (),
+                Error::SerdeJson { .. } => (),
                 _ => panic!("Expected an error with invalid JSON"),
             },
         }

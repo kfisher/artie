@@ -21,6 +21,9 @@ pub enum Error {
     /// Error raised when the MakeMKV failed to start because it was already running.
     CommandAlreadyRunning,
 
+    /// Error raised when the MakeMKV command was cancelled.
+    CommandCancelled,
+
     /// Error raised when attempting to stop or wait for a command that has not started.
     CommandNotStarted,
 

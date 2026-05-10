@@ -11,6 +11,7 @@ mod messages;
 #[cfg(test)]
 mod test_utils;
 
+use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::UnboundedSender;
 
 use tokio_util::sync::CancellationToken;
@@ -21,30 +22,19 @@ pub use crate::commands::CommandOutput;
 
 use std::fs;
 use std::path::Path;
-use std::process::ExitStatus;
 
 use crate::commands::Context;
 
 /// Output data from copying a disc.
+#[derive(Debug, Deserialize, Serialize)]
 pub struct CopyCommandOutput {
-    /// Exit code for the operation.
-    ///
-    /// Note that MakeMKV will sometimes return a non-zero exit code even when the operation
-    /// completed successfully.
-    pub exit_status: ExitStatus,
-
     /// The raw output from the MakeMKV command.
     pub log: String,
 }
 
 /// Output data from gathering disc info.
+#[derive(Debug, Deserialize, Serialize)]
 pub struct InfoCommandOutput {
-    /// Exit code for the operation.
-    ///
-    /// Note that MakeMKV will sometimes return a non-zero exit code even when the operation
-    /// completed successfully.
-    pub exit_status: ExitStatus,
-
     /// The raw output from the MakeMKV command.
     pub log: String,
 
@@ -109,7 +99,11 @@ pub async fn get_disc_info(
     let mut ctx = Context::new(device, observer, ct.clone());
     ctx.log_output(log_path)?;
 
-    let exit_status = commands::run_info_command(&mut ctx).await?;
+    let _exit_status = commands::run_info_command(&mut ctx).await?;
+
+    if ct.is_cancelled() {
+        return Err(Error::CommandCancelled);
+    }
 
     let log = fs::read_to_string(log_path)
         .map_err(|error| Error::FileOpenError { path: log_path.to_owned(), error })?;
@@ -117,7 +111,6 @@ pub async fn get_disc_info(
     let disc_info = ctx.take_disc_info().ok_or(Error::MissingDiscInfo)?;
 
     let output = InfoCommandOutput {
-        exit_status,
         log,
         disc_info,
     };
@@ -161,13 +154,16 @@ pub async fn copy_disc(
     let mut ctx = Context::new(device, observer, ct.clone());
     ctx.log_output(log_path)?;
 
-    let exit_status = commands::run_mkv_command(&mut ctx, out_dir).await?;
+    let _exit_status = commands::run_mkv_command(&mut ctx, out_dir).await?;
+
+    if ct.is_cancelled() {
+        return Err(Error::CommandCancelled);
+    }
 
     let log = fs::read_to_string(log_path)
         .map_err(|error| Error::FileOpenError { path: log_path.to_owned(), error })?;
 
     let output = CopyCommandOutput {
-        exit_status,
         log,
     };
 

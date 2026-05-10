@@ -1,12 +1,41 @@
 // Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Handles interactions with optical drives.
+//! Handles all optical drive operations.
+//!
+//! # Actors
+//!
+//! The drive module consists of several types of application actors. The drive manager actor is
+//! responsible for managing the other drive actor instances. It also serves as the broker for
+//! drive related requests coming from the message bus. The following functions can be used to make
+//! requests to the manager:
+//!
+//! - [`get_drives`] - Get list of available optical drives.
+//!
+//! There are several types of drive actors depending on if the drive is connected to the host the
+//! application is running on and if the application is the control node or a worker node.
+//! Regardless of the type, all drive actor requests are made using the following functions:
+//!
+//! - [`begin_copy`] - Starts a copy operation.
+//! - [`cancel_copy`] - Cancels a running copy operation.
+//! - [`get`] - Get details about an optical drive and its current state.
+//! - [`read_form_data`] - Read the saved copy parameter values.
+//! - [`reset`] - Resets the drive back to the `Idle` state after a successful or failed copy
+//!   operation.
+//! - [`save_form_data`] - Saves the current copy parameters.
+//!
+//! # Initialization
+//!
+//! The drive manager can be initialized by calling [`init`]. It will handle initializing the drive
+//! actor instances.
 
-pub mod actor;
-pub mod copy;
-pub mod data;
-pub mod glib;
+mod actor;
+mod copy;
+mod data;
+mod makemkv;
+mod manager;
+mod monitor;
+mod worker;
 
 #[cfg(all(target_os = "linux", not(feature = "faux_drives")))]
 mod linux;
@@ -14,31 +43,29 @@ mod linux;
 #[cfg(feature = "faux_drives")]
 mod faux;
 
-/// Platform specific code.
-mod platform {
-    #[cfg(all(target_os = "linux", not(feature = "faux_drives")))]
-    pub use super::linux::get_optical_drives;
-
-    #[cfg(all(target_os = "linux", not(feature = "faux_drives")))]
-    pub use super::linux::get_optical_drive;
-
-    #[cfg(feature = "faux_drives")]
-    pub use super::faux::get_optical_drives;
-
-    #[cfg(feature = "faux_drives")]
-    pub use super::faux::get_optical_drive;
-}
-
 use std::time::Duration;
 
-use crate::Result;
-use crate::db::Database;
-use crate::fs::FileSystem;
+use serde::{Deserialize, Serialize};
 
-use glib::OpticalDriveObject;
+use tokio::sync::oneshot;
+
+use ::makemkv::{CopyCommandOutput, InfoCommandOutput};
+
+use crate::{Error, Result};
+use crate::bus;
+use crate::models::{CopyParamaters, MediaLocation};
+
+pub use data::{FormData, FormDataUpdate};
+pub use manager::init;
+
+use actor::DriveRequest;
+use manager::ManagerRequest;
+
+/// Handle used to communicate with the drive actors and manager.
+pub type Handle = crate::actor::Handle<Message>;
 
 /// Represents the state of the optical drive's disc.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum DiscState {
     /// No disc is inserted in the optical drive.
     None,
@@ -47,7 +74,58 @@ pub enum DiscState {
     ///
     /// `label` is the label of the disc. `uuid` is a unique identifier assigned
     /// to the disc by the OS.
-    Inserted { label: String, uuid: String },
+    Inserted {
+        /// The disc label.
+        label: String,
+
+        /// Unique identifier assigned to the disc by the OS.
+        uuid: String
+    },
+}
+
+/// Message for sending requests to a drive actor or the drive manager.
+///
+/// The drive manager is what processes all drive related messages. If the message is meant for a
+/// specific drive, the message will be forwarded by the manager to that drive; Otherwise, the
+/// manager will process the message.
+#[derive(Debug)]
+pub enum Message {
+    /// Message type for sending requests to a drive actor.
+    Drive {
+        serial_number: String,
+        request: DriveRequest,
+    },
+
+    /// Message type for sending requests to the drive manager.
+    Manager {
+        request: ManagerRequest,
+    },
+}
+
+impl Message {
+    /// Consume the message and return the drive request.
+    ///
+    /// # Args
+    ///
+    /// `serial_number`:  The serial number of the drive associated with the actor processing the
+    /// request. Used to verify the serial number matches the message serial number.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::InvalidDriveRequest`] if this message is not a drive message or if the message
+    /// serial number does not match the provided drive's serial number.
+    pub fn drive_request(self, serial_number: &str) -> Result<DriveRequest> {
+        let Message::Drive { serial_number: target_serial_number, request } = self else {
+            return Err(Error::InvalidDriveRequest);
+        };
+
+        if serial_number != target_serial_number {
+            return Err(Error::InvalidDriveRequest);
+        }
+
+        Ok(request)
+    }
+
 }
 
 /// Represents the state of the optical drive.
@@ -66,7 +144,7 @@ pub enum OpticalDriveState {
     /// The drive is in the process of copying a disc.
     Copying {
         /// The current stage of the copying process.
-        stage: String,
+        stage: &'static str,
 
         /// The task currently being performed.
         task: String,
@@ -100,68 +178,646 @@ pub enum OpticalDriveState {
     },
 }
 
-/// Information reported by the operating system for the optical drive.
-#[derive(Clone, Debug, PartialEq)]
+impl OpticalDriveState {
+    /// Get the name (or label) of the state.
+    pub fn name(&self) -> &'static str {
+        match self {
+            OpticalDriveState::Disconnected => "Disconnected",
+            OpticalDriveState::Idle => "Idle",
+            OpticalDriveState::Copying { .. } => "Copying",
+            OpticalDriveState::Success => "Success",
+            OpticalDriveState::Failed { .. } => "Failed",
+        }
+    }
+
+    /// Returns `true` if the state is [`OpticalDriveState::Copying`].
+    pub fn is_copying(&self) -> bool {
+        matches!(self, OpticalDriveState::Copying { .. })
+    }
+}
+
+/// Represents an optical drive.
+///
+/// This is the optical drive data returned by the associated drive actor when [`get`] is called.
+#[derive(Clone, Debug)]
 pub struct OpticalDrive {
+    /// The user defined name of the drive.
+    ///
+    /// The name will initially be set to the drive's serial number. The name can be overwritten by
+    /// the user to be whatever they want to make it easier for them to identify the drive.
+    pub name: String,
+
     /// The device path of the drive, such as "/dev/sr0".
     pub path: String,
 
     /// The serial number of the optical drive.
     ///
-    /// This may be a shortened version of the serial number assigned by the
-    /// manufacturer.
+    /// This may be a shortened version of the serial number assigned by the manufacturer.
+    pub serial_number: String,
+
+    /// The hostname of the system the drive is installed in.
+    pub hostname: String,
+
+    /// The state of the disc in the optical drive.
+    pub disc: DiscState,
+
+    /// The state of the drive.
+    ///
+    /// This is the state within the context of this application which is mainly if its idle,
+    /// copying, etc., not the state of the drive hardware itself.
+    pub state: OpticalDriveState,
+}
+
+impl OpticalDrive {
+    /// Create a new optical drive instance for a disconnected drive.
+    ///
+    /// This can be used when the OS does not have a drive connected with the provided serial
+    /// number or the worker node the drive is connected to is disconnected.
+    pub fn disconnected(serial_number: &str) -> Self {
+        Self {
+            name: serial_number.to_owned(),
+            path: String::default(),
+            serial_number: serial_number.to_owned(),
+            hostname: String::default(),
+            disc: DiscState::None,
+            state: OpticalDriveState::Disconnected,
+        }
+    }
+
+    /// Create a new optical drive instance from drive information provided by the OS.
+    ///
+    /// By default, the `name` will be the drive's serial number and the state will be the
+    /// disconnected state.
+    ///
+    /// # Args
+    ///
+    /// `drive`:  Information about about the optical drive as reported by the OS.
+    pub fn from_os(drive: OsOpticalDrive) -> Self {
+        Self {
+            name: drive.serial_number.clone(),
+            path: drive.path,
+            serial_number: drive.serial_number,
+            hostname: drive.hostname,
+            disc: drive.disc,
+            state: OpticalDriveState::Disconnected,
+        }
+    }
+
+    /// Creates an [`OsOpticalDrive`] instance from this drive instance.
+    pub fn os_drive(&self) -> OsOpticalDrive {
+        OsOpticalDrive {
+            path: self.path.clone(),
+            serial_number: self.serial_number.clone(),
+            disc: self.disc.clone(),
+            hostname: self.hostname.clone(),
+        }
+    }
+}
+
+/// Information reported by the operating system for the optical drive.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct OsOpticalDrive {
+    /// The device path of the drive, such as "/dev/sr0".
+    pub path: String,
+
+    /// The serial number of the optical drive.
+    ///
+    /// This may be a shortened version of the serial number assigned by the manufacturer.
     pub serial_number: String,
 
     /// The state of the disc in the optical drive.
     pub disc: DiscState,
+
+    /// The hostname of the system the drive is installed in.
+    pub hostname: String,
 }
 
-/// The current status of the optical drive.
-#[derive(Debug)]
-pub struct OpticalDriveStatus {
-  /// The state of the disc in the optical drive.
-  pub disc: DiscState,
-
-  /// The state of the drive.
-  pub drive: OpticalDriveState,
-}
-
-impl OpticalDriveStatus {
-  /// Create a [`DriveStatus`] instance.
-  fn new(disc: DiscState, drive: OpticalDriveState) -> Self {
-      Self { disc, drive, }
-  }
-}
-
-/// Initialize the optical drive information for all available drives reported by the OS.
+/// Begin copying a disc.
+///
+/// # Args
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  Serial number of the optical drive.
+///
+/// `params`:  The parameters for the copy operation such as the title, release year, or disc
+/// number of the disc being copied.
 ///
 /// # Errors
 ///
-/// - [`crate::Error::CommandIo`] or [`crate::Error::CommandReturnedErrorCode`] if the command to
-///   to get the optical drive from the OS fails, or
-/// - [`crate::Error::Serialization`] if the output from the OS cannot be parsed
-pub fn init(fs: FileSystem, db: Database) -> Result<Vec<OpticalDriveObject>> {
-    let drives = get_optical_drives()?.into_iter()
-        .map(|drive| {
-            tracing::info!(sn=drive.serial_number, path=drive.path, "found optical drive");
-            OpticalDriveObject::new(drive, fs.clone(), db.clone())
-        })
-        .collect();
-    Ok(drives)
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::InvalidDriveState`] if the drive is any state other than `Idle`.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+///
+/// [`Error::UnsupportedRequest`] if request is sent on the worker node.
+pub async fn begin_copy(
+    bus: &bus::Handle,
+    serial_number: &str,
+    params: CopyParamaters
+) -> Result<()> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number: serial_number.to_owned(),
+        request: DriveRequest::BeginCopyDisc { params, response: tx },
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Cancel an in-progress copy operation.
+///
+/// # Args
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  Serial number of the optical drive.
+///
+/// # Errors
+///
+/// [`Error::CancelTokenNone`] if the request could not be processed because the cancel token was
+/// not available.
+///
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::InvalidDriveState`] if the drive is any state other than `Copying`.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+pub async fn cancel_copy(bus: &bus::Handle, serial_number: &str) -> Result<()> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number: serial_number.to_owned(),
+        request: DriveRequest::CancelCopyDisc { response: tx },
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Get a list of serial numbers for all known optical drives.
+///
+/// The serial numbers can be used in any of the drive actor requests such as [`get`] to get more
+/// detailed information about the drive.
+///
+/// # Args
+///
+/// `bus`:  Handle for sending messages to the drive manager.
+///
+/// # Errors
+///
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+pub async fn get_drives(bus: &bus::Handle) -> Result<Vec<String>> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Manager {
+        request: ManagerRequest::GetDrives { response: tx }
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Get the current status of an optical drive.
+///
+/// # Args
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  Serial number of the optical drive.
+///
+/// # Errors
+///
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+///
+/// [`Error::UnsupportedRequest`] if the request is made on the worker node.
+pub async fn get(bus: &bus::Handle, serial_number: &str) -> Result<OpticalDrive> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number: serial_number.to_owned(),
+        request: DriveRequest::GetStatus { response: tx },
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Notify the drive actor the MakeMKV copy command has completed successfully.
+///
+/// # Args
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  The serial of the number that ran the completed command.
+///
+/// `output`:  The output of the command.
+///
+/// # Errors
+///
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::Disconnected`] when requested on the worker node and the control node is disconnected.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+///
+/// [`Error::NetworkSend`] when requested on the worker node and the message could not be sent over
+/// the wire to the control node.
+///
+/// [`Error::NotRunning`]  when a MakeMKV command wasn't running according to the drive actor.
+pub async fn makemkv_copy_complete(
+    bus: &bus::Handle,
+    serial_number: &str,
+    output: CopyCommandOutput,
+) -> Result<()> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number: serial_number.to_owned(),
+        request: DriveRequest::MakeMkvCopyComplete { output, response: tx },
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Notify the drive actor the MakeMKV info command has completed successfully.
+///
+/// # Args
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  The serial of the number that ran the completed command.
+///
+/// `output`:  The output of the command.
+///
+/// # Errors
+///
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::Disconnected`] when requested on the worker node and the control node is disconnected.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+///
+/// [`Error::NetworkSend`] when requested on the worker node and the message could not be sent over
+/// the wire to the control node.
+///
+/// [`Error::NotRunning`]  when a MakeMKV command wasn't running according to the drive actor.
+pub async fn makemkv_info_complete(
+    bus: &bus::Handle,
+    serial_number: &str,
+    output: InfoCommandOutput,
+) -> Result<()> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number: serial_number.to_owned(),
+        request: DriveRequest::MakeMkvInfoComplete { output, response: tx },
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Notify the drive actor that a MakeMKV command has failed.
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  The serial of the number that ran the completed command.
+///
+/// `error`:  The command's error.
+///
+/// # Errors
+///
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::Disconnected`] when requested on the worker node and the control node is disconnected.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+///
+/// [`Error::NetworkSend`] when requested on the worker node and the message could not be sent over
+/// the wire to the control node.
+///
+/// [`Error::NotRunning`]  when a MakeMKV command wasn't running according to the drive actor.
+pub async fn makemkv_failed(
+    bus: &bus::Handle,
+    serial_number: &str,
+    error: String,
+) -> Result<()> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number: serial_number.to_owned(),
+        request: DriveRequest::MakeMkvFailed { error, response: tx },
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Update the progress of a MakeMKV command.
+///
+/// # Args
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  Serial number of the optical drive.
+///
+/// `op`:  Title of the current operation.
+///
+/// `op_prog`:  Progress of the current operation.
+///
+/// `subop`:  Title of the current suboperation.
+///
+/// `subop_prog`:  Progress of the current suboperation.
+///
+/// # Errors
+///
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+///
+/// [`Error::Disconnected`] when requested on the worker node and the control node is disconnected.
+///
+/// [`Error::NetworkSend`] when requested on the worker node and the message could not be sent over
+/// the wire to the connected control node.
+pub async fn makemkv_progress(
+    bus: &bus::Handle,
+    serial_number: &str,
+    op: String,
+    op_prog: u8,
+    subop: String,
+    subop_prog: u8,
+) -> Result<()> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number: serial_number.to_owned(),
+        request: DriveRequest::MakeMkvProgress {
+            op,
+            op_prog,
+            subop,
+            subop_prog,
+            response: tx
+        },
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Get the last saved values for a drive's copy parameters.
+///
+/// # Args
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  Serial number of the driveoptical .
+///
+/// # Errors
+///
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+///
+/// [`Error::SerdeJson`] or [`Error::StdIo`] if an error occurs while trying to read or parse the
+/// data file if it exists.
+///
+/// [`Error::UnsupportedRequest`] if the request is made on the worker node.
+pub async fn read_form_data(bus: &bus::Handle, serial_number: &str) -> Result<FormData> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number: serial_number.to_owned(),
+        request: DriveRequest::ReadFormData { response: tx },
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Reset a drive's state back to idle.
+///
+/// # Args
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  Serial number of the optical drive.
+///
+/// # Errors
+///
+/// [`crate::Error::InvalidDriveState`] if the drive is not in the `Success` or `Failed` state.
+///
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::InvalidDriveState`] if the drive is not in the `Success` or `Failed` states.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+///
+/// [`Error::UnsupportedRequest`] if the request is made on the worker node.
+pub async fn reset(bus: &bus::Handle, serial_number: &str) -> Result<()> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number: serial_number.to_owned(),
+        request: DriveRequest::Reset { response: tx },
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Updated the saved values for the drive's copy parameters.
+///
+/// # Args
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  Serial number of the drive whose state should be reset.
+///
+/// # Errors
+///
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+///
+/// [`Error::SerdeJson`] or [`Error::StdIo`] if an error occurs while trying to read or parse the
+/// data file if it exists. These will also be raised if updated data cannot be serialized or
+/// written to the data file.
+///
+/// [`Error::UnsupportedRequest`] if the request is made on the worker node.
+pub async fn save_form_data(
+    bus: &bus::Handle,
+    serial_number: &str,
+    data: FormDataUpdate
+) -> Result<()> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number: serial_number.to_owned(),
+        request: DriveRequest::SaveFormData { data, response: tx },
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Update the status of a drive based off information reported by the OS.
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  Serial number of the drive whose status is being updated.
+///
+/// `drive`:  The optical drive information reported by the OS.
+///
+/// `worker`:  The worker node that sent the update.
+///
+/// # Errors
+///
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+///
+/// [`Error::NetworkSend`] when requested on the worker node and the message could not be sent
+/// over the wire to the connected control node.
+pub async fn update_from_os(
+    bus: &bus::Handle,
+    drive: OsOpticalDrive,
+    worker: Option<String>,
+) -> Result<()> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number: drive.serial_number.clone(),
+        request: DriveRequest::UpdateFromOs { drive, response: tx, worker },
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Cancel a running MakeMKV command.
+///
+/// This is only applicable on worker nodes.
+///
+/// # Args
+///
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  Serial number of the drive who's running the MakeMKV to cancel.
+///
+/// # Errors
+///
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+///
+/// [`Error::UnsupportedRequest`] if the request is made on the control node.
+pub async fn worker_makemkv_cancel(bus: &bus::Handle, serial_number: String) -> Result<()> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number,
+        request: DriveRequest::WorkerMakeMkvCancel { response: tx },
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Run the MakeMKV copy command.
+///
+/// This is only applicable on worker nodes.
+///
+/// # Args
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  Serial number of the drive to run the command on.
+///
+/// `output_dir`:  The directory location where the video files should be written to.
+///
+/// `log_file`:  The file location where the output of the command should be logged to.
+///
+/// # Errors
+///
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+///
+/// [`Error::UnsupportedRequest`] if the request is made on the control node.
+pub async fn worker_makemkv_copy(
+    bus: &bus::Handle,
+    serial_number: String,
+    output_dir: MediaLocation,
+    log_file: MediaLocation,
+) -> Result<()> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number,
+        request: DriveRequest::WorkerRunMakeMkvCopy { output_dir, log_file, response: tx },
+    };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Run the MakeMKV info command.
+///
+/// This is only applicable on worker nodes.
+///
+/// # Args
+///
+/// `bus`:  Handle for sending messages to the drive actor.
+///
+/// `serial_number`:  Serial number of the drive to run the command on.
+///
+/// `log_file`:  The file location where the output of the command should be logged to.
+///
+/// # Errors
+///
+/// [`Error::ChannelSend`] if the request could not be sent to the drive actor.
+///
+/// [`Error::ResponseRecv`] if the response to the request could not be processed.
+///
+/// [`Error::UnsupportedRequest`] if the request is made on the control node.
+pub async fn worker_makemkv_info(
+    bus: &bus::Handle,
+    serial_number: String,
+    log_file: MediaLocation,
+) -> Result<()> {
+    let (tx, rx) = oneshot::channel();
+    let msg = Message::Drive {
+        serial_number,
+        request: DriveRequest::WorkerRunMakeMkvInfo { log_file, response: tx },
+    };
+    bus.send(msg).await?;
+    rx.await?
 }
 
 /// Gets the optical drive information for all available optical drives.
-fn get_optical_drives() -> Result<Vec<OpticalDrive>> {
-  let drives = platform::get_optical_drives()?;
-  Ok(drives)
+///
+/// # Errors
+///
+/// The specific errors depend on the platform implementation.
+fn get_optical_drives() -> Result<Vec<OsOpticalDrive>> {
+    let drives = platform::get_optical_drives()?;
+    Ok(drives)
 }
 
 /// Gets the optical drive information for an optical drive with serial number `serial_number`.
 ///
-/// Returns `None` if an optical drive cannot be found with the provided serial number. Returns an
-/// error if something goes wrong when querying the operating system.
-fn get_optical_drive(serial_number: &str) -> Result<Option<OpticalDrive>> {
-  let drive = platform::get_optical_drive(serial_number)?;
-  Ok(drive)
+/// This is the Linux specific implementation.
+///
+/// # Returns
+///
+/// Returns `Some` if a drive can be found with the provided serial number or `None` otherwise.
+///
+/// # Errors
+///
+/// The specific errors depend on the platform implementation.
+fn get_optical_drive(serial_number: &str) -> Result<Option<OsOpticalDrive>> {
+    let drive = platform::get_optical_drive(serial_number)?;
+    Ok(drive)
 }
 
+/// Platform specific code.
+mod platform {
+    #[cfg(all(target_os = "linux", not(feature = "faux_drives")))]
+    pub use super::linux::get_optical_drives;
+
+    #[cfg(all(target_os = "linux", not(feature = "faux_drives")))]
+    pub use super::linux::get_optical_drive;
+
+    #[cfg(feature = "faux_drives")]
+    pub use super::faux::get_optical_drives;
+
+    #[cfg(feature = "faux_drives")]
+    pub use super::faux::get_optical_drive;
+}
+
+#[cfg(test)]
+mod tests {
+    // TODO[TESTS]
+}

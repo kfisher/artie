@@ -1,146 +1,116 @@
 // Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Defines the GObject representing an optical drive.
+//! GObject representation of an optical drive.
 
 use std::time::Duration;
 
-use gtk::glib;
-use gtk::glib::Object;
+use gtk::glib::{self, Object};
 use gtk::subclass::prelude::*;
 
-use crate::drive::OpticalDrive;
-use crate::drive::actor;
-use crate::drive::data::{FormData, FormDataUpdate};
-use crate::drive::glib::OpticalDriveState;
-use crate::db::Database;
-use crate::fs::FileSystem;
+use crate::bus::Handle;
+use crate::drive::{self, FormData, FormDataUpdate, OpticalDrive};
 use crate::models::CopyParamaters;
+use crate::ui::data::OpticalDriveState;
 
 glib::wrapper! {
-    /// GObject implementation for [`OpticalDrive`].
     pub struct OpticalDriveObject(ObjectSubclass<imp::OpticalDriveObject>);
 }
 
 impl OpticalDriveObject {
-    /// Creates new [`OpticalDriveObject`] instance from the provided optical drive.
-    pub fn new(drive: OpticalDrive, fs: FileSystem, db: Database) -> Self {
+    /// Creates a new optical drive object instance.
+    ///
+    /// # Args
+    ///
+    /// `serial_number`:  The serial number of the optical drive this object is being created for.
+    ///
+    /// `bus`:  The bus used for sending messages to the actor, mainly for sending requests to the
+    /// actor responsible for managing the associated optical drive.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the GObject cannot be created.
+    pub fn new(serial_number: &str, bus: Handle) -> Self {
         let obj: Self = Object::builder()
+            .property("name", serial_number)
+            .property("serial-number", serial_number)
             .build();
 
         let imp = obj.imp();
-
-        imp.handle.replace(Some(actor::create_actor(&drive, fs, db)));
-
-        imp.name.replace(drive.serial_number.clone());
-        imp.serial_number.replace(drive.serial_number);
-        imp.path.replace(drive.path);
+        imp.bus.replace(Some(bus));
 
         obj
     }
 
     /// Cancels a copy operation currently in progress.
     pub async fn cancel_copy_disc(&self) {
-        let handle = self.imp().handle
-            .borrow()
-            .as_ref()
-            .expect("FIXME: error msg or proper handling")
-            .clone();
-        let result = handle
-            .cancel_copy_disc()
-            .await;
-        if let Err(error) = result {
-            tracing::error!(?error, "failed to cancel copy disc");
+        let bus = self.bus();
+        let serial_number = self.serial_number();
+        if let Err(error) = drive::cancel_copy(&bus, &serial_number).await {
+            tracing::error!(sn=serial_number, ?error, "failed to cancel copy disc")
         }
     }
 
     /// Begin copying the disc in the optical drive.
-    pub async fn copy_disc(&self, copy_parameters: CopyParamaters) {
-        let handle = self.imp().handle
-            .borrow()
-            .as_ref()
-            .expect("FIXME: error msg or proper handling")
-            .clone();
-        let result = handle
-            .copy_disc(copy_parameters)
-            .await;
-        if let Err(error) = result {
-            tracing::error!(?error, "failed to copy disc");
+    ///
+    /// # Args
+    ///
+    /// `params`:  The parameters for the copy operation such as the title, release year, or disc
+    /// number of the disc being copied.
+    pub async fn copy_disc(&self, params: CopyParamaters) {
+        let bus = self.bus();
+        let serial_number = self.serial_number();
+        if let Err(error) = drive::begin_copy(&bus, &serial_number, params).await {
+            tracing::error!(sn=serial_number, ?error, "failed to begin copy");
         }
     }
 
-    /// Get the form data from the drive's persistent storage.
-    pub async fn get_form_data(&self) -> Option<FormData> {
-        let handle = self.imp().handle
-            .borrow()
-            .as_ref()
-            .expect("FIXME: error msg or proper handling")
-            .clone();
-        let result = handle
-            .get_form_data()
-            .await;
-        match result {
-            Ok(form_data) => Some(form_data),
+    /// Get the last saved values for a drive's copy parameters.
+    pub async fn read_form_data(&self) -> Option<FormData> {
+        let bus = self.bus();
+        let serial_number = self.serial_number();
+        match drive::read_form_data(&bus, &serial_number).await {
+            Ok(data) => Some(data),
             Err(error) => {
-                tracing::error!(?error, "failed to get form data");
+                tracing::error!(sn=serial_number, ?error, "failed to read form data");
                 None
-            }
+            },
         }
     }
 
-    /// Reset the drive state back to `Idle` from `Success` or `Failed`.
+    /// Reset the optical drive back to the `idle` state.
     pub async fn reset(&self) {
-        let handle = self.imp().handle
-            .borrow()
-            .as_ref()
-            .expect("FIXME: error msg or proper handling")
-            .clone();
-        let result = handle
-            .reset()
-            .await;
-        if let Err(error) = result {
-            tracing::error!(?error, "failed to reset");
+        let bus = self.bus();
+        let serial_number = self.serial_number();
+        if let Err(error) = drive::reset(&bus, &serial_number).await {
+            tracing::error!(sn=serial_number, ?error, "failed to reset drive")
         }
     }
 
-    /// Updates the form data in the drive's persistent data.
-    pub async fn update_form_data(&self, data: FormDataUpdate) {
-        let handle = self.imp().handle
-            .borrow()
-            .as_ref()
-            .expect("FIXME: error msg or proper handling")
-            .clone();
-        let result = handle
-            .update_form_data(data)
-            .await;
-
-        if let Err(error) = result {
-            tracing::error!(?error, "failed to update form data");
+    /// Updates the saved copy parameters for the drive..
+    ///
+    /// # Args
+    ///
+    /// `data`:  The updated copy parameters.
+    pub async fn save_form_data(&self, data: FormDataUpdate) {
+        let bus = self.bus();
+        let serial_number = self.serial_number();
+        if let Err(error) = drive::save_form_data(&bus, &serial_number, data).await {
+            tracing::error!(sn=serial_number, ?error, "failed to save form data")
         }
     }
 
     /// Updates the status of the drive.
     ///
-    /// This will request the current status from the drive's actor instance and then send the
-    /// property change notifications if required.
-    pub async fn update_status(&self) {
-        let handle = self.imp().handle
-            .borrow()
-            .as_ref()
-            .expect("FIXME: error msg or proper handling")
-            .clone();
-        let status = handle
-            .get_status()
-            .await;
-        let status = match status {
-            Ok(status) => status,
-            Err(error) => {
-                tracing::error!(?error, "failed to update status");
-                return;
-            }
-        };
+    /// # Args
+    ///
+    /// `drive`:  The updated optical drive data.
+    pub fn update_status(&self, drive: OpticalDrive) {
+        self.set_name(drive.name);
+        self.set_path(drive.path);
+        self.set_host(drive.hostname);
 
-        match status.disc {
+        match drive.disc {
             crate::drive::DiscState::None => {
                 self.set_disc_label(String::default());
             },
@@ -149,7 +119,7 @@ impl OpticalDriveObject {
             },
         }
 
-        match status.drive {
+        match drive.state {
             crate::drive::OpticalDriveState::Disconnected => {
                 self.set_drive_state(OpticalDriveState::Disconnected);
             },
@@ -182,6 +152,20 @@ impl OpticalDriveObject {
         }
     }
 
+    /// Gets the handle to the application message bus.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the message bus is `None`. This shouldn't be possible given its set when
+    /// constructed and never changed.
+    fn bus(&self) -> Handle {
+        self.imp().bus
+            .borrow()
+            .as_ref()
+            .expect("message bus not set")
+            .clone()
+    }
+
 }
 
 /// Formats the elapsed time duration into a string.
@@ -194,21 +178,15 @@ fn format_elapsed_time(elapsed_time: &Duration) -> String {
 }
 
 mod imp {
-    //! Implementation for the optical drive object.
-
     use std::cell::{Cell, RefCell};
-    
 
-    use gtk::glib;
-    use gtk::glib::Properties;
+    use gtk::glib::{self, Properties};
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
-    
-    use crate::drive::actor::DriveActorHandle;
-    use crate::drive::glib::OpticalDriveState;
+    use crate::bus::Handle;
+    use crate::ui::data::OpticalDriveState;
 
-    /// Implementation for [`super::OpticalDriveObject`].
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::OpticalDriveObject)]
     pub struct OpticalDriveObject {
@@ -225,8 +203,12 @@ mod imp {
         /// The serial number of the optical drive.
         ///
         /// This may be a shortened version of the serial number assigned by the manufacturer.
-        #[property(name = "serial-number", get, set, type = String)]
+        #[property(name = "serial-number", get, set, type = String, construct_only)]
         pub(super) serial_number: RefCell<String>,
+
+        /// The hostname of the system the drive is installed in.
+        #[property(name = "host", get, set, type = String)]
+        pub(super) hostname: RefCell<String>,
 
         /// The state of the disc in the optical drive.
         #[property(name = "disc-label", get, set, type = String)]
@@ -284,8 +266,9 @@ mod imp {
         #[property(name = "subtask-progress", get, set, type = f32)]
         pub(super) subtask_progress: Cell<f32>,
 
-        /// Interface for communicating with the actor responsible for this drive instance.
-        pub(super) handle: RefCell<Option<DriveActorHandle>>,
+        /// Interface for sending messages to application actors, mainly the actor associated with
+        /// this optical drive.
+        pub(super) bus: RefCell<Option<Handle>>,
     }
 
     impl OpticalDriveObject {
@@ -300,4 +283,9 @@ mod imp {
     #[glib::derived_properties]
     impl ObjectImpl for OpticalDriveObject {
     }
+}
+
+#[cfg(test)]
+mod tests {
+    // TODO[TESTS]
 }

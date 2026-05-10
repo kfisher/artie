@@ -9,7 +9,7 @@ use std::thread;
 pub struct TempDir(pub PathBuf);
 
 impl TempDir {
-    pub fn new<P>(file_name: P) -> TempDir 
+    pub fn new<P>(file_name: P) -> TempDir
     where
         P: AsRef<Path>
     {
@@ -40,7 +40,7 @@ impl Drop for TempDir {
 pub struct TempFile(pub PathBuf);
 
 impl TempFile {
-    pub fn new<P>(file_name: P) -> TempFile 
+    pub fn new<P>(file_name: P) -> TempFile
     where
         P: AsRef<Path>
     {

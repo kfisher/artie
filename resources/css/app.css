@@ -212,6 +212,11 @@ entry:focus-within {
     outline-offset: -2px;
 }
 
+entry selection {
+    background-color: var(--color-surface-2-hover);
+    color: var(--color--surface-2-text);
+}
+
 entry.invalid {
     border-color: var(--color-danger-base);
 }
@@ -323,6 +328,10 @@ window.background {
 /*************************************************************************************************
  * CUSTOM WIDGETS
  *************************************************************************************************/
+
+.drive-list-widget row {
+    padding: 4px 0;
+}
 
 .drive-list-widget row:hover {
     background-color: transparent;

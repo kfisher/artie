@@ -9,14 +9,18 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Error, Result};
-use crate::error::SerializationError;
+use crate::Result;
+use crate::path;
 
 /// The application configuration settings.
 #[derive(Clone, Default, Deserialize, Serialize)]
 pub struct Settings {
     /// File path settings.
-    pub fs: crate::fs::Settings,
+    pub paths: path::Settings,
+
+    /// Network settings.
+    #[serde(default)]
+    pub net: crate::net::Settings,
 }
 
 impl Settings {
@@ -24,19 +28,12 @@ impl Settings {
     ///
     /// # Errors
     ///
-    /// - [`Error::FileIo`] if the file cannot be read, or
-    /// - [`Error::Serialization`] if the file's content cannot be deserialized.
+    /// [`crate::Error::StdIo`] if the file cannot be read.
+    ///
+    /// [`crate::Error::TomlDeserialize`] if the file's content cannot be deserialized.
     pub fn from_file(path: &Path) -> Result<Self> {
-
-        let contents = fs::read_to_string(path)
-            .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
-
-        let settings: Settings = toml::from_str(&contents)
-            .map_err(|error| Error::Serialization { 
-                path: Some(path.to_owned()),
-                error: SerializationError::TomlDeserialize(error),
-            })?;
-
+        let contents = fs::read_to_string(path)?;
+        let settings: Settings = toml::from_str(&contents)?;
         tracing::info!(?path, "settings loaded");
         Ok(settings)
     }
@@ -45,18 +42,13 @@ impl Settings {
     ///
     /// # Errors
     ///
-    /// - [`Error::FileIo`] if the file cannot be written to, or
-    /// - [`Error::Serialization`] if the settings cannot be serialized.
+    /// [`crate::Error::StdIo`] if the file cannot be written to.
+    ///
+    /// [`crate::Error::TomlSerialize`] if the settings cannot be serialized.
     pub fn save(&self, path: &Path) -> Result<()> {
-        let toml_string = toml::to_string_pretty(self)
-            .map_err(|error| Error::Serialization { 
-                path: Some(path.to_owned()),
-                error: SerializationError::TomlSerialize(error),
-            })?;
-        let mut file = fs::File::create(path)
-            .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
-        file.write_all(toml_string.as_bytes())
-            .map_err(|error| Error::FileIo { path: path.to_owned(), error })?;
+        let toml_string = toml::to_string_pretty(self)?;
+        let mut file = fs::File::create(path)?;
+        file.write_all(toml_string.as_bytes())?;
         Ok(())
     }
 }
@@ -73,11 +65,19 @@ mod tests {
         let path = TempFile::new(Path::new("artie.test.settings.toml"));
 
         let settings = Settings {
-            fs: crate::fs::Settings {
+            paths: crate::path::Settings {
                 inbox: PathBuf::from("/inbox"),
                 library: PathBuf::from("/library"),
                 archive: PathBuf::from("/archive"),
                 data: PathBuf::from("/data"),
+            },
+            net: crate::net::Settings {
+                listen_addr: String::from("5.5.5.5"),
+                listen_port: 99,
+                workers: vec![
+                    String::from("127.0.0.1:0001"),
+                    String::from("127.0.0.1:0002"),
+                ],
             }
         };
 
@@ -85,9 +85,15 @@ mod tests {
 
         let loaded_settings = Settings::from_file(path.path()).unwrap();
 
-        assert_eq!(settings.fs.inbox, loaded_settings.fs.inbox);
-        assert_eq!(settings.fs.library, loaded_settings.fs.library);
-        assert_eq!(settings.fs.archive, loaded_settings.fs.archive);
-        assert_eq!(settings.fs.data, loaded_settings.fs.data);
+        assert_eq!(settings.paths.inbox, loaded_settings.paths.inbox);
+        assert_eq!(settings.paths.library, loaded_settings.paths.library);
+        assert_eq!(settings.paths.archive, loaded_settings.paths.archive);
+        assert_eq!(settings.paths.data, loaded_settings.paths.data);
+
+        assert_eq!(settings.net.listen_addr, loaded_settings.net.listen_addr);
+        assert_eq!(settings.net.listen_port, loaded_settings.net.listen_port);
+        assert_eq!(2, loaded_settings.net.workers.len());
+        assert_eq!(settings.net.workers[0], loaded_settings.net.workers[0]);
+        assert_eq!(settings.net.workers[1], loaded_settings.net.workers[1]);
     }
 }

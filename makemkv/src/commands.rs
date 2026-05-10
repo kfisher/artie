@@ -47,7 +47,7 @@ pub enum CommandOutput {
 }
 
 /// Context object for running MakeMKV commands.
-pub struct Context 
+pub struct Context
 {
     /// The device path to the target optical drive.
     device: String,
@@ -72,7 +72,7 @@ pub struct Context
     ct: CancellationToken,
 }
 
-impl Context 
+impl Context
 {
     /// Constructs a new context for the optical drive specified by the provided device path and
     /// output directory.
@@ -95,29 +95,29 @@ impl Context
     pub fn log_output(&mut self, path: &Path) -> Result<()> {
         let exists = match path.try_exists() {
             Ok(exists) => exists,
-            Err(error) => return Err(Error::LogFileExists { 
-                path: path.to_path_buf(), 
-                error: Some(error) 
+            Err(error) => return Err(Error::LogFileExists {
+                path: path.to_path_buf(),
+                error: Some(error)
             }),
         };
-  
+
         if exists {
-            return Err(Error::LogFileExists { 
+            return Err(Error::LogFileExists {
                 path: path.to_path_buf(),
                 error: None })
         }
-  
+
         let file = OpenOptions::new()
             .create_new(true)
             .write(true)
             .open(path)
             .map_err(|e| Error::LogFileOpenError {
                 path: path.to_path_buf(),
-                error: e 
+                error: e
             })?;
-  
+
         self.command_log = Some(LogFile { path: path.to_path_buf(), file });
-  
+
         Ok(())
     }
 
@@ -125,21 +125,21 @@ impl Context
     pub fn take_disc_info(&mut self) -> Option<DiscInfo> {
         self.disc_info.take()
     }
-  
+
     /// Updates the progress title for the current operation.
     fn set_op_title(&mut self, title: &str) -> Result<()> {
         self.progress.op = title.to_owned();
         self.observer.send(CommandOutput::Progress(self.progress.clone()))
             .map_err(|e| Error::ObserverSendError { error: e })
     }
-  
+
     /// Updates the progress title for the current suboperation.
     fn set_subop_title(&mut self, title: &str) -> Result<()> {
         self.progress.subop = title.to_owned();
         self.observer.send(CommandOutput::Progress(self.progress.clone()))
             .map_err(|e| Error::ObserverSendError { error: e })
     }
-  
+
     /// Updates the progress values.
     fn set_progress(&mut self, op: i32, subop: i32, max: i32) -> Result<()> {
         self.progress.op_prog = (op * 100 / max) as u8;
@@ -158,6 +158,7 @@ pub async fn run_info_command(ctx: &mut Context) -> Result<ExitStatus>
     // TODO: Need to be able to specify the path to the executable. For now, assume it's in
     //       the PATH. Defining an environment variable should be simple enough and suffice.
     let mut cmd = Command::new("makemkvcon");
+    cmd.arg("--robot");
     cmd.arg("--cache=1");
     cmd.arg("--noscan");
     cmd.arg("--progress=-same");
@@ -313,7 +314,7 @@ async fn process_stderr(stream: ChildStderr, tx: UnboundedSender<ChannelData>) -
 /// For each line of output text, this will append the line to the logfile in the provided context
 /// if specified. It will also used call the appropriate callback in the context to notify the
 /// initiator of the command so they may respond accordingly (e.g. notify the user).
-fn process_stderr_line(ctx: &mut Context, line: &str) -> Result<()> 
+fn process_stderr_line(ctx: &mut Context, line: &str) -> Result<()>
 {
     if let Some(log) = &mut ctx.command_log {
         writeln!(log.file, "STDERR\t{}", line).map_err(|e| log.stderr_error(e))?;
@@ -324,7 +325,7 @@ fn process_stderr_line(ctx: &mut Context, line: &str) -> Result<()>
 }
 
 /// Runs an MakeMKV command.
-async fn run_command(cmd: &mut Command, ctx: &mut Context) -> Result<ExitStatus> 
+async fn run_command(cmd: &mut Command, ctx: &mut Context) -> Result<ExitStatus>
 {
     // Pipe both STDOUT and STDERR from MakeMKV so it can be read in realtime. It must be done
     // prior to the process being spawned.

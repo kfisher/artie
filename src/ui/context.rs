@@ -1,139 +1,184 @@
 // Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Defines the application's context object.
+//! Application context for the UI.
+//!
+//! [`ContextObject`] provides application data for the UI such as the application mode and handle
+//! for interfacing with the message bus.
 
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::time::Duration;
 
 use gtk::gio::ListStore;
-use gtk::glib;
-use gtk::glib::Object;
-use gtk::subclass::prelude::*;
+use gtk::gio::prelude::ListModelExt;
+use gtk::glib::{self, Object};
+use gtk::prelude::Cast;
+use gtk::subclass::prelude::ObjectSubclassIsExt;
 
-use crate::{Error, Result};
-use crate::db;
-use crate::drive;
-use crate::fs::FileSystem;
-use crate::settings::Settings;
+use crate::Mode;
+use crate::bus::Handle;
+use crate::drive::{self, OpticalDrive};
+use crate::ui::data::OpticalDriveObject;
 
 glib::wrapper! {
-    /// Application context object.
-    ///
-    /// This context object contains the application state data that is used throughout the
-    /// application.
     pub struct ContextObject(ObjectSubclass<imp::ContextObject>);
 }
 
 impl ContextObject {
-    /// Creates a [`ContextObjectBuilder`] instance for building the context.
-    pub fn builder() -> ContextObjectBuilder {
-        ContextObjectBuilder {}
+    pub fn new(mode: Mode, bus: Handle) -> Self {
+        let obj: Self = Object::builder()
+            .property("is-worker", mode == Mode::Worker)
+            .build();
+
+        let drive_store = ListStore::new::<OpticalDriveObject>();
+
+        let imp = obj.imp();
+        imp.bus.replace(Some(bus.clone()));
+        imp.drive_store.replace(Some(drive_store.clone()));
+
+        glib::spawn_future_local(glib::clone!(
+            #[weak]
+            drive_store,
+            async move {
+                loop {
+                    update_drive_status(&bus, &drive_store).await;
+                    glib::timeout_future(Duration::from_millis(33)).await;
+                }
+            }
+        ));
+
+        obj
     }
 
-    /// Returns the drive data store.
-    ///
-    /// The drive data store contains the optical drive data as a list of 
-    /// [`crate::drive::glib::optical_drive::OpticalDriveObject`] objects.
-    pub fn drives_store(&self) -> Option<ListStore> {
+    /// Returns list of [`crate::ui::data::OpticalDriveObject`] instances containing the optical
+    /// drive data.
+    pub fn drive_store(&self) -> Option<ListStore> {
         self.imp().drive_store
             .borrow()
             .clone()
     }
-
-    /// Creates a new [`ContextObject`] instance.
-    fn new() -> Self {
-        Object::builder().build()
-    }                      
-
-//  /// Saves the settings to the config.
-//  ///
-//  /// This will create the file if it does not exist or overwrite the file if it does. See 
-//  /// [`get_config_path`] for more information on how the path is determined.
-//  ///
-//  /// # Errors
-//  ///
-//  /// - [`Error::FileIo`] if the file cannot be written to, or
-//  /// - [`Error::Serialization`] if the settings could not be serialized.
-//  pub fn save_settings(&self) -> Result<()> {
-//      let path = get_config_path();
-//      self.settings.save(&path)
-//  }
-
 }
 
-/// Builder used to construct the application context.
-pub struct ContextObjectBuilder {
+// TODO: The following update logic could probably be more efficent. Its good enough for now and
+//       probably doesn't make a big difference in the grand scheme of things.
+
+/// Update the status of all optical drives in the UI.
+///
+/// # Args
+///
+/// `bus`:  Handle used to send messages to other actors via the message bus.
+///
+/// `store`:  The list store containing the optical drive objects. This will updated to reflect the
+/// current drive status. This includes adding and removing drives that have been added or removed
+/// to the drive manager.
+async fn update_drive_status(bus: &Handle, store: &ListStore) {
+    let serial_numbers = match drive::get_drives(bus).await {
+        Ok(serial_numbers) => serial_numbers,
+        Err(error) => {
+            tracing::error!(?error, "failed to get available drives");
+            return;
+        },
+    };
+
+    let mut drives: Vec<OpticalDrive> = Vec::with_capacity(serial_numbers.len());
+    for serial_number in &serial_numbers {
+        if let Ok(drive) = drive::get(bus, serial_number).await {
+            drives.push(drive);
+        };
+    }
+
+    update_drive_store(bus, store, drives);
 }
 
-impl ContextObjectBuilder {
-    /// Builds the context object.
-    ///
-    /// # Errors
-    ///
-    /// - [`crate::Error::FileIo`] if the config file cannot be read. This will also be raised when
-    ///   an I/O occurs while creating the data directories.
-    /// - [`crate::Error::FileNotFound`] if the config file cannot be found.
-    /// - [`crate::Error::Serialization`] if the config file's content cannot be deserialized.
-    /// - See [`drive::init`] for potential errors that can occur searching for optical drives
-    ///   and initializing their actor instance.
-    pub fn build(self) -> Result<ContextObject> {
-        let context = ContextObject::new();
-        let imp = context.imp();
+/// Update the drive store.
+///
+/// # Args
+///
+/// `bus`:  Handle used to send messages to other actors via the message bus.
+///
+/// `store`:  The list store containing the optical drive objects. This will updated to reflect the
+/// current drive status. This includes adding and removing drives that have been added or removed
+/// to the drive manager.
+///
+/// `drives`:  The drive data to use to update the drive store.
+fn update_drive_store(bus: &Handle, store: &ListStore, drives: Vec<OpticalDrive>) {
+    let drive_map: HashMap<&String, &OpticalDrive> = drives
+        .iter()
+        .map(|d| (&d.serial_number, d))
+        .collect();
 
-        // TODO: Need to safely handle the config file not existing. Maybe create a default version
-        //       if it cannot be found.
-        let path = get_config_path();
-        if !path.is_file() {
-            return Err(Error::FileNotFound { path });
+    // First pass: remove items no longer in data or no longer valid objects.
+    let mut i = 0;
+    while i < store.n_items() {
+        let Some(obj) = store.item(i) else {
+            tracing::warn!("found none in drive list store");
+            store.remove(i);
+            continue;
+        };
+        let Some(obj) = obj.downcast_ref::<OpticalDriveObject>() else {
+            tracing::warn!("found invalid object in drive list store");
+            store.remove(i);
+            continue;
+        };
+        if drive_map.contains_key(&obj.serial_number()) {
+            i += 1;
+        } else {
+            store.remove(i);
         }
+    }
 
-        let settings = Settings::from_file(&path)?;
+    // Second pass: update existing items and insert new ones in order
+    for (desired_pos, drive) in drives.into_iter().enumerate() {
+        let desired_pos = desired_pos as u32;
+        let current_pos = (desired_pos..store.n_items()).find(|&j| {
+            let obj = store.item(j).unwrap();
+            let obj = obj.downcast_ref::<OpticalDriveObject>().unwrap();
+            obj.serial_number() == drive.serial_number
+        });
 
-        let fs = FileSystem::new(&settings.fs);
-        fs.make_dirs()?;
+        match current_pos {
+            Some(pos) => {
+                let obj = store.item(pos).unwrap();
+                let obj = obj.downcast_ref::<OpticalDriveObject>().unwrap();
 
-        let db = db::init(&fs)?;
+                obj.update_status(drive);
 
-        let optical_drives = drive::init(fs, db)?;
-
-        let drive_store = ListStore::from_iter(optical_drives);
-
-        imp.drive_store.replace(Some(drive_store));
-
-        Ok(context)
+                if pos != desired_pos {
+                    store.remove(pos);
+                    store.insert(desired_pos, obj);
+                }
+            },
+            None => {
+                let obj = OpticalDriveObject::new(&drive.serial_number, bus.clone());
+                store.insert(desired_pos, &obj);
+            },
+        }
     }
 }
 
-/// Get the path to the application's config file.
-///
-/// TODO: This currently just returns a hard-coded path for the purposes of development. It will
-///       need to be updated to look at an environment variable first, then fallback to a standard
-///       location based on the OS (e.g. ~/.config/artie or %AppData%/artie).
-fn get_config_path() -> PathBuf {
-    PathBuf::from("artie.toml")
-}
-
-// TODO: Tests:
-
 mod imp {
-    //! Object implementation.
+    use std::cell::{Cell, RefCell};
 
-    use std::cell::RefCell;
-
-    use gtk::glib;
+    use gtk::glib::{self, Properties};
     use gtk::gio::ListStore;
+    use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
-    
-    
+    use crate::bus::Handle;
 
-    /// Implementation for [`super::ContextObject`].
-    #[derive(Default)]
+    #[derive(Default, Properties)]
+    #[properties(wrapper_type = super::ContextObject)]
     pub struct ContextObject {
-        /// Store containing the optical drive data.
-        /// 
-        /// Contains [`crate::drive::glib::optical_drive::OpticalDriveObject`] objects.
+        /// List of [`crate::ui::data::OpticalDriveObject`] instances containing the optical
+        /// drive data.
         pub(super) drive_store: RefCell<Option<ListStore>>,
+
+        /// Indicates if the application instance is a worker node.
+        #[property(name = "is-worker", get, set, type = bool, construct_only)]
+        pub(super) is_worker: Cell<bool>,
+
+        /// Message bus for sending requests to the various application actors.
+        pub(super) bus: RefCell<Option<Handle>>,
     }
 
     #[glib::object_subclass]
@@ -142,6 +187,12 @@ mod imp {
         type Type = super::ContextObject;
     }
 
+    #[glib::derived_properties]
     impl ObjectImpl for ContextObject {
     }
+}
+
+#[cfg(test)]
+mod tests {
+    // TODO[TESTS]
 }

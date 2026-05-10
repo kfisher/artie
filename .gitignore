@@ -5,6 +5,6 @@ target/
 .vscode/
 
 # Ignore the configuration files being used for initial development.
-artie.toml
+artie*.toml
 faux_drives/
 fs/

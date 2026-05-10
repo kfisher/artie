@@ -4,7 +4,7 @@
 //! Data models used throughout the application.
 
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter, Result as FormatResult};
+use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -19,7 +19,7 @@ use crate::{Error, Result};
 
 /// Specifies the various audio codecs.
 ///
-/// This isn't meant to be an all inclusive list of audio codecs. It was generated using the 
+/// This isn't meant to be an all inclusive list of audio codecs. It was generated using the
 /// HandBrake documentation.
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
@@ -81,6 +81,11 @@ pub enum AudioCodec {
 
 impl AudioCodec {
     /// Returns the audio codec based on the provided MakeMKV short form codec string.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::MissingAudioCodecMapping`] is returned if a codec could not be found for the
+    /// provided value.
     pub fn from_makemkv(codec: &str) -> Result<AudioCodec> {
         AudioCodec::makemkv_codec_map().get(codec)
             .copied()
@@ -113,9 +118,6 @@ impl AudioCodec {
     }
 }
 
-// "CodecId": "S_HDMV/PGS"
-// "CodecId": "V_MPEG4/ISO/AVC"
-
 /// Specifies the methods of audio track encoding when transcoding.
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Deserialize, Serialize)]
@@ -135,16 +137,36 @@ pub enum ContainerType {
     /// <https://en.wikipedia.org/wiki/Matroska>
     MKV,
 
-    /// MP4 (MPEG Part 14) Container Format 
+    /// MP4 (MPEG Part 14) Container Format
     /// <https://en.wikipedia.org/wiki/MP4_file_format>
     MP4,
 }
 
 /// Location of a media file.
-#[derive(Debug)]
+///
+/// The application has three main locations (not counting the application's data directory) where
+/// files may be stored. The specific path may vary between machines so the application uses a
+/// relative path to one of these locations when referencing file paths.
+///
+/// The absolute path can be obtained using [`crate::path::location_path`].
+///
+/// The [`MediaLocation::Inbox`] folder is the worker directory of the application. It is where the
+/// video files will be created when copying and where the transcoded versions will be stored. Any
+/// data files created during this process will also be stored here.
+///
+/// The [`MediaLocation::Library`] folder is where the media server expects to find the videos. The
+/// video files will be moved here when cataloged.
+///
+/// The [`MediaLocation::Archive`] folder is where video and data files not needed by the media
+/// server, but are kept for future reference. For example the user may wish to keep the MKV file
+/// that was created when copied as a backup.
+///
+/// There is also the [`MediaLocation::Deleted`] location. This is used mainly for path fields in
+/// the database for a file that was deleted by the user.
+#[derive(Debug, Deserialize, Serialize)]
 pub enum MediaLocation {
     /// File path is relative to the media inbox root directory.
-    Inbox(PathBuf),    
+    Inbox(PathBuf),
 
     /// File path is relative to the media library root directory.
     Library(PathBuf),
@@ -171,7 +193,8 @@ impl MediaType {
         Self::Show,
     ];
 
-    /// Create a [`MediaType`] from an index value.
+    /// Create a media type value from an index value returning `None` if the provided value cannot
+    /// be converted.
     pub fn from_index(index: u32) -> Option<Self> {
         match index {
             0 => Some(MediaType::Movie),
@@ -180,7 +203,8 @@ impl MediaType {
         }
     }
 
-    /// Create a [`MediaType`] from a string value.
+    /// Create a media type value from a string value returning `None` if the provided value cannot
+    /// be converted.
     pub fn from_string(s: &str) -> Option<Self> {
         match s {
             "Movie" => Some(MediaType::Movie),
@@ -189,7 +213,7 @@ impl MediaType {
         }
     }
 
-    /// Convert enum to its index value.
+    /// Convert media type to its index value.
     pub fn as_index(&self) -> u32 {
         match self {
             MediaType::Movie => 0,
@@ -197,7 +221,7 @@ impl MediaType {
         }
     }
 
-    /// Convert enum to string.
+    /// Convert media type to its string value.
     pub fn as_str(&self) -> &'static str {
         match self {
             MediaType::Movie => "Movie",
@@ -207,7 +231,7 @@ impl MediaType {
 }
 
 impl Display for MediaType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FormatResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
 }
@@ -232,6 +256,12 @@ pub enum OperationState {
 }
 
 /// Specifies the different types of movie and show extras.
+///
+/// This will control where the file is stored so that the media server labels it correctly. These
+/// values are based of what Jellyfin supports.
+///
+/// [`SpecialFeatureType::None`] is used when a value is needed for something that is not a special
+/// feature. Avoids having to wrap values with [`Option`].
 #[derive(Debug)]
 pub enum SpecialFeatureType {
     None,
@@ -261,7 +291,12 @@ pub enum SubtitleCodec {
 }
 
 impl SubtitleCodec {
-    /// Returns the sutitle codec based on the provided MakeMKV short form codec string.
+    /// Returns the subtitle codec based on the provided MakeMKV short form codec string.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::MissingSubtitleCodecMapping`] is returned if a codec could not be found for the
+    /// provided value.
     pub fn from_makemkv(codec: &str) -> Result<SubtitleCodec> {
         SubtitleCodec::makemkv_codec_map().get(codec)
             .copied()
@@ -280,7 +315,7 @@ impl SubtitleCodec {
 
 /// Specifies the various video codecs.
 ///
-/// This isn't meant to be an all inclusive list of video codecs. It was generated using the 
+/// This isn't meant to be an all inclusive list of video codecs. It was generated using the
 /// HandBrake documentation.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 pub enum VideoCodec {
@@ -314,7 +349,11 @@ pub enum VideoCodec {
 }
 
 impl VideoCodec {
-    /// Returns the sutitle codec based on the provided MakeMKV short form codec string.
+    /// Returns the video codec based on the provided MakeMKV short form codec string.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::MissingVideoCodecMapping`] is returned if a codec could not be found for the
     pub fn from_makemkv(codec: &str) -> Result<VideoCodec> {
         VideoCodec::makemkv_codec_map().get(codec)
             .copied()
@@ -331,7 +370,7 @@ impl VideoCodec {
             //-------------------------------------------------------------------------------------
             // ("", VideoCodec::H264),
             // ("", VideoCodec::H265),
-            // ("", VideoCodec::MPEG2),
+            ("Mpeg2", VideoCodec::MPEG2),
             ("Mpeg4", VideoCodec::MPEG4),
             // ("", VideoCodec::Theora),
             // ("", VideoCodec::VP8),
@@ -362,8 +401,8 @@ pub struct AudioTrack {
 
     /// The name of the audio track.
     ///
-    /// The name is what will be displayed to users when selecting the audio track. That includes 
-    /// both this application and external applications like VLC or Jellyfin. 
+    /// The name is what will be displayed to users when selecting the audio track. That includes
+    /// both this application and external applications like VLC or Jellyfin.
     pub name: String,
 
     /// The track's audio codec.
@@ -381,7 +420,7 @@ pub struct AudioTrack {
     /// The number of audio channels.
     ///
     /// Note that this is the total of all channels. So if the track is 5.1 surround, this value
-    /// will be 6 (5 main channels + 1 subwoofer channel). 
+    /// will be 6 (5 main channels + 1 subwoofer channel).
     pub channel_count: u8,
 
     /// The channel layout.
@@ -538,15 +577,14 @@ pub struct Host {
 
 /// Represents an optical drive.
 ///
-/// This is the representation of a drive within the database.
-/// TODO: Add notes about other optical drive data types here for reference. Also update those
-///       other instances.
+/// This is the representation of a drive within the database. The [`crate::drive`] module contains
+/// the optical drive types used when interacting with the drives.
 #[derive(Debug)]
 pub struct OpticalDrive {
     /// Unique id of the drive (primary key).
     pub id: u32,
 
-    /// Unique serial number assigned to the drive by the manufacturer. 
+    /// Unique serial number assigned to the drive by the manufacturer.
     pub serial_number: String,
 }
 
@@ -582,7 +620,7 @@ pub struct SubtitleTrack {
     /// vector of a subtitle will have an subtitle track index of 1. This is to better match how
     /// external software typically numbers tracks.
     pub index: u8,
-                                                                  
+
     /// The subtitle's codec.
     pub codec: SubtitleCodec,
 
@@ -592,7 +630,7 @@ pub struct SubtitleTrack {
 
 /// Represents an title.
 ///
-/// A title can be a movie, TV show episode, or special feature. 
+/// A title can be a movie, TV show episode, or special feature.
 #[derive(Debug)]
 pub struct Title {
     /// Unique id of the title (primary key).
@@ -624,13 +662,13 @@ pub struct Title {
     /// episode.
     ///
     /// This is only valid for shows. This will be set to zero for other media types. Additionally,
-    /// this will not be set until the video is transcoded or catalogued. 
+    /// this will not be set until the video is transcoded or catalogued.
     pub episode_number: u16,
 
     /// The number of episodes this title covers.
     ///
     /// This is only valid for shows. This will be set to zero for other media types. Additionally,
-    /// this will not be set until the video is transcoded or catalogued. 
+    /// this will not be set until the video is transcoded or catalogued.
     pub episode_count: u16,
 
     /// Special feature information.
@@ -686,13 +724,13 @@ pub struct TranscodeOperation {
     /// episode.
     ///
     /// This is only valid for shows. This will be set to zero for other media types. Additionally,
-    /// this will not be set until the video is transcoded or catalogued. 
+    /// this will not be set until the video is transcoded or catalogued.
     pub episode_number: u16,
 
     /// The number of episodes this title covers.
     ///
     /// This is only valid for shows. This will be set to zero for other media types. Additionally,
-    /// this will not be set until the video is transcoded or catalogued. 
+    /// this will not be set until the video is transcoded or catalogued.
     pub episode_count: u16,
 
     /// Special feature information.
@@ -773,7 +811,7 @@ pub struct VideoTrack {
     /// of a video will have an video track index of 1. This is to better match how external
     /// software typically numbers tracks.
     pub index: u8,
-                                                                  
+
     /// The video's codec.
     pub codec: VideoCodec,
 
@@ -784,3 +822,7 @@ pub struct VideoTrack {
     pub aspect_ratio: String,
 }
 
+#[cfg(test)]
+mod tests {
+    // TODO[TESTS]
+}

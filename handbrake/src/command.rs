@@ -16,7 +16,7 @@ use crate::error::{Error, Result};
 use crate::output::{Output, Parser};
 
 // TODO: There is some duplicity between this module and the command module from the makemkv crate.
-//       May want to moved some of the shared items into a shared crate between the two. 
+//       May want to moved some of the shared items into a shared crate between the two.
 
 /// Specifies how to encode an audio track when transcoding a video.
 #[allow(clippy::upper_case_acronyms)]
@@ -132,7 +132,7 @@ impl<'a> Context<'a> {
     /// Each line of output will be prefixed with either `STDOUT` or `STDERR` and a tab character.
     /// It should be noted that Handbrake uses the standard error console to log normal output
     /// while the standard output is used for progress updates.
-    /// 
+    ///
     /// # Errors
     ///
     /// In addition to the typical I/O errors that can be raised with file operations, it will
@@ -140,13 +140,13 @@ impl<'a> Context<'a> {
     pub fn log_output(&mut self, path: &Path) -> Result<()> {
         let exists = match path.try_exists() {
             Ok(exists) => exists,
-            Err(error) => return Err(Error::LogFileExists { 
-                path: path.to_path_buf(), 
-                error: Some(error) 
+            Err(error) => return Err(Error::LogFileExists {
+                path: path.to_path_buf(),
+                error: Some(error)
             }),
         };
         if exists {
-            return Err(Error::LogFileExists { 
+            return Err(Error::LogFileExists {
                 path: path.to_path_buf(),
                 error: None })
         }
@@ -156,7 +156,7 @@ impl<'a> Context<'a> {
             .open(path)
             .map_err(|e| Error::LogFileOpenError {
                 path: path.to_path_buf(),
-                error: e 
+                error: e
             })?;
         self.command_log = Some(LogFile { path: path.to_path_buf(), file });
         Ok(())
@@ -230,29 +230,29 @@ impl Options {
     /// Returns a list of command-line arguments based on the configured options.
     fn get_options(&self) -> Result<Vec<String>> {
         if !self.src_path.is_file() {
-            return Err(Error::InvalidOption { 
-                option: String::from("src_path"), 
+            return Err(Error::InvalidOption {
+                option: String::from("src_path"),
                 error: String::from("input file does not exist"),
             });
         }
 
         let Some(src_path) = self.src_path.to_str() else {
-            return Err(Error::InvalidOption { 
-                option: String::from("src_path"), 
+            return Err(Error::InvalidOption {
+                option: String::from("src_path"),
                 error: String::from("failed to convert input path"),
             });
         };
 
         if self.dst_path.exists() {
-            return Err(Error::InvalidOption { 
-                option: String::from("dst_path"), 
+            return Err(Error::InvalidOption {
+                option: String::from("dst_path"),
                 error: String::from("output file already exists"),
             });
         }
 
         let Some(dst_path) = self.dst_path.to_str() else {
-            return Err(Error::InvalidOption { 
-                option: String::from("dst_path"), 
+            return Err(Error::InvalidOption {
+                option: String::from("dst_path"),
                 error: String::from("failed to convert output path"),
             });
         };
@@ -271,8 +271,8 @@ impl Options {
                 args.push(String::from("--start-at"));
                 args.push(format!("seconds:{}", start_at));
             } else {
-                return Err(Error::InvalidOption { 
-                    option: String::from("start_at"), 
+                return Err(Error::InvalidOption {
+                    option: String::from("start_at"),
                     error: String::from("start_at less than zero"),
                 });
             }
@@ -283,8 +283,8 @@ impl Options {
                 args.push(String::from("--stop-at"));
                 args.push(format!("seconds:{}", stop_at));
             } else {
-                return Err(Error::InvalidOption { 
-                    option: String::from("stop_at"), 
+                return Err(Error::InvalidOption {
+                    option: String::from("stop_at"),
                     error: String::from("stop_at less than or equal to zero"),
                 });
             }
@@ -533,7 +533,7 @@ where
         for line in reader.lines() {
             let line = line.map_err(|e| Error::OutThreadIoError { error: e })?;
             out_tx.send(ChannelData::OutTxt(line)).map_err(|e| Error::OutThreadSendError {
-                error: e 
+                error: e
             })?;
         }
         Ok(())
@@ -545,7 +545,7 @@ where
         for line in reader.lines() {
             let line = line.map_err(|e| Error::ErrThreadIoError { error: e })?;
             err_tx.send(ChannelData::ErrTxt(line)).map_err(|e| Error::ErrThreadSendError {
-                error: e 
+                error: e
             })?;
         }
         Ok(())
@@ -653,7 +653,7 @@ mod tests {
 
     impl TestObserver {
         fn new() -> TestObserver {
-            TestObserver { 
+            TestObserver {
                 messages: Vec::new(),
                 progress: Vec::new(),
                 version: None,

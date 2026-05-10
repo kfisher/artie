@@ -1,24 +1,32 @@
 // Copyright 2025-2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Application error and result types.
+//! Application errors.
 
 use std::path::PathBuf;
 
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 
-use crate::drive::actor::DriveActorMessage;
+use crate::bus;
+use crate::db;
+use crate::drive;
+use crate::models::MediaLocation;
+use crate::net;
 
-/// Error type for the application
+/// Specifies the errors that can occur throughout the application.
 #[derive(Debug)]
 pub enum Error {
-    /// Error raised when a command (external subprocess) fails.
-    CommandIo {
-        command: String,
-        args: String,
-        error: std::io::Error,
-    },
+    /// Raised when requesting an operation when another operation is already running preventing
+    /// the requsted operation.
+    AlreadyRunning,
+
+    /// Raised when attempting to cancel an operation fails because the cancellation token is not
+    /// available.
+    CancelTokenNone,
+
+    /// Raised when attempting to send a message to an actor fails.
+    ChannelSend(Box<ChannelSendError>),
 
     /// Indicates an external command existed with an error code.
     CommandReturnedErrorCode {
@@ -29,52 +37,23 @@ pub enum Error {
         stderr: String,
     },
 
-    /// Error raised when attempting to compress a string.
-    CompressIo {
-        error: std::io::Error,
+    /// Raised by the GTK library.
+    Gtk(gtk::glib::Error),
+
+    /// Raised when database operations fail.
+    Database(rusqlite::Error),
+
+    /// Raised when attempting to send a message to the control or worker node when they are not
+    /// connected.
+    Disconnected,
+
+    /// Raised when a drive request fails because a drive actor associated with the specified
+    /// serial number could not be found.
+    DriveNotFound {
+        serial_number: String,
     },
 
-    /// Error raised when connecting to the database fails.
-    Connect {
-        path: Option<PathBuf>,
-        error: rusqlite::Error,
-    },
-
-    /// An error that can occur when converting raw bytes to a string, or vice-versa.
-    ConversionError {
-        error: std::string::FromUtf8Error,
-    },
-
-    /// Error raised when performing a database operation.
-    Db {
-        operation: crate::db::Operation,
-        error: rusqlite::Error,
-    },
-
-    /// Error raised when generating title and video information when the output file name is
-    /// missing from the extracted disc information.
-    DiscInfoMissingOutputFileName,
-
-    /// Error raised when attempting to send or receive a message to or from a drive actor.
-    DriveActorChannel {
-        error: Box<ChannelError<DriveActorMessage>>,
-    },
-
-    /// Error raised when a string argument provided to a database operation is empty when the 
-    /// operation expects a non-empty string.
-    ///
-    /// TODO: Should convert this to a generic DB validation error.
-    EmptyString {
-        arg: String,
-    },
-
-    /// Error raised when attempting to read or write to a file fails.
-    FileIo {
-        path: PathBuf,
-        error: std::io::Error,
-    },
-
-    /// Error raised when a file cannot be found.
+    /// Raised when a file cannot be found.
     ///
     /// This may also be raised if the path is not a file or if the user does not have the required
     /// permissions to know of the file's existence.
@@ -82,19 +61,38 @@ pub enum Error {
         path: PathBuf,
     },
 
-    /// Error raised when attempting to perform an operation on an optical drive cannot be
-    /// performed because it is in an invalid state.
-    InvalidOpticalDriveState {
-        state: Box<crate::drive::OpticalDriveState>,
-        expected: Box<crate::drive::OpticalDriveState>,
+    /// Raised when a drive actor gets a request meant for the manager or the request serial number
+    /// does not match its associated drive serial number.
+    InvalidDriveRequest,
+
+    /// Raised when attempting to perform a drive action that cannot be done in the current state.
+    InvalidDriveState {
+        state: String,
     },
 
-    /// Error raised when running a MakeMKV command.
-    MakeMKV {
-        error: makemkv::Error,
+    /// Error raised when attempting to use an invalid media location.
+    ///
+    /// This will typically be raised if attempting to use [`MediaLocation::Deleted`] when a valid
+    /// path is expected.
+    InvalidMediaLocation {
+        location: MediaLocation,
     },
 
-    /// Error raised when an audio codec mapping cannot be found.
+    /// Error raised when a task cannot be joined.
+    JoinError(tokio::task::JoinError),
+
+    /// Raised when a MakeMKV command fails.
+    MakeMkv(makemkv::Error),
+
+    /// Raised when a MakeMKV command fails.
+    ///
+    /// This is the string form of [`Error::MakeMkv`] error that can is sent between nodes and
+    /// tasks.
+    MakeMkvCommandFailed {
+        error: String,
+    },
+
+    /// Raised when an audio codec mapping cannot be found.
     ///
     /// Will be raised when looking up the MakeMKV audio codec and there is not a mapping for the
     /// provided codec (short form).
@@ -102,7 +100,7 @@ pub enum Error {
         codec_short: String,
     },
 
-    /// Error raised when an subtitle codec mapping cannot be found.
+    /// Raised when an subtitle codec mapping cannot be found.
     ///
     /// Will be raised when looking up the MakeMKV subtitle codec and there is not a mapping for
     /// the provided codec (short form).
@@ -110,7 +108,7 @@ pub enum Error {
         codec_short: String,
     },
 
-    /// Error raised when an video codec mapping cannot be found.
+    /// Raised when an video codec mapping cannot be found.
     ///
     /// Will be raised when looking up the MakeMKV video codec and there is not a mapping for the
     /// provided codec (short form).
@@ -118,25 +116,37 @@ pub enum Error {
         codec_short: String,
     },
 
+    /// Raised when a message cannot be sent to or from the task responsible for handling network
+    /// communication.
+    NetworkChannelSend(Box<NetworkChannelSendError>),
 
-    /// Error raised when serializing or deserializing data.
+    /// Raised as a response to a send request when the message cannot be sent over the network.
     ///
-    /// If `path` is `Some`, its the path to the file the serialized data was read from or about to 
-    /// be written to for additional context.
-    Serialization {
-        path: Option<PathBuf>,
-        error: SerializationError,
-    },
+    /// This will be the error sent to the requester as the response to the request. The true cause
+    /// will be logged prior to sending the response.
+    NetworkSend,
 
-    /// Error raised when performing a synchronization operations like acquiring a mutex lock.
-    SyncError {
-        error: String,
-    },
+    /// Raised when a request is made with the expectation that a command is running when the
+    /// command is not actually running.
+    NotRunning,
 
-    /// Error raised when joining an tokio task fails.
-    TaskJoinError {
-        error: tokio::task::JoinError,
-    },
+    /// Raised when attempting to receive a response to a message.
+    ResponseRecv(oneshot::error::RecvError),
+
+    /// Raised when attempting to send a response fails.
+    ResponseSend,
+
+    /// Raised when serializing or deserializing JSON fails.
+    SerdeJson(serde_json::Error),
+
+    /// Raised when an error occurs while performing I/O operations.
+    StdIo(std::io::Error),
+
+    /// Raised when deserializing TOML.
+    TomlDeserialize(toml::de::Error),
+
+    /// Raised when serializing TOML.
+    TomlSerialize(toml::ser::Error),
 
     /// Error raised when an unexpected stream type is encountered.
     UnexpectedStreamType {
@@ -148,75 +158,165 @@ pub enum Error {
         expected: String,
         actual: String,
     },
+
+    /// Error raised when an actor gets a request that it does not support.
+    ///
+    /// This will mainly be seen on actors where requests are handled differently on the control
+    /// node vs the worker node.
+    UnsupportedRequest {
+        request: String,
+    },
+
+    /// Raised when an array of bytes cannot be converted into a UTF-8 string.
+    UtfConversion(std::string::FromUtf8Error),
+
+    /// Raised when attempting to use an invalid argument.
+    ///
+    /// In general, when this error is raised, the validation error should have been detected
+    /// before hand.
+    Validation {
+        error: ValidationError,
+        arg: String,
+    },
+
+    /// Raised when a worker Option field is `None` when it was expected to be `Some`.
+    WorkerNone,
+
+    /// Raised when attempting to send a request to a worker node, but a client actor cannot be
+    /// found with the provided address.
+    WorkerNotFound {
+        addr: String,
+    },
 }
 
-/// Error subtype relating to channel communications to/from actors.
+impl From<gtk::glib::Error> for Error {
+    fn from(value: gtk::glib::Error) -> Self {
+        Error::Gtk(value)
+    }
+}
+
+impl From<tokio::task::JoinError> for Error {
+    fn from(value: tokio::task::JoinError) -> Self {
+        Error::JoinError(value)
+    }
+}
+
+impl From<makemkv::Error> for Error {
+    fn from(value: makemkv::Error) -> Self {
+        Error::MakeMkv(value)
+    }
+}
+
+impl From<mpsc::error::SendError<bus::Message>> for Error {
+    fn from(value: mpsc::error::SendError<bus::Message>) -> Self {
+        Error::ChannelSend(Box::new(ChannelSendError::MessageBus(value)))
+    }
+}
+
+impl From<mpsc::error::SendError<db::Message>> for Error {
+    fn from(value: mpsc::error::SendError<db::Message>) -> Self {
+        Error::ChannelSend(Box::new(ChannelSendError::Database(value)))
+    }
+}
+
+impl From<mpsc::error::SendError<drive::Message>> for Error {
+    fn from(value: mpsc::error::SendError<drive::Message>) -> Self {
+        Error::ChannelSend(Box::new(ChannelSendError::Drive(value)))
+    }
+}
+
+impl From<mpsc::error::SendError<net::Message>> for Error {
+    fn from(value: mpsc::error::SendError<net::Message>) -> Self {
+        Error::ChannelSend(Box::new(ChannelSendError::Net(value)))
+    }
+}
+
+impl From<mpsc::error::SendError<net::IncomingMessage>> for Error {
+    fn from(value: mpsc::error::SendError<net::IncomingMessage>) -> Self {
+        Error::NetworkChannelSend(Box::new(NetworkChannelSendError::Incoming(value)))
+    }
+}
+
+impl From<mpsc::error::SendError<net::OutgoingMessage>> for Error {
+    fn from(value: mpsc::error::SendError<net::OutgoingMessage>) -> Self {
+        Error::NetworkChannelSend(Box::new(NetworkChannelSendError::Outgoing(value)))
+    }
+}
+
+impl From<oneshot::error::RecvError> for Error {
+    fn from(value: oneshot::error::RecvError) -> Self {
+        Error::ResponseRecv(value)
+    }
+}
+
+impl From<rusqlite::Error> for Error {
+    fn from(value: rusqlite::Error) -> Self {
+        Error::Database(value)
+    }
+}
+
+impl From<serde_json::Error> for Error {
+    fn from(value: serde_json::Error) -> Self {
+        Error::SerdeJson(value)
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(value: std::io::Error) -> Self {
+        Error::StdIo(value)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for Error {
+    fn from(value: std::string::FromUtf8Error) -> Self {
+        Error::UtfConversion(value)
+    }
+}
+
+impl From<toml::de::Error> for Error {
+    fn from(value: toml::de::Error) -> Self {
+        Error::TomlDeserialize(value)
+    }
+}
+
+impl From<toml::ser::Error> for Error {
+    fn from(value: toml::ser::Error) -> Self {
+        Error::TomlSerialize(value)
+    }
+}
+
+/// Specifies the errors that can occur when attempting to send a message.
 #[derive(Debug)]
-pub enum ChannelError<T> {
-    Send(mpsc::error::SendError<T>),
-    OneShotSend,
-    OneShotRecv(oneshot::error::RecvError),
-    InvalidChannel,
+pub enum ChannelSendError {
+    /// Error raised when sending a message to the database actor fails.
+    Database(mpsc::error::SendError<db::Message>),
+
+    /// Error raised when sending a message to the drive manager or a drive actor fails.
+    Drive(mpsc::error::SendError<drive::Message>),
+
+    /// Error raised when sending a message to the message bus fails.
+    MessageBus(mpsc::error::SendError<bus::Message>),
+
+    /// Error raised when sending a message to the client or server fails.
+    Net(mpsc::error::SendError<net::Message>),
 }
 
-/// Error subtype to encapsulate various serialization errors.
+/// Specifies the errors that can occur when attempting to send a message message to or from the
+/// task handing network communication.
 #[derive(Debug)]
-pub enum SerializationError {
-    JsonDeserialize(serde_json::Error),
-    JsonSerialize(serde_json::Error),
-    TomlDeserialize(toml::de::Error),
-    TomlSerialize(toml::ser::Error),
+pub enum NetworkChannelSendError {
+    Incoming(mpsc::error::SendError<net::IncomingMessage>),
+    Outgoing(mpsc::error::SendError<net::OutgoingMessage>),
 }
 
-/// Creates a [`Error::CommandIo`] error based on the provided command and error.
-pub fn command_io(command: &std::process::Command, error: std::io::Error) -> Error {
-    Error::CommandIo { 
-        command: command
-            .get_program()
-            .to_string_lossy()
-            .into_owned(),
-        args: command
-            .get_args()
-            .map(|s| s.to_string_lossy())
-            .collect::<Vec<_>>()
-            .join(" "),
-        error,
-    }
+/// Specifies the errors that can occur when attempting to invalid arguments.
+#[derive(Debug)]
+pub enum ValidationError {
+    EmptyString,
 }
 
-/// Creates a [`Error::CommandReturnedErrorCode`] error based on the provided command and output.
-pub fn command_exit(command: &std::process::Command, output: &std::process::Output) -> Error {
-    Error::CommandReturnedErrorCode {
-        command: command
-            .get_program()
-            .to_string_lossy()
-            .into_owned(),
-        args: command
-            .get_args()
-            .map(|s| s.to_string_lossy())
-            .collect::<Vec<_>>()
-            .join(" "),
-        code: output.status.code(),
-        stdout: String::from_utf8_lossy(output.stdout.as_slice())
-            .into_owned(),
-        stderr: String::from_utf8_lossy(output.stderr.as_slice())
-            .into_owned(),
-    }
-}
-
-/// Creates a [`Error::Serialization`] error when caused by failing to parse JSON.
-pub fn json_deserialize(error: serde_json::Error) -> Error {
-    Error::Serialization {
-        path: None,
-        error: SerializationError::JsonDeserialize(error),
-    }
-}
-
-/// Creates a [`Error::Serialization`] error when caused by failing to serialize JSON.
-pub fn json_serialize(error: serde_json::Error) -> Error {
-    Error::Serialization {
-        path: None,
-        error: SerializationError::JsonSerialize(error),
-    }
+#[cfg(test)]
+mod tests {
+    // TODO[TESTS]
 }
 
