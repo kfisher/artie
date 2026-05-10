@@ -11,7 +11,7 @@ use gtk::glib;
 use gtk::prelude::*;
 
 use crate::ui::context::ContextObject;
-use crate::ui::widget::CopyPageWidget;
+use crate::ui::widget::{CopyPageWidget, TranscodePageWidget};
 
 glib::wrapper! {
     pub struct Window(ObjectSubclass<imp::Window>)
@@ -65,9 +65,7 @@ impl Window {
 
         let copy_page = CopyPageWidget::new(&context);
 
-        let transcode_page = gtk::Label::builder()
-            .label("Transcode Page")
-            .build();
+        let transcode_page = TranscodePageWidget::new(&context);
 
         let catalog_page = gtk::Label::builder()
             .label("Catalog Page")
@@ -90,7 +88,7 @@ impl Window {
         self.set_title(Some("Artie"));
         self.set_titlebar(Some(&header_bar));
         self.set_default_width(1080);
-        self.set_default_height(920);
+        self.set_default_height(1000);
         self.set_child(Some(&stack));
 
         //--] let menu_popover = PopoverMenu::builder()
