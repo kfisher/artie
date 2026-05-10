@@ -18,7 +18,6 @@
 //! Requests made to the drive actor are typically done using the helper methods provided by the
 //! [`crate::drive`] module.
 
-use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use tokio_util::sync::CancellationToken;
@@ -39,10 +38,9 @@ use crate::drive::{
     OsOpticalDrive,
 };
 use crate::drive::copy;
-use crate::drive::data::Data;
+use crate::drive::data;
 use crate::models::{CopyParamaters, MediaLocation};
 use crate::net;
-use crate::path;
 use crate::task;
 
 /// Amount of time with getting a status update when the drive should be considered disconnected.
@@ -239,9 +237,14 @@ impl MessageProcessor {
     /// `serial_number`:  The serial number of the optical drive associated with the actor instance
     /// that this message processor will be processing messages for.
     fn new(bus: bus::Handle, serial_number: &str) -> Self {
+        let name = data::get_drive_name(&serial_number)
+            .inspect_err(|error| {
+                tracing::warn!(sn=serial_number, ?error, "failed to lookup drive name");
+            })
+            .unwrap_or(serial_number.to_owned());
         Self {
             bus,
-            drive: OpticalDrive::disconnected(serial_number),
+            drive: OpticalDrive::disconnected(&name, serial_number),
             worker: None,
             copy_ct: None,
             copy_started: None,
@@ -467,35 +470,6 @@ impl MessageProcessor {
             .map_err(|_| Error::ResponseSend)
     }
 
-    /// Load the drive's persistent data.
-    ///
-    /// # Errors
-    ///
-    /// See [`Data::load`] for errors that can occur when attempting to read the data file.
-    fn get_data(&self) -> Result<Data> {
-        let path = self.get_data_path();
-        Data::load(&path)
-            .or_else(|error| {
-                // File not being found is not an error.
-                if let Error::FileNotFound { path } = error {
-                    tracing::debug!(
-                        sn=self.drive.serial_number,
-                        ?path,
-                        "drive data file not found"
-                    );
-                    Ok(Data::default())
-                } else {
-                    Err(error)
-                }
-            })
-    }
-
-    /// Gets the path to where the drive's persistent data is stored.
-    fn get_data_path(&self) -> PathBuf {
-        let name = format!("drive.{}.json", self.drive.serial_number);
-        path::data_path(&name)
-    }
-
     /// Calculates the elapsed time of a running copy operation.
     fn compute_elapsed_time(&self) -> Duration {
         match self.copy_started {
@@ -578,8 +552,7 @@ impl MessageProcessor {
     ///
     /// [`Error::ResponseSend`] if the response cannot be sent.
     fn read_form_data(&self, resp: Response<FormData>) -> Result<()> {
-        let data = self.get_data()
-            .map(|data| data.form);
+        let data = data::get_form_data(&self.drive.serial_number);
         resp.send(data)
             .inspect_err(|_| send_error_trace(&self.drive.serial_number, "ReadFormData"))
             .map_err(|_| Error::ResponseSend)
@@ -877,7 +850,14 @@ impl MessageProcessor {
     ///
     /// [`Error::ResponseSend`] if the response cannot be sent.
     fn save_form_data(&self, updated_data: FormDataUpdate, resp: Response<()>) -> Result<()> {
-        let mut data = self.get_data()?;
+        let mut data = match data::get_data(&self.drive.serial_number) {
+            Ok(data) => data,
+            Err(error) => {
+                return resp.send(Err(error))
+                    .inspect_err(|_| send_error_trace(&self.drive.serial_number, "SaveFormData"))
+                    .map_err(|_| Error::ResponseSend);
+            },
+        };
 
         let mut should_save = false;
 
@@ -917,8 +897,7 @@ impl MessageProcessor {
         };
 
         let reply = if should_save {
-            let path = self.get_data_path();
-            data.save(&path)
+            data::save_data(&self.drive.serial_number, &data)
         } else {
             Ok(())
         };

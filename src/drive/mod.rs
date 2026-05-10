@@ -233,32 +233,13 @@ impl OpticalDrive {
     ///
     /// This can be used when the OS does not have a drive connected with the provided serial
     /// number or the worker node the drive is connected to is disconnected.
-    pub fn disconnected(serial_number: &str) -> Self {
+    pub fn disconnected(name: &str, serial_number: &str) -> Self {
         Self {
-            name: serial_number.to_owned(),
+            name: name.to_owned(),
             path: String::default(),
             serial_number: serial_number.to_owned(),
             hostname: String::default(),
             disc: DiscState::None,
-            state: OpticalDriveState::Disconnected,
-        }
-    }
-
-    /// Create a new optical drive instance from drive information provided by the OS.
-    ///
-    /// By default, the `name` will be the drive's serial number and the state will be the
-    /// disconnected state.
-    ///
-    /// # Args
-    ///
-    /// `drive`:  Information about about the optical drive as reported by the OS.
-    pub fn from_os(drive: OsOpticalDrive) -> Self {
-        Self {
-            name: drive.serial_number.clone(),
-            path: drive.path,
-            serial_number: drive.serial_number,
-            hostname: drive.hostname,
-            disc: drive.disc,
             state: OpticalDriveState::Disconnected,
         }
     }

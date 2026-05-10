@@ -10,20 +10,31 @@
 
 use std::fs;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{Error, Result};
+use crate::path;
 
 /// Persistent drive information.
-#[derive(Deserialize, Debug, Default, Serialize)]
+#[derive(Deserialize, Debug, Serialize)]
 pub struct Data {
+    /// The display name of the drive.
+    pub name: String,
+
     /// The current form data.
     pub form: FormData,
 }
 
 impl Data {
+    pub fn new(serial_number: &str) -> Self {
+        Self {
+            name: serial_number.to_owned(),
+            form: FormData::default(),
+        }
+    }
+
     /// Loads the persistent data for a drive.
     ///
     /// If the file does not exist, the default values will be returned.
@@ -174,6 +185,88 @@ impl FormDataUpdate {
     }
 }
 
+/// Load the a drive's persistent data.
+///
+/// # Args
+///
+/// `serial_number`:  The serial number of the drive.
+///
+/// # Errors
+///
+/// See [`Data::load`] for errors that can occur when attempting to read the data file. The file
+/// not existing is not treated as an error (default returned instead).
+pub fn get_data(serial_number: &str) -> Result<Data> {
+    let path = get_path(serial_number);
+    Data::load(&path)
+        .or_else(|error| {
+            // File not being found is not an error.
+            if let Error::FileNotFound { path } = error {
+                tracing::debug!(sn=serial_number, ?path, "drive data file not found");
+                Ok(Data::new(&serial_number))
+            } else {
+                Err(error)
+            }
+        })
+}
+
+/// Get the display name of the drive.
+///
+/// If the drive does not yet have a data file, the default will be returned which is the drive's
+/// serial number.
+///
+/// # Args
+///
+/// `serial_number`:  The serial number of the drive.
+///
+/// # Errors
+///
+/// See [`Data::load`] for errors that can occur when attempting to read the data file. The file
+/// not existing is not treated as an error.
+pub fn get_drive_name(serial_number: &str) -> Result<String> {
+    get_data(serial_number).map(|data| data.name)
+}
+
+/// Gets the saved copy parameters for a drive.
+///
+/// If the drive does not yet have a data file, the default will be returned which will be empty
+/// parameters for a movie.
+///
+/// # Args
+///
+/// `serial_number`:  The serial number of the drive.
+///
+/// # Errors
+///
+/// See [`Data::load`] for errors that can occur when attempting to read the data file. The file
+/// not existing is not treated as an error.
+pub fn get_form_data(serial_number: &str) -> Result<FormData> {
+    get_data(serial_number).map(|data| data.form)
+}
+
+/// Saves the drive's persistent data.
+///
+/// # Args
+///
+/// `serial_number`:  The serial number of the drive.
+///
+/// # Errors
+///
+/// See [`Data::save`] for errors that can occur when attempting to read the data file.
+pub fn save_data(serial_number: &str, data: &Data) -> Result<()> {
+    let path = get_path(serial_number);
+    data.save(&path)
+}
+
+/// Gets the path to where a drive's persistent data is stored.
+///
+/// # Args
+///
+/// `serial_number`:  The serial number of the drive.
+fn get_path(serial_number: &str) -> PathBuf {
+    let name = format!("drive.{}.json", serial_number);
+    path::data_path(&name)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -185,6 +278,7 @@ mod tests {
         let temp_file = TempFile::new(Path::new("artie.test.drive.data.json"));
 
         let data = Data {
+            name: String::from("Test Drive"),
             form: FormData {
                 media_type: String::from("Test Type"),
                 title: String::from("Test Title"),
@@ -200,6 +294,7 @@ mod tests {
 
         let loaded_data = Data::load(temp_file.path()).unwrap();
 
+        assert_eq!(data.name, loaded_data.name);
         assert_eq!(data.form.media_type, loaded_data.form.media_type);
         assert_eq!(data.form.title, loaded_data.form.title);
         assert_eq!(data.form.year, loaded_data.form.year);
