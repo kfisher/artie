@@ -76,6 +76,7 @@ impl Window {
         stack.add_titled(&copy_page, None, "Copy");
         stack.add_titled(&transcode_page, None, "Transcode");
         stack.add_titled(&catalog_page, None, "Catalog");
+        stack.set_visible_child(&transcode_page);
 
         let stack_switcher = StackSwitcher::builder()
             .stack(&stack)

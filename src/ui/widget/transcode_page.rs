@@ -12,6 +12,7 @@ use gtk::glib::{self, Object};
 use gtk::prelude::*;
 
 use crate::ui::ContextObject;
+use crate::ui::widget::TranscodeListWidget;
 
 glib::wrapper! {
     pub struct TranscodePageWidget(ObjectSubclass<imp::TranscodePageWidget>)
@@ -43,15 +44,20 @@ impl TranscodePageWidget {
     ///
     /// Called by the implementation ([`imp::TranscodePageWidget`]) when constructed.
     fn build_ui(&self) {
+        let transcode_list = TranscodeListWidget::new();
+
+
         let placeholder = gtk::Label::builder()
             .label("Transcode Page")
+            .hexpand(true)
             .build();
 
+        self.append(&transcode_list);
         self.append(&placeholder);
 
         self.set_vexpand(true);
         self.set_hexpand(true);
-        self.set_orientation(Orientation::Vertical);
+        self.set_orientation(Orientation::Horizontal);
         self.set_spacing(16);
     }
 }
