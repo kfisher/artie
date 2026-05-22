@@ -144,6 +144,18 @@ button.default {
     color: var(--color-surface-3-text);
 }
 
+button.toggle.default {
+    background-color: var(--color-surface-2-base);
+    border-color: var(--color-surface-2-border);
+    color: var(--color-surface-2-text);
+}
+
+button.toggle.default:checked {
+    background-color: var(--color-surface-1-base);
+    border-color: var(--color-surface-1-border);
+    color: var(--color-surface-1-text);
+}
+
 button.default:hover {
     background-color: var(--color-surface-3-hover);
 }
@@ -219,6 +231,11 @@ entry selection {
 
 entry.invalid {
     border-color: var(--color-danger-base);
+}
+
+entry.search text {
+    margin-left: 4px;
+    margin-right: 4px;
 }
 
 dropdown arrow {
@@ -400,5 +417,32 @@ window.background {
 .drive-widget-label {
     font-size: 16px;
     font-weight: bold;
+}
+
+.filter {
+}
+
+.filter .filter-controls {
+    margin: 4px;
+}
+
+.filter .search-row {
+}
+
+.filter .filter-row {
+    background-color: var(--color-surface-1-base);
+    border-color: var(--color-surface-1-border);
+    padding: 2px;
+    border-radius: var(--border-radius);
+    border-style: solid;
+    border-width: 1px;
+}
+
+.filter .runtime-entry {
+}
+
+.transcode-list {
+    background-color: red;
+    padding: 2px;
 }
 

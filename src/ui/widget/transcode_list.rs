@@ -57,7 +57,9 @@ impl TranscodeListWidget {
         self.append(&filter);
         self.append(&scroll);
 
+        self.set_hexpand(false);
         self.set_orientation(Orientation::Vertical);
+        self.add_css_class("transcode-list");
     }
 }
 
