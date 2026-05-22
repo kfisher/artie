@@ -300,6 +300,7 @@ mod tests {
 
         let data = Data {
             name: String::from("Test Drive"),
+            rank: 1,
             form: FormData {
                 media_type: String::from("Test Type"),
                 title: String::from("Test Title"),
@@ -316,6 +317,7 @@ mod tests {
         let loaded_data = Data::load(temp_file.path()).unwrap();
 
         assert_eq!(data.name, loaded_data.name);
+        assert_eq!(data.rank, loaded_data.rank);
         assert_eq!(data.form.media_type, loaded_data.form.media_type);
         assert_eq!(data.form.title, loaded_data.form.title);
         assert_eq!(data.form.year, loaded_data.form.year);
