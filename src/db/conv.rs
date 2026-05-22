@@ -5,6 +5,7 @@
 
 use std::path::PathBuf;
 
+use crate::{Error, Result};
 use crate::models::{
     ContainerType,
     MediaType,
@@ -13,6 +14,24 @@ use crate::models::{
     SpecialFeature,
     SpecialFeatureType
 };
+
+
+/// Converts the integral database value of a container type.
+///
+/// # Args
+///
+/// `value`  The value stored in the database.
+///
+/// # Errors
+/// 
+/// [`Error::InvalidContainerType`] if the provided value cannot be converted.
+pub fn container_type_from_sql(value: u8) -> Result<ContainerType> {
+    match value {
+        0 => Ok(ContainerType::MKV),
+        1 => Ok(ContainerType::MP4),
+        _ => Err(Error::InvalidContainerType { value }),
+    }
+}
 
 /// Converts container type to its integral database value.
 pub fn container_type_to_sql(container_type: &ContainerType) -> u8 {

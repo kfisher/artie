@@ -3,10 +3,13 @@
 
 //! Database operations for [`Video`] data.
 
+use std::path::PathBuf;
+use std::time::Duration;
+
 use rusqlite::Connection;
 
-use crate::Result;
-use crate::models::{Video, VideoSource};
+use crate::{Error, Result};
+use crate::models::{MediaLocation, Reference, Video, VideoSource};
 
 use super::conv;
 
@@ -81,6 +84,95 @@ pub fn create(conn: &Connection, video: &mut Video) -> Result<()> {
 
     tracing::trace!(?video, "create video entry");
     Ok(())
+}
+
+/// Returns a list of all videos currently in the media inbox.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// # Errors
+///
+/// [`crate::Error::Blake`] ...
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
+pub fn inbox_videos(conn: &Connection) -> Result<Vec<Video>> {
+    let sql = "
+        SELECT id
+             , location_path
+             , checksum
+             , container
+             , json(video_tracks)
+             , json(audio_tracks)
+             , json(subtitle_tracks)
+             , copy_operation_id
+             , transcode_operation_id
+             , title_id
+             , duration
+          FROM video
+         WHERE location_area = 1
+    ";
+
+    let mut stmt = conn.prepare(sql)?;
+
+    stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, u32>(0)?,         // id
+            row.get::<_, String>(1)?,      // location_path
+            row.get::<_, String>(2)?,      // checksum
+            row.get::<_, u8>(3)?,          // container
+            row.get::<_, String>(4)?,      // video_tracks
+            row.get::<_, String>(5)?,      // audio_tracks
+            row.get::<_, String>(6)?,      // subtitle_tracks
+            row.get::<_, Option<u32>>(7)?, // copy_operation_id
+            row.get::<_, Option<u32>>(8)?, // transcode_operation_id
+            row.get::<_, u32>(9)?,         // title_id
+            row.get::<_, u64>(10)?,        // duration
+        ))
+    })?
+    .map(|row| {
+        let (
+            id,
+            location_path,
+            checksum_hex,
+            container_val,
+            video_tracks_json,
+            audio_tracks_json,
+            subtitle_tracks_json,
+            copy_op_id,
+            transcode_op_id,
+            title_id,
+            duration_secs
+        ) = row?;
+  
+        let checksum = blake3::Hash::from_hex(&checksum_hex)?;
+  
+        let container = conv::container_type_from_sql(container_val)?;
+  
+        let source = match (copy_op_id, transcode_op_id) {
+            (Some(id), _) => VideoSource::CopyOperation(Reference { id, value: None }),
+            (_, Some(id)) => VideoSource::TranscodeOperation(Reference { id, value: None }),
+            _ => return Err(Error::InvalidVideoSource {
+                copy_operation: copy_op_id,
+                transcode_operation: transcode_op_id,
+            }),
+        };
+  
+        Ok(Video {
+            id,
+            location: MediaLocation::Inbox(PathBuf::from(location_path)),
+            checksum,
+            container,
+            video_tracks: serde_json::from_str(&video_tracks_json)?,
+            audio_tracks: serde_json::from_str(&audio_tracks_json)?,
+            subtitle_tracks: serde_json::from_str(&subtitle_tracks_json)?,
+            source,
+            title: Reference { id: title_id, value: None },
+            duration: Duration::from_secs(duration_secs),
+        })
+    })
+    .collect()
 }
 
 /// Creates the database table for storing video data if it does not exist.
@@ -243,5 +335,45 @@ mod tests {
         create(&conn, &mut video).expect("Failed to create video");
 
         assert!(video.id > 0);
+    }
+
+    #[test]
+    fn test_inbox_videos_returns_inbox_videos() {
+        let (conn, copy_op_id, title_id) = setup_test_db();
+        let mut video1 = make_video(copy_op_id, title_id);
+        let mut video2 = make_video(copy_op_id, title_id);
+        create(&conn, &mut video1).unwrap();
+        create(&conn, &mut video2).unwrap();
+
+        let inbox = inbox_videos(&conn).expect("Failed to list inbox");
+
+        assert_eq!(inbox.len(), 2);
+        assert!(inbox.iter().all(|v| matches!(v.location, MediaLocation::Inbox(_))));
+    }
+
+    #[test]
+    fn test_inbox_videos_excludes_library_videos() {
+        let (conn, copy_op_id, title_id) = setup_test_db();
+        let mut inbox_video = make_video(copy_op_id, title_id);
+        let mut library_video = Video {
+            location: MediaLocation::Library(std::path::PathBuf::from("movies/test.mkv")),
+            ..make_video(copy_op_id, title_id)
+        };
+        create(&conn, &mut inbox_video).unwrap();
+        create(&conn, &mut library_video).unwrap();
+
+        let inbox = inbox_videos(&conn).expect("Failed to list inbox");
+
+        assert_eq!(inbox.len(), 1);
+        assert_eq!(inbox[0].id, inbox_video.id);
+    }
+
+    #[test]
+    fn test_inbox_videos_empty() {
+        let (conn, _, _) = setup_test_db();
+
+        let inbox = inbox_videos(&conn).expect("Failed to list inbox");
+
+        assert!(inbox.is_empty());
     }
 }

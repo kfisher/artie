@@ -18,8 +18,11 @@ use crate::net;
 #[derive(Debug)]
 pub enum Error {
     /// Raised when requesting an operation when another operation is already running preventing
-    /// the requsted operation.
+    /// the requested operation.
     AlreadyRunning,
+
+    /// Raised when performing a conversion from a blake3 hash fails.
+    Blake(blake3::HexError),
 
     /// Raised when attempting to cancel an operation fails because the cancellation token is not
     /// available.
@@ -61,6 +64,11 @@ pub enum Error {
         path: PathBuf,
     },
 
+    /// Raised when the value returned by the database for container type isn't valid.
+    InvalidContainerType {
+        value: u8,
+    },
+
     /// Raised when a drive actor gets a request meant for the manager or the request serial number
     /// does not match its associated drive serial number.
     InvalidDriveRequest,
@@ -76,6 +84,12 @@ pub enum Error {
     /// path is expected.
     InvalidMediaLocation {
         location: MediaLocation,
+    },
+
+    /// Raised when a video has invalid video source information in the database.
+    InvalidVideoSource {
+        copy_operation: Option<u32>,
+        transcode_operation: Option<u32>,
     },
 
     /// Error raised when a task cannot be joined.
@@ -187,6 +201,12 @@ pub enum Error {
     WorkerNotFound {
         addr: String,
     },
+}
+
+impl From<blake3::HexError> for Error {
+    fn from(value: blake3::HexError) -> Self {
+        Error::Blake(value)
+    }
 }
 
 impl From<gtk::glib::Error> for Error {
