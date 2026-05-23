@@ -69,6 +69,16 @@ pub enum Error {
         value: u8,
     },
 
+    /// Raised when the value returned by the database for media type isn't valid.
+    InvalidMediaType {
+        value: u8,
+    },
+
+    /// Raised when the value returned by the database for special feature type isn't valid.
+    InvalidSpecialFeatureType {
+        value: u8,
+    },
+
     /// Raised when a drive actor gets a request meant for the manager or the request serial number
     /// does not match its associated drive serial number.
     InvalidDriveRequest,

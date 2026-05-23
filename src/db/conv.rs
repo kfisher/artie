@@ -12,7 +12,7 @@ use crate::models::{
     MediaLocation,
     OperationState,
     SpecialFeature,
-    SpecialFeatureType
+    SpecialFeatureType,
 };
 
 
@@ -57,11 +57,46 @@ pub fn media_location_to_sql(media_location: &MediaLocation) -> (u8, String) {
     (area, path.to_str().expect("path contained non UTF-8 characters").to_owned())
 }
 
+/// Converts the integral database value to a media type.
+///
+/// # Errors
+///
+/// [`Error::InvalidMediaType`] if the provided value cannot be converted.
+pub fn media_type_from_sql(value: u8) -> Result<MediaType> {
+    match value {
+        0 => Ok(MediaType::Movie),
+        1 => Ok(MediaType::Show),
+        _ => Err(Error::InvalidMediaType { value }),
+    }
+}
+
 /// Converts media type to the integral value for use in the database.
 pub fn media_type_to_sql(media_type: &MediaType) -> u8 {
     match media_type {
         MediaType::Movie => 0,
         MediaType::Show => 1,
+    }
+}
+
+/// Converts the integral database values to an optional special feature.
+///
+/// # Errors
+///
+/// [`Error::InvalidSpecialFeatureType`] if `kind` cannot be converted.
+pub fn special_feature_from_sql(kind: u8, name: String) -> Result<Option<SpecialFeature>> {
+    match kind {
+        0 => Ok(None),
+        1 => Ok(Some(SpecialFeature { kind: SpecialFeatureType::BehindTheScenes, name })),
+        2 => Ok(Some(SpecialFeature { kind: SpecialFeatureType::DeletedScenes, name })),
+        3 => Ok(Some(SpecialFeature { kind: SpecialFeatureType::Interviews, name })),
+        4 => Ok(Some(SpecialFeature { kind: SpecialFeatureType::Scenes, name })),
+        5 => Ok(Some(SpecialFeature { kind: SpecialFeatureType::Samples, name })),
+        6 => Ok(Some(SpecialFeature { kind: SpecialFeatureType::Shorts, name })),
+        7 => Ok(Some(SpecialFeature { kind: SpecialFeatureType::Featurettes, name })),
+        8 => Ok(Some(SpecialFeature { kind: SpecialFeatureType::Clips, name })),
+        9 => Ok(Some(SpecialFeature { kind: SpecialFeatureType::Extras, name })),
+        10 => Ok(Some(SpecialFeature { kind: SpecialFeatureType::Trailers, name })),
+        _ => Err(Error::InvalidSpecialFeatureType { value: kind }),
     }
 }
 

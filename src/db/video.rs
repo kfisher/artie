@@ -9,7 +9,7 @@ use std::time::Duration;
 use rusqlite::Connection;
 
 use crate::{Error, Result};
-use crate::models::{MediaLocation, Reference, Video, VideoSource};
+use crate::models::{MediaLocation, Reference, Title, Video, VideoSource};
 
 use super::conv;
 
@@ -99,36 +99,63 @@ pub fn create(conn: &Connection, video: &mut Video) -> Result<()> {
 /// [`crate::Error::Database`] raised if the database operation fails.
 pub fn inbox_videos(conn: &Connection) -> Result<Vec<Video>> {
     let sql = "
-        SELECT id
-             , location_path
-             , checksum
-             , container
-             , json(video_tracks)
-             , json(audio_tracks)
-             , json(subtitle_tracks)
-             , copy_operation_id
-             , transcode_operation_id
-             , title_id
-             , duration
-          FROM video
-         WHERE location_area = 1
+        SELECT v.id
+             , v.location_path
+             , v.checksum
+             , v.container
+             , json(v.video_tracks)
+             , json(v.audio_tracks)
+             , json(v.subtitle_tracks)
+             , v.copy_operation_id
+             , v.transcode_operation_id
+             , v.duration
+             , t.id
+             , t.title_index
+             , t.media_type
+             , t.title
+             , t.year
+             , t.season
+             , t.episode_number
+             , t.episode_count
+             , t.special_feature_kind
+             , t.special_feature_name
+             , t.version
+             , t.disc
+             , t.location
+             , t.memo
+          FROM video v
+          JOIN title t ON v.title_id = t.id
+         WHERE v.location_area = 1
     ";
 
     let mut stmt = conn.prepare(sql)?;
 
     stmt.query_map([], |row| {
         Ok((
-            row.get::<_, u32>(0)?,         // id
-            row.get::<_, String>(1)?,      // location_path
-            row.get::<_, String>(2)?,      // checksum
-            row.get::<_, u8>(3)?,          // container
-            row.get::<_, String>(4)?,      // video_tracks
-            row.get::<_, String>(5)?,      // audio_tracks
-            row.get::<_, String>(6)?,      // subtitle_tracks
-            row.get::<_, Option<u32>>(7)?, // copy_operation_id
-            row.get::<_, Option<u32>>(8)?, // transcode_operation_id
-            row.get::<_, u32>(9)?,         // title_id
-            row.get::<_, u64>(10)?,        // duration
+            row.get::<_, u32>(0)?,         // v.id
+            row.get::<_, String>(1)?,      // v.location_path
+            row.get::<_, String>(2)?,      // v.checksum
+            row.get::<_, u8>(3)?,          // v.container
+            row.get::<_, String>(4)?,      // v.video_tracks
+            row.get::<_, String>(5)?,      // v.audio_tracks
+            row.get::<_, String>(6)?,      // v.subtitle_tracks
+            row.get::<_, Option<u32>>(7)?, // v.copy_operation_id
+            row.get::<_, Option<u32>>(8)?, // v.transcode_operation_id
+            row.get::<_, u64>(9)?,         // v.duration
+            row.get::<_, u32>(10)?,        // t.id
+            row.get::<_, u8>(11)?,         // t.title_index
+            row.get::<_, u8>(12)?,         // t.media_type
+            row.get::<_, String>(13)?,     // t.title
+            row.get::<_, u16>(14)?,        // t.year
+            row.get::<_, u16>(15)?,        // t.season
+            row.get::<_, u16>(16)?,        // t.episode_number
+            row.get::<_, u16>(17)?,        // t.episode_count
+            row.get::<_, u8>(18)?,         // t.special_feature_kind
+            row.get::<_, String>(19)?,     // t.special_feature_name
+            row.get::<_, String>(20)?,     // t.version
+            row.get::<_, u16>(21)?,        // t.disc
+            row.get::<_, String>(22)?,     // t.location
+            row.get::<_, String>(23)?,     // t.memo
         ))
     })?
     .map(|row| {
@@ -142,14 +169,27 @@ pub fn inbox_videos(conn: &Connection) -> Result<Vec<Video>> {
             subtitle_tracks_json,
             copy_op_id,
             transcode_op_id,
+            duration_secs,
             title_id,
-            duration_secs
+            title_index,
+            media_type_val,
+            title_name,
+            year,
+            season,
+            episode_number,
+            episode_count,
+            sf_kind,
+            sf_name,
+            version,
+            disc,
+            title_location,
+            memo,
         ) = row?;
-  
+
         let checksum = blake3::Hash::from_hex(&checksum_hex)?;
-  
+
         let container = conv::container_type_from_sql(container_val)?;
-  
+
         let source = match (copy_op_id, transcode_op_id) {
             (Some(id), _) => VideoSource::CopyOperation(Reference { id, value: None }),
             (_, Some(id)) => VideoSource::TranscodeOperation(Reference { id, value: None }),
@@ -158,7 +198,24 @@ pub fn inbox_videos(conn: &Connection) -> Result<Vec<Video>> {
                 transcode_operation: transcode_op_id,
             }),
         };
-  
+
+        let title = Title {
+            id: title_id,
+            index: title_index,
+            media_type: conv::media_type_from_sql(media_type_val)?,
+            title: title_name,
+            year,
+            season,
+            episode_number,
+            episode_count,
+            special_feature: conv::special_feature_from_sql(sf_kind, sf_name)?,
+            version,
+            disc,
+            location: title_location,
+            memo,
+            videos: None,
+        };
+
         Ok(Video {
             id,
             location: MediaLocation::Inbox(PathBuf::from(location_path)),
@@ -168,7 +225,7 @@ pub fn inbox_videos(conn: &Connection) -> Result<Vec<Video>> {
             audio_tracks: serde_json::from_str(&audio_tracks_json)?,
             subtitle_tracks: serde_json::from_str(&subtitle_tracks_json)?,
             source,
-            title: Reference { id: title_id, value: None },
+            title: Reference { id: title_id, value: Some(Box::new(title)) },
             duration: Duration::from_secs(duration_secs),
         })
     })
@@ -349,6 +406,20 @@ mod tests {
 
         assert_eq!(inbox.len(), 2);
         assert!(inbox.iter().all(|v| matches!(v.location, MediaLocation::Inbox(_))));
+    }
+
+    #[test]
+    fn test_inbox_videos_includes_title_data() {
+        let (conn, copy_op_id, title_id) = setup_test_db();
+        let mut video = make_video(copy_op_id, title_id);
+        create(&conn, &mut video).unwrap();
+
+        let inbox = inbox_videos(&conn).expect("Failed to list inbox");
+
+        assert_eq!(inbox.len(), 1);
+        let title = inbox[0].title.value.as_ref().expect("title value should be populated");
+        assert_eq!(title.id, title_id);
+        assert_eq!(title.title, "Test Movie");
     }
 
     #[test]
