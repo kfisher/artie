@@ -12,6 +12,7 @@ mod transcode_page;
 mod transcode_list;
 mod transcode_list_filter;
 mod transcode_list_item;
+mod transcode_queue;
 mod window;
 
 pub use copy_form::CopyFormWidget;
@@ -23,4 +24,5 @@ pub use transcode_list::TranscodeListWidget;
 pub use transcode_list_filter::TranscodeListFilterWidget;
 pub use transcode_list_item::TranscodeListItemWidget;
 pub use transcode_page::TranscodePageWidget;
+pub use transcode_queue::TranscodeQueueWidget;
 pub use window::Window;

@@ -464,3 +464,8 @@ window.background {
     font-size: 1.125em;
 }
 
+.transcode-queue {
+    background-color: var(--color-surface-1-base);
+    border-left: 1px solid var(--color-surface-1-border);
+    padding: 2px;
+}

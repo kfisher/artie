@@ -12,7 +12,7 @@ use gtk::glib::{self, Object};
 use gtk::prelude::*;
 
 use crate::ui::ContextObject;
-use crate::ui::widget::TranscodeListWidget;
+use crate::ui::widget::{TranscodeListWidget, TranscodeQueueWidget};
 
 glib::wrapper! {
     pub struct TranscodePageWidget(ObjectSubclass<imp::TranscodePageWidget>)
@@ -53,8 +53,11 @@ impl TranscodePageWidget {
             .hexpand(true)
             .build();
 
+        let transcode_queue = TranscodeQueueWidget::new();
+
         self.append(&transcode_list);
         self.append(&placeholder);
+        self.append(&transcode_queue);
 
         self.set_vexpand(true);
         self.set_hexpand(true);

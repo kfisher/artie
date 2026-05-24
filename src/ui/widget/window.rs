@@ -88,8 +88,8 @@ impl Window {
 
         self.set_title(Some("Artie"));
         self.set_titlebar(Some(&header_bar));
-        self.set_default_width(1080);
-        self.set_default_height(1000);
+        self.set_default_width(1920);
+        self.set_default_height(1080);
         self.set_child(Some(&stack));
 
         //--] let menu_popover = PopoverMenu::builder()

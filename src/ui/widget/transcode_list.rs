@@ -75,6 +75,7 @@ impl TranscodeListWidget {
         self.set_hexpand(false);
         self.set_orientation(Orientation::Vertical);
         self.add_css_class("transcode-list");
+        self.set_width_request(300);
 
         let imp = self.imp();
         imp.video_list_view.replace(Some(list_view));
