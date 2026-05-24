@@ -3,8 +3,6 @@
 
 //! GObject representation of an optical drive.
 
-use std::time::Duration;
-
 use gtk::glib::{self, Object};
 use gtk::subclass::prelude::*;
 
@@ -12,6 +10,7 @@ use crate::bus::Handle;
 use crate::drive::{self, FormData, FormDataUpdate, OpticalDrive};
 use crate::models::CopyParamaters;
 use crate::ui::data::OpticalDriveState;
+use crate::ui::helpers;
 
 glib::wrapper! {
     pub struct OpticalDriveObject(ObjectSubclass<imp::OpticalDriveObject>);
@@ -136,7 +135,7 @@ impl OpticalDriveObject {
             } => {
                 self.set_drive_state(OpticalDriveState::Copying);
                 self.set_stage(stage);
-                self.set_elapsed_time(format_elapsed_time(&elapsed_time));
+                self.set_elapsed_time(helpers::format_elapsed_time(&elapsed_time));
                 self.set_task(task);
                 self.set_task_progress(task_progress);
                 self.set_subtask(subtask);
@@ -166,15 +165,6 @@ impl OpticalDriveObject {
             .clone()
     }
 
-}
-
-/// Formats the elapsed time duration into a string.
-fn format_elapsed_time(elapsed_time: &Duration) -> String {
-    let total_seconds = elapsed_time.as_secs();
-    let hours = total_seconds / 3600;
-    let minutes = (total_seconds % 3600) / 60;
-    let seconds = total_seconds % 60;
-    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
 }
 
 mod imp {

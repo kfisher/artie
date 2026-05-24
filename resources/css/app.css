@@ -419,6 +419,7 @@ window.background {
     font-weight: bold;
 }
 
+/* TODO: rename filter */
 .filter {
 }
 
@@ -442,7 +443,34 @@ window.background {
 }
 
 .transcode-list {
-    background-color: red;
+    background-color: var(--color-surface-1-base);
+    border-right: 1px solid var(--color-surface-1-border);
     padding: 2px;
+}
+
+.transcode-list-item {
+    background-color: var(--color-surface-2-base);
+    border: 1px solid var(--color-surface-2-border);
+    border-radius: var(--border-radius);
+    color: var(--color-surface-2-text);
+    padding: 4px;
+    margin-bottom: 2px;
+    margin-top: 2px;
+}
+
+.video-duration {
+    font-family: monospace;
+    font-weight: bold;
+    font-size: 1.125em;
+}
+
+.video-info {
+    font-family: monospace;
+    margin-top: 2px;
+}
+
+.video-title {
+    font-weight: bold;
+    font-size: 1.125em;
 }
 

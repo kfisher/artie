@@ -5,6 +5,10 @@
 
 mod enums;
 mod optical_drive;
+mod title;
+mod video;
 
-pub use enums::OpticalDriveState;
+pub use enums::{MediaType, OpticalDriveState};
 pub use optical_drive::OpticalDriveObject;
+pub use title::TitleObject;
+pub use video::VideoObject;

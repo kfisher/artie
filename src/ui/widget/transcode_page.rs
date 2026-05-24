@@ -44,8 +44,9 @@ impl TranscodePageWidget {
     ///
     /// Called by the implementation ([`imp::TranscodePageWidget`]) when constructed.
     fn build_ui(&self) {
-        let transcode_list = TranscodeListWidget::new();
-
+        let context = self.context()
+            .expect("context was None");
+        let transcode_list = TranscodeListWidget::new(&context);
 
         let placeholder = gtk::Label::builder()
             .label("Transcode Page")
@@ -83,15 +84,11 @@ mod imp {
         pub(super) drive_list_view: RefCell<Option<ListView>>,
 
         /// The application context.
-        #[property(get, set = Self::set_context, construct_only)]
+        #[property(get, construct_only)]
         pub(super) context: RefCell<Option<ContextObject>>,
     }
 
     impl TranscodePageWidget {
-        /// Sets the application context.
-        fn set_context(&self, context: Option<ContextObject>) {
-            self.context.replace(context);
-        }
     }
 
     #[glib::object_subclass]

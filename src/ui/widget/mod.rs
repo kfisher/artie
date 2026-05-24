@@ -11,6 +11,7 @@ mod icon_toggle_button;
 mod transcode_page;
 mod transcode_filter;
 mod transcode_list;
+mod transcode_list_item;
 mod window;
 
 pub use copy_form::CopyFormWidget;
@@ -21,4 +22,5 @@ pub use icon_toggle_button::IconToggleButton;
 pub use transcode_page::TranscodePageWidget;
 pub use transcode_filter::TranscodeFilterWidget;
 pub use transcode_list::TranscodeListWidget;
+pub use transcode_list_item::TranscodeListItemWidget;
 pub use window::Window;

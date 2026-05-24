@@ -10,10 +10,9 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use gtk::gio::ListStore;
-use gtk::gio::prelude::ListModelExt;
+use gtk::gio::prelude::*;
 use gtk::glib::{self, Object};
-use gtk::prelude::Cast;
-use gtk::subclass::prelude::ObjectSubclassIsExt;
+use gtk::subclass::prelude::*;
 
 use crate::Mode;
 use crate::bus::Handle;
@@ -48,6 +47,11 @@ impl ContextObject {
         ));
 
         obj
+    }
+
+    /// Returns the handle for sending messages on the communication bus to the application actors.
+    pub fn bus(&self) -> Option<Handle> {
+        self.imp().bus.borrow().clone()
     }
 
     /// Returns list of [`crate::ui::data::OpticalDriveObject`] instances containing the optical

@@ -3,6 +3,8 @@
 
 //! UI utility functions.
 
+use std::time::Duration;
+
 use gtk::Entry;
 use gtk::prelude::*;
 
@@ -37,6 +39,15 @@ pub fn entry_valid(entry: &Entry) {
 /// This will add the invalid css class (see: [`INVALID_CSS_CLASS`])
 pub fn entry_invalid(entry: &Entry) {
     entry.add_css_class(INVALID_CSS_CLASS);
+}
+
+/// Formats the elapsed time duration into a string.
+pub fn format_elapsed_time(elapsed_time: &Duration) -> String {
+    let total_seconds = elapsed_time.as_secs();
+    let hours = total_seconds / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+    let seconds = total_seconds % 60;
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
 }
 
 #[cfg(test)]

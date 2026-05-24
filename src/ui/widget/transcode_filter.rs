@@ -55,7 +55,7 @@ impl TranscodeFilterWidget {
             .label("Filter")
             .build();
         filter_button.add_css_class("default");
-        filter_button.set_active(true);
+        // filter_button.set_active(true);
 
         let search_entry = SearchEntry::builder()
             .hexpand(true)
@@ -139,13 +139,13 @@ impl TranscodeFilterWidget {
             .hexpand(true)
             .label("Clear")
             .build();
-        clear_button.add_css_class("danger");
+        clear_button.add_css_class("default");
 
         let apply_button = Button::builder()
             .hexpand(true)
             .label("Apply")
             .build();
-        apply_button.add_css_class("success");
+        apply_button.add_css_class("secondary");
 
         let filter_controls = Box::builder()
             .orientation(Orientation::Horizontal)
