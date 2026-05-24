@@ -26,7 +26,7 @@ use gtk::subclass::prelude::*;
 use crate::ui::widget::IconToggleButton;
 
 glib::wrapper! {
-    pub struct TranscodeFilterWidget(ObjectSubclass<imp::TranscodeFilterWidget>)
+    pub struct TranscodeListFilterWidget(ObjectSubclass<imp::TranscodeListFilterWidget>)
         @extends gtk::Box,
                  gtk::Widget,
         @implements gtk::Accessible,
@@ -35,7 +35,7 @@ glib::wrapper! {
                     gtk::Orientable;
 }
 
-impl TranscodeFilterWidget {
+impl TranscodeListFilterWidget {
     /// Creates a new copy page instance.
     ///
     /// # Panics
@@ -48,7 +48,7 @@ impl TranscodeFilterWidget {
 
     /// Builds the widget.
     ///
-    /// Called by the implementation ([`imp::TranscodeFilterWidget`]) when constructed.
+    /// Called by the implementation ([`imp::TranscodeListFilterWidget`]) when constructed.
     fn build_ui(&self) {
         let filter_button = IconToggleButton::builder()
             .icon_name("fontawesome.v7.solid.filter-symbolic")
@@ -170,7 +170,7 @@ impl TranscodeFilterWidget {
         self.append(&revealer);
         self.set_spacing(2);
         self.set_orientation(Orientation::Vertical);
-        self.add_css_class("filter");
+        self.add_css_class("transcode-list-filter");
 
         let imp = self.imp();
         imp.revealer.replace(revealer);
@@ -215,26 +215,26 @@ mod imp {
     use gtk::glib::{self, Properties};
     use gtk::subclass::prelude::*;
 
-    /// Implemenation for [`super::TranscodeFilterWidget`].
+    /// Implemenation for [`super::TranscodeListFilterWidget`].
     #[derive(Default, Properties)]
-    #[properties(wrapper_type = super::TranscodeFilterWidget)]
-    pub struct TranscodeFilterWidget {
+    #[properties(wrapper_type = super::TranscodeListFilterWidget)]
+    pub struct TranscodeListFilterWidget {
         // TODO
         pub(super) revealer: RefCell<Revealer>,
     }
 
-    impl TranscodeFilterWidget {
+    impl TranscodeListFilterWidget {
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for TranscodeFilterWidget {
-        const NAME: &'static str = "ArtieTranscodeFilterWidget";
-        type Type = super::TranscodeFilterWidget;
+    impl ObjectSubclass for TranscodeListFilterWidget {
+        const NAME: &'static str = "ArtieTranscodeListFilterWidget";
+        type Type = super::TranscodeListFilterWidget;
         type ParentType = Box;
     }
 
     #[glib::derived_properties]
-    impl ObjectImpl for TranscodeFilterWidget {
+    impl ObjectImpl for TranscodeListFilterWidget {
         fn constructed(&self) {
             self.parent_constructed();
 
@@ -243,9 +243,9 @@ mod imp {
         }
     }
 
-    impl WidgetImpl for TranscodeFilterWidget {}
+    impl WidgetImpl for TranscodeListFilterWidget {}
 
-    impl BoxImpl for TranscodeFilterWidget {}
+    impl BoxImpl for TranscodeListFilterWidget {}
 }
 
 #[cfg(test)]

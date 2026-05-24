@@ -419,27 +419,17 @@ window.background {
     font-weight: bold;
 }
 
-/* TODO: rename filter */
-.filter {
-}
-
-.filter .filter-controls {
+.transcode-list-filter .filter-controls {
     margin: 4px;
 }
 
-.filter .search-row {
-}
-
-.filter .filter-row {
+.transcode-list-filter .filter-row {
     background-color: var(--color-surface-1-base);
     border-color: var(--color-surface-1-border);
     padding: 2px;
     border-radius: var(--border-radius);
     border-style: solid;
     border-width: 1px;
-}
-
-.filter .runtime-entry {
 }
 
 .transcode-list {

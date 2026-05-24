@@ -23,7 +23,7 @@ use gtk::subclass::prelude::*;
 use crate::bus::Handle;
 use crate::db;
 use crate::ui::context::ContextObject;
-use crate::ui::widget::{TranscodeFilterWidget, TranscodeListItemWidget};
+use crate::ui::widget::{TranscodeListFilterWidget, TranscodeListItemWidget};
 use crate::ui::data::VideoObject;
 
 glib::wrapper! {
@@ -57,7 +57,7 @@ impl TranscodeListWidget {
     ///
     /// Called by the implementation ([`imp::TranscodeListWidget`]) when constructed.
     fn build_ui(&self) {
-        let filter = TranscodeFilterWidget::new();
+        let filter = TranscodeListFilterWidget::new();
 
         let list_view = ListView::builder()
             .build();
