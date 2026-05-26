@@ -37,6 +37,12 @@ pub enum Message {
 pub fn run(mode: Mode, bus: &Handle) -> Result<glib::ExitCode> {
     gio::resources_register_include!("compiled.gresource")?;
 
+    // Initialize gstreamer.
+    gst::init()?;
+
+    gst_gtk4::plugin_register_static()
+        .expect("failed to register GST/GTK plugin");
+
     let context = ContextObject::new(mode, bus.clone());
 
     let app = Application::builder()

@@ -469,3 +469,8 @@ window.background {
     border-left: 1px solid var(--color-surface-1-border);
     padding: 2px;
 }
+
+.placeholder {
+    background-color: red;
+}
+

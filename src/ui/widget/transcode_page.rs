@@ -6,13 +6,14 @@
 //! The transcode page is the page used to initiate, monitor, and terminate transcode operations.
 
 use gtk::{
+    Box,
     Orientation,
 };
 use gtk::glib::{self, Object};
 use gtk::prelude::*;
 
 use crate::ui::ContextObject;
-use crate::ui::widget::{TranscodeListWidget, TranscodeQueueWidget};
+use crate::ui::widget::{TranscodeListWidget, TranscodeQueueWidget, VideoPlayerWidget};
 
 glib::wrapper! {
     pub struct TranscodePageWidget(ObjectSubclass<imp::TranscodePageWidget>)
@@ -48,15 +49,18 @@ impl TranscodePageWidget {
             .expect("context was None");
         let transcode_list = TranscodeListWidget::new(&context);
 
-        let placeholder = gtk::Label::builder()
-            .label("Transcode Page")
+        let video_preview = VideoPlayerWidget::new();
+
+        let main_section = Box::builder()
             .hexpand(true)
+            .orientation(Orientation::Vertical)
             .build();
+        main_section.append(&video_preview);
 
         let transcode_queue = TranscodeQueueWidget::new();
 
         self.append(&transcode_list);
-        self.append(&placeholder);
+        self.append(&main_section);
         self.append(&transcode_queue);
 
         self.set_vexpand(true);

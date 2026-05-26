@@ -40,8 +40,8 @@ pub enum Error {
         stderr: String,
     },
 
-    /// Raised by the GTK library.
-    Gtk(gtk::glib::Error),
+    /// Raised by the GTK and GStreamer libraries.
+    GLib(gtk::glib::Error),
 
     /// Raised when database operations fail.
     Database(rusqlite::Error),
@@ -221,7 +221,7 @@ impl From<blake3::HexError> for Error {
 
 impl From<gtk::glib::Error> for Error {
     fn from(value: gtk::glib::Error) -> Self {
-        Error::Gtk(value)
+        Error::GLib(value)
     }
 }
 
