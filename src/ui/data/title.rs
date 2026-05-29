@@ -20,12 +20,15 @@ impl TitleObject {
     /// This will panic if the GObject cannot be created.
     pub fn new(title: &Title) -> Self {
         Object::builder()
+            .property("disc-number", title.disc as u32)
             .property("id", title.id)
             .property("index", title.index)
+            .property("location", &title.location)
             .property("media-type", MediaType::from(title.media_type))
-            .property("title", &title.title)
+            .property("memo", &title.memo)
             .property("season-number", title.season as u32)
-            .property("disc-number", title.disc as u32)
+            .property("title", &title.title)
+            .property("year", title.year as u32)
             .build()
     }
 }
@@ -64,6 +67,12 @@ mod imp {
         #[property(name = "title", get, set, type = String)]
         pub(super) title: RefCell<String>,
 
+        /// The release year.
+        ///
+        /// For television shows, this is the release year of the first season.
+        #[property(name = "year", get, set, type = u32)]
+        pub year: Cell<u32>,
+
         /// The disc number the title was copied from.
         #[property(name = "disc-number", get, set, type = u32)]
         pub disc_number: Cell<u32>,
@@ -73,6 +82,14 @@ mod imp {
         /// Only valid for television shows. For movies, should be set to zero.
         #[property(name = "season-number", get, set, type = u32)]
         pub season_number: Cell<u32>,
+
+        /// The physical location of the disc being copied.
+        #[property(name = "location", get, set, type = String)]
+        pub(super) location: RefCell<String>,
+
+        /// Additional information/context provided by the user.
+        #[property(name = "memo", get, set, type = String)]
+        pub(super) memo: RefCell<String>,
     }
 
     #[glib::object_subclass]

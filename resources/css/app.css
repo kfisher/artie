@@ -489,6 +489,10 @@ window.background {
     margin-top: 2px;
 }
 
+.transcode-list-item:hover {
+    background-color: blue;
+}
+
 .video-duration {
     font-family: monospace;
     font-weight: bold;

@@ -11,8 +11,10 @@ use gtk::{
 };
 use gtk::glib::{self, Object};
 use gtk::prelude::*;
+use gtk::subclass::prelude::*;
 
 use crate::ui::ContextObject;
+use crate::ui::data::VideoObject;
 use crate::ui::widget::{
     MetadataFormWidget,
     TranscodeListWidget,
@@ -54,9 +56,14 @@ impl TranscodePageWidget {
             .expect("context was None");
         let transcode_list = TranscodeListWidget::new(&context);
 
-        transcode_list.connect_video_selected(|video| {
-            tracing::warn!(title=?video.title(), "SELECTED");
-        });
+        let transcode_page = self.clone();
+        transcode_list.connect_video_selected(glib::clone!(
+            #[weak]
+            transcode_page,
+            move |video| {
+                transcode_page.set_selected(video);
+            }
+        ));
 
         let main_section = Box::builder()
             .hexpand(true)
@@ -85,6 +92,18 @@ impl TranscodePageWidget {
         self.set_hexpand(true);
         self.set_orientation(Orientation::Horizontal);
         self.set_spacing(8);
+
+        let imp = self.imp();
+        imp.metadata_form.replace(Some(metadata_form));
+    }
+
+    // TODO
+    fn set_selected(&self, video: &VideoObject) {
+        let metadata_form = self.imp().metadata_form
+            .borrow()
+            .clone()
+            .expect("metadata_form was None");
+        metadata_form.update_from_video(video);
     }
 }
 
@@ -101,17 +120,21 @@ mod imp {
     use gtk::subclass::prelude::*;
 
     use crate::ui::ContextObject;
+    use crate::ui::widget::MetadataFormWidget;
 
     /// Implemenation for [`super::TranscodePageWidget`].
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::TranscodePageWidget)]
     pub struct TranscodePageWidget {
-        /// List view for displaying a list of available drives.
-        pub(super) drive_list_view: RefCell<Option<ListView>>,
-
         /// The application context.
         #[property(get, construct_only)]
         pub(super) context: RefCell<Option<ContextObject>>,
+
+        /// List view for displaying a list of available drives.
+        pub(super) drive_list_view: RefCell<Option<ListView>>,
+
+        // TODO
+        pub(super) metadata_form: RefCell<Option<MetadataFormWidget>>,
     }
 
     impl TranscodePageWidget {

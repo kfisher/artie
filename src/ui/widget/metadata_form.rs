@@ -15,9 +15,10 @@ use gtk::{
 };
 use gtk::glib::{self, Object};
 use gtk::prelude::*;
-// use gtk::subclass::prelude::*;
+use gtk::subclass::prelude::*;
 
-use crate::models::MediaType;
+use crate::models::{MediaType, SpecialFeatureType};
+use crate::ui::data::{TitleObject, VideoObject};
 use crate::ui::widget::IconButton;
 
 glib::wrapper! {
@@ -40,6 +41,47 @@ impl MetadataFormWidget {
         Object::builder().build()
     }
 
+    // TODO
+    pub fn update_from_title(&self, title: &TitleObject) {
+        let imp = self.imp();
+
+        imp.media_type_dropdown
+            .borrow()
+            .set_selected(title.media_type().to_model().as_index());
+
+        imp.title_entry
+            .borrow()
+            .set_text(&title.title());
+
+        imp.year_entry
+            .borrow()
+            .set_text(&format!("{}", &title.year()));
+
+        imp.disc_number_entry
+            .borrow()
+            .set_text(&format!("{}", &title.disc_number()));
+
+        imp.season_number_entry
+            .borrow()
+            .set_text(&format!("{}", &title.season_number()));
+
+        imp.location_entry
+            .borrow()
+            .set_text(&title.location());
+
+        imp.memo_entry
+            .borrow()
+            .set_text(&title.memo());
+    }
+
+    // TODO
+    pub fn update_from_video(&self, video: &VideoObject) {
+        let title = video.title()
+            .downcast::<TitleObject>()
+            .expect("missing video title information");
+        self.update_from_title(&title);
+    }
+
     /// Builds the widget.
     ///
     /// Called by the implementation ([`imp::MetadataFormWidget`]) when constructed.
@@ -51,7 +93,7 @@ impl MetadataFormWidget {
 
         let layout = Grid::builder()
             .column_spacing(8)
-            .row_spacing(2)
+            .row_spacing(3)
             .vexpand(true)
             .build();
 
@@ -136,7 +178,17 @@ impl MetadataFormWidget {
         layout.attach(&special_feature_label, 0, 6, 1, 1);
 
         let special_feature_model = StringList::new(&[
-            "-",
+            "N/A", // SpecialFeatureType::None,
+            SpecialFeatureType::BehindTheScenes.as_str(),
+            SpecialFeatureType::DeletedScenes.as_str(),
+            SpecialFeatureType::Interviews.as_str(),
+            SpecialFeatureType::Scenes.as_str(),
+            SpecialFeatureType::Samples.as_str(),
+            SpecialFeatureType::Shorts.as_str(),
+            SpecialFeatureType::Featurettes.as_str(),
+            SpecialFeatureType::Clips.as_str(),
+            SpecialFeatureType::Extras.as_str(),
+            SpecialFeatureType::Trailers.as_str(),
         ]);
         let special_feature_dropdown = DropDown::builder()
             .model(&special_feature_model)
@@ -167,7 +219,7 @@ impl MetadataFormWidget {
 
         let location_label = Label::builder()
             .halign(Align::End)
-            .label("Location")
+            .label("Storage Location")
             .build();
         layout.attach(&location_label, 0, 9, 1, 1);
 
@@ -208,6 +260,39 @@ impl MetadataFormWidget {
         controls.add_css_class("controls");
         controls.set_hexpand(true);
 
+        media_type_dropdown
+            .bind_property("selected", &season_number_label, "visible")
+            .transform_to(|_, selected: u32| hide_if_movie(selected))
+            .sync_create()
+            .build();
+        media_type_dropdown
+            .bind_property("selected", &season_number_entry, "visible")
+            .transform_to(|_, selected: u32| hide_if_movie(selected))
+            .sync_create()
+            .build();
+
+        media_type_dropdown
+            .bind_property("selected", &episode_number_label, "visible")
+            .transform_to(|_, selected: u32| hide_if_movie(selected))
+            .sync_create()
+            .build();
+        media_type_dropdown
+            .bind_property("selected", &episode_number_entry, "visible")
+            .transform_to(|_, selected: u32| hide_if_movie(selected))
+            .sync_create()
+            .build();
+
+        media_type_dropdown
+            .bind_property("selected", &episode_count_label, "visible")
+            .transform_to(|_, selected: u32| hide_if_movie(selected))
+            .sync_create()
+            .build();
+        media_type_dropdown
+            .bind_property("selected", &episode_count_entry, "visible")
+            .transform_to(|_, selected: u32| hide_if_movie(selected))
+            .sync_create()
+            .build();
+
         self.append(&header);
         self.append(&layout);
         self.append(&controls);
@@ -217,6 +302,15 @@ impl MetadataFormWidget {
         self.set_valign(Align::Start);
         self.set_vexpand(false);
         self.set_orientation(Orientation::Vertical);
+
+        let imp = self.imp();
+        imp.media_type_dropdown.replace(media_type_dropdown);
+        imp.title_entry.replace(title_entry);
+        imp.year_entry.replace(year_entry);
+        imp.disc_number_entry.replace(disc_number_entry);
+        imp.season_number_entry.replace(season_number_entry);
+        imp.location_entry.replace(location_entry);
+        imp.memo_entry.replace(memo_entry);
     }
 }
 
@@ -226,14 +320,11 @@ impl Default for MetadataFormWidget {
     }
 }
 
-/// insert-text signal handler that restricts input to numbers only.
-fn number_only_insert_text(entry: &gtk::Editable, text: &str, _position: &mut i32) {
-    const NUMBERS: &str = "0123456789";
-    let filtered: String = text.chars()
-        .filter(|c| NUMBERS.contains(*c))
-        .collect();
-    if filtered != text {
-        glib::signal::signal_stop_emission_by_name(entry, "insert-text");
+// TODO
+fn hide_if_movie(selected: u32) -> Option<bool>  {
+    match MediaType::from_index(selected) {
+        Some(media_type) => Some(media_type == MediaType::Show),
+        None => Some(false),
     }
 }
 
@@ -247,7 +338,7 @@ mod imp {
     #[derive(Default)]
     pub struct MetadataFormWidget {
         /// Dropdown used to select the type of media.
-        pub(super) type_dropdown: RefCell<DropDown>,
+        pub(super) media_type_dropdown: RefCell<DropDown>,
 
         /// The entry for the movie title.
         pub(super) title_entry: RefCell<Entry>,

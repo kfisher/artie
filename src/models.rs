@@ -277,6 +277,95 @@ pub enum SpecialFeatureType {
     Trailers,
 }
 
+impl SpecialFeatureType {
+    /// All available types.
+    pub const ALL: &'static [Self] = &[
+        Self::None,
+        Self::BehindTheScenes,
+        Self::DeletedScenes,
+        Self::Interviews,
+        Self::Scenes,
+        Self::Samples,
+        Self::Shorts,
+        Self::Featurettes,
+        Self::Clips,
+        Self::Extras,
+        Self::Trailers,
+    ];
+
+    /// Create a special feature type value from an index value returning `None` if the provided
+    /// value cannot be converted.
+    pub fn from_index(index: u32) -> Option<Self> {
+        match index {
+            0 => Some(Self::None),
+            1 => Some(Self::BehindTheScenes),
+            2 => Some(Self::DeletedScenes),
+            3 => Some(Self::Interviews),
+            4 => Some(Self::Scenes),
+            5 => Some(Self::Samples),
+            6 => Some(Self::Shorts),
+            7 => Some(Self::Featurettes),
+            8 => Some(Self::Clips),
+            9 => Some(Self::Extras),
+            10 => Some(Self::Trailers),
+            _ => None,
+        }
+    }
+
+    /// Create a special feature type value from a string value returning `None` if the provided
+    /// value cannot be converted.
+    pub fn from_string(s: &str) -> Option<Self> {
+        match s {
+            "None" => Some(Self::None),
+            "Behind The Scenes" => Some(Self::BehindTheScenes),
+            "Deleted Scenes" => Some(Self::DeletedScenes),
+            "Interviews" => Some(Self::Interviews),
+            "Scenes" => Some(Self::Scenes),
+            "Samples" => Some(Self::Samples),
+            "Shorts" => Some(Self::Shorts),
+            "Featurettes" => Some(Self::Featurettes),
+            "Clips" => Some(Self::Clips),
+            "Extras" => Some(Self::Extras),
+            "Trailers" => Some(Self::Trailers),
+            _ => None,
+        }
+    }
+
+    /// Convert special feature type to its index value.
+    pub fn as_index(&self) -> u32 {
+        match self {
+            Self::None => 0,
+            Self::BehindTheScenes => 1,
+            Self::DeletedScenes => 2,
+            Self::Interviews => 3,
+            Self::Scenes => 4,
+            Self::Samples => 5,
+            Self::Shorts => 6,
+            Self::Featurettes => 7,
+            Self::Clips => 8,
+            Self::Extras => 9,
+            Self::Trailers => 10,
+        }
+    }
+
+    /// Convert special feature type to its string value.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::None => "None",
+            Self::BehindTheScenes => "Behind The Scenes",
+            Self::DeletedScenes => "Deleted Scenes",
+            Self::Interviews => "Interviews",
+            Self::Scenes => "Scenes",
+            Self::Samples => "Samples",
+            Self::Shorts => "Shorts",
+            Self::Featurettes => "Featurettes",
+            Self::Clips => "Clips",
+            Self::Extras => "Extras",
+            Self::Trailers => "Trailers",
+        }
+    }
+}
+
 /// Specifies the various subtitle codecs.
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]

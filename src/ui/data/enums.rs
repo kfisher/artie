@@ -15,6 +15,15 @@ pub enum MediaType {
     Show = 1,
 }
 
+impl MediaType {
+    pub fn to_model(&self) -> crate::models::MediaType {
+        match self {
+            MediaType::Movie => crate::models::MediaType::Movie,
+            MediaType::Show => crate::models::MediaType::Show,
+        }
+    }
+}
+
 impl From<crate::models::MediaType> for MediaType {
     fn from(value: crate::models::MediaType) -> Self {
         match value {
