@@ -32,7 +32,7 @@ glib::wrapper! {
 }
 
 impl MetadataFormWidget {
-    /// Constructs a new copy form instance.
+    /// Constructs a new metadata form instance.
     ///
     /// # Panics
     ///
@@ -95,6 +95,7 @@ impl MetadataFormWidget {
             .column_spacing(8)
             .row_spacing(3)
             .vexpand(true)
+            .hexpand(true)
             .build();
 
         let media_type_label = Label::builder()
@@ -108,8 +109,8 @@ impl MetadataFormWidget {
             MediaType::Show.as_str(),
         ]);
         let media_type_dropdown = DropDown::builder()
+            .hexpand(true)
             .model(&media_type_model)
-            .width_request(116)
             .build();
         layout.attach(&media_type_dropdown, 1, 0, 1, 1);
 

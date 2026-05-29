@@ -17,6 +17,7 @@ use crate::ui::ContextObject;
 use crate::ui::data::VideoObject;
 use crate::ui::widget::{
     MetadataFormWidget,
+    TranscodeFormWidget,
     TranscodeListWidget,
     TranscodeQueueWidget,
     VideoPlayerWidget,
@@ -66,6 +67,10 @@ impl TranscodePageWidget {
         ));
 
         let main_section = Box::builder()
+            .orientation(Orientation::Vertical)
+            .build();
+
+        let main_section_row_0 = Box::builder()
             .hexpand(true)
             .valign(gtk::Align::Start)
             .vexpand(false)
@@ -73,14 +78,30 @@ impl TranscodePageWidget {
             .spacing(8)
             .margin_top(8)
             .build();
+        main_section.append(&main_section_row_0);
 
         let video_preview = VideoPlayerWidget::new();
-        main_section.append(&video_preview);
+        main_section_row_0.append(&video_preview);
 
         let metadata_form = MetadataFormWidget::new();
+        metadata_form.set_hexpand(true);
+        metadata_form.set_halign(gtk::Align::Fill);
         metadata_form.set_vexpand(true);
         metadata_form.set_valign(gtk::Align::Fill);
-        main_section.append(&metadata_form);
+        main_section_row_0.append(&metadata_form);
+
+        let main_section_row_1 = Box::builder()
+            .hexpand(true)
+            .valign(gtk::Align::Start)
+            .vexpand(false)
+            .orientation(Orientation::Horizontal)
+            .spacing(8)
+            .margin_top(8)
+            .build();
+        main_section.append(&main_section_row_1);
+
+        let transcode_form = TranscodeFormWidget::new();
+        main_section_row_1.append(&transcode_form);
 
         let transcode_queue = TranscodeQueueWidget::new();
 
@@ -95,6 +116,7 @@ impl TranscodePageWidget {
 
         let imp = self.imp();
         imp.metadata_form.replace(Some(metadata_form));
+        imp.transcode_form.replace(Some(transcode_form));
     }
 
     // TODO
@@ -109,8 +131,6 @@ impl TranscodePageWidget {
 
 
 mod imp {
-    //! Implemenation for the transcode page widget.
-
     use std::cell::RefCell;
 
     use gtk::{Box, ListView};
@@ -120,7 +140,7 @@ mod imp {
     use gtk::subclass::prelude::*;
 
     use crate::ui::ContextObject;
-    use crate::ui::widget::MetadataFormWidget;
+    use crate::ui::widget::{MetadataFormWidget, TranscodeFormWidget};
 
     /// Implemenation for [`super::TranscodePageWidget`].
     #[derive(Default, Properties)]
@@ -133,8 +153,11 @@ mod imp {
         /// List view for displaying a list of available drives.
         pub(super) drive_list_view: RefCell<Option<ListView>>,
 
-        // TODO
+        /// Form use to edit information about the active title.
         pub(super) metadata_form: RefCell<Option<MetadataFormWidget>>,
+
+        /// Form use to edit the transcode parameters.
+        pub(super) transcode_form: RefCell<Option<TranscodeFormWidget>>,
     }
 
     impl TranscodePageWidget {
