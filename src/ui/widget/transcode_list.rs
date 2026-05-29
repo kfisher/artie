@@ -9,11 +9,11 @@
 use gtk::{
     ListItem,
     ListView,
-    NoSelection,
     Orientation,
     PolicyType,
     ScrolledWindow,
     SignalListItemFactory,
+    SingleSelection,
 };
 use gtk::gio::ListStore;
 use gtk::glib::{self, Object};
@@ -105,7 +105,9 @@ impl TranscodeListWidget {
     /// Configures the model used in the video list view.
     fn setup_model(&self) {
         let video_store = ListStore::new::<VideoObject>();
-        let model = NoSelection::new(Some(video_store.clone()));
+        let selection_model = SingleSelection::new(Some(video_store.clone()));
+        selection_model.set_autoselect(false);
+        selection_model.set_can_unselect(true);
 
         let imp = self.imp();
 
@@ -113,9 +115,32 @@ impl TranscodeListWidget {
             .borrow()
             .as_ref()
             .expect("video_list_view was None")
-            .set_model(Some(&model));
+            .set_model(Some(&selection_model));
 
         imp.video_store.replace(Some(video_store));
+        imp.selection_model.replace(Some(selection_model));
+    }
+
+    /// Subscribe to video selection changes.
+    ///
+    /// # Args
+    ///
+    /// `f`:  Callback called with the selected [`VideoObject`] when the selection changes.
+    pub fn connect_video_selected<F>(&self, f: F)
+    where
+        F: Fn(&VideoObject) + 'static,
+    {
+        let selection_model = self.imp()
+            .selection_model
+            .borrow()
+            .clone()
+            .expect("selection_model was None");
+
+        selection_model.connect_selected_item_notify(move |model| {
+            if let Some(video) = model.selected_item().and_downcast::<VideoObject>() {
+                f(&video);
+            }
+        });
     }
 
     /// Configures the factory used in the video list view.
@@ -196,11 +221,10 @@ mod imp {
 
     use std::cell::RefCell;
 
-    use gtk::{Box, ListView};
+    use gtk::{Box, ListView, SingleSelection};
 
     use gtk::gio::ListStore;
     use gtk::glib::{self, Properties};
-    // use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
     use crate::ui::ContextObject;
@@ -218,6 +242,9 @@ mod imp {
         /// List of [`crate::ui::data::VideoObject`] instances containing the information for
         /// videos that can be transcoded.
         pub(super) video_store: RefCell<Option<ListStore>>,
+
+        /// Selection model for the video list view.
+        pub(super) selection_model: RefCell<Option<SingleSelection>>,
     }
 
     impl TranscodeListWidget {

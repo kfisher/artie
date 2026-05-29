@@ -54,6 +54,10 @@ impl TranscodePageWidget {
             .expect("context was None");
         let transcode_list = TranscodeListWidget::new(&context);
 
+        transcode_list.connect_video_selected(|video| {
+            tracing::warn!(title=?video.title(), "SELECTED");
+        });
+
         let main_section = Box::builder()
             .hexpand(true)
             .valign(gtk::Align::Start)
