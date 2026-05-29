@@ -338,6 +338,27 @@ progressbar > trough > progress {
     min-height: 16px;
 }
 
+scale {
+    background-color: transparent;
+    color: green;
+}
+
+scale > trough {
+    background-color: var(--color-surface-2-base);
+    border: 1px solid var(--color-surface-2-border);
+    border-radius: var(--border-radius);
+    min-height: 4px;
+}
+
+scale > trough > slider {
+    background-color: var(--color-secondary-base);
+    margin-bottom: -8px;
+    margin-top: -8px;
+    min-width: 16px;
+    min-height: 16px;
+    border-radius: 100%;
+}
+
 window.background {
   background-color: var(--color-surface-0-base);
 }
@@ -454,6 +475,27 @@ window.background {
     font-size: 1.125em;
 }
 
+.video-player {
+    background-color: var(--color-surface-1-base);
+    border: 1px solid var(--color-surface-1-border);
+}
+
+.video-player .seek-slider {
+    margin-left: 8px;
+    margin-right: 8px;
+}
+
+.video-player .controls {
+    background-color: var(--color-surface-1-base);
+    padding: 2px;
+}
+
+.video-player .time-stamp {
+    font-family: monospace;
+    margin-left: 8px;
+    margin-right: 8px;
+}
+
 .video-info {
     font-family: monospace;
     margin-top: 2px;
@@ -471,6 +513,5 @@ window.background {
 }
 
 .placeholder {
-    background-color: red;
 }
 

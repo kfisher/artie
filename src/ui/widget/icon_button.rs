@@ -36,6 +36,24 @@ impl IconButton {
         Object::builder()
             .property("icon-name", icon_name)
             .property("label", label)
+            .property("spacing", 4)
+            .build()
+    }
+
+    /// Creates a button with an icon only.
+    ///
+    /// # Args
+    ///
+    /// `icon_name`:  The name of the icon. This is the name of the SVG file without the path or
+    /// file extension.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the GObject cannot be created.
+    pub fn icon_only(icon_name: &str) -> Self {
+        Object::builder()
+            .property("icon-name", icon_name)
+            .property("spacing", 0)
             .build()
     }
 
@@ -53,8 +71,8 @@ impl IconButton {
 
         let layout = Box::builder()
             .orientation(Orientation::Horizontal)
-            .spacing(4)
             .build();
+        self.bind_property("spacing", &layout, "spacing").sync_create().build();
         layout.append(&icon);
         layout.append(&label);
 
@@ -93,6 +111,10 @@ mod imp {
         /// The button's text.
         #[property(get, set)]
         label: RefCell<String>,
+
+        /// Spacing between the icon and label.
+        #[property(get, set)]
+        spacing: RefCell<i32>,
     }
 
     impl IconButton {
