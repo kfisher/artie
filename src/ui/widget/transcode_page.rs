@@ -13,7 +13,12 @@ use gtk::glib::{self, Object};
 use gtk::prelude::*;
 
 use crate::ui::ContextObject;
-use crate::ui::widget::{TranscodeListWidget, TranscodeQueueWidget, VideoPlayerWidget};
+use crate::ui::widget::{
+    MetadataFormWidget,
+    TranscodeListWidget,
+    TranscodeQueueWidget,
+    VideoPlayerWidget,
+};
 
 glib::wrapper! {
     pub struct TranscodePageWidget(ObjectSubclass<imp::TranscodePageWidget>)
@@ -49,13 +54,22 @@ impl TranscodePageWidget {
             .expect("context was None");
         let transcode_list = TranscodeListWidget::new(&context);
 
-        let video_preview = VideoPlayerWidget::new();
-
         let main_section = Box::builder()
             .hexpand(true)
-            .orientation(Orientation::Vertical)
+            .valign(gtk::Align::Start)
+            .vexpand(false)
+            .orientation(Orientation::Horizontal)
+            .spacing(8)
+            .margin_top(8)
             .build();
+
+        let video_preview = VideoPlayerWidget::new();
         main_section.append(&video_preview);
+
+        let metadata_form = MetadataFormWidget::new();
+        metadata_form.set_vexpand(true);
+        metadata_form.set_valign(gtk::Align::Fill);
+        main_section.append(&metadata_form);
 
         let transcode_queue = TranscodeQueueWidget::new();
 
@@ -66,9 +80,10 @@ impl TranscodePageWidget {
         self.set_vexpand(true);
         self.set_hexpand(true);
         self.set_orientation(Orientation::Horizontal);
-        self.set_spacing(16);
+        self.set_spacing(8);
     }
 }
+
 
 mod imp {
     //! Implemenation for the transcode page widget.
