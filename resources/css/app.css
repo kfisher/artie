@@ -518,22 +518,22 @@ window.background {
     font-size: 1.125em;
 }
 
-.video-player {
+.video-player-widget {
     background-color: var(--color-surface-1-base);
     border: 1px solid var(--color-surface-1-border);
 }
 
-.video-player .seek-slider {
+.video-player-widget .seek-slider {
     margin-left: 8px;
     margin-right: 8px;
 }
 
-.video-player .controls {
+.video-player-widget .controls {
     background-color: var(--color-surface-1-base);
     padding: 2px;
 }
 
-.video-player .time-stamp {
+.video-player-widget .time-stamp {
     font-family: monospace;
     margin-left: 8px;
     margin-right: 8px;
