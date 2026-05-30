@@ -91,6 +91,21 @@ impl TranscodeListItemWidget {
         bindings.push(disc_number_binding);
     }
 
+    /// Sets the selection state of the item.
+    ///
+    /// This will add or remove the "selected" CSS class based on the provided value.
+    ///
+    /// # Args
+    ///
+    /// `selected`  Indicates if the item is selected or not.
+    pub fn set_selected(&self, selected: bool) {
+        if selected {
+            self.add_css_class("selected");
+        } else {
+            self.remove_css_class("selected");
+        }
+    }
+
     /// Unbinds the drive widget from the optical drive object which was bound when
     /// [`TranscodeListItemWidget::bind`] was called.
     pub fn unbind(&self) {

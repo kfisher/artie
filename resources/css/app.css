@@ -504,7 +504,12 @@ window.background {
 }
 
 .transcode-list-item:hover {
-    background-color: blue;
+    background-color: var(--color-surface-2-hover);
+}
+
+.transcode-list-item.selected {
+    background-color: var(--color-primary-base);
+    color: var(--color-primary-text);
 }
 
 .video-duration {

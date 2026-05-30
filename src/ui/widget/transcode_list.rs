@@ -156,9 +156,10 @@ impl TranscodeListWidget {
         });
 
         factory.connect_bind(move |_, list_item| {
-            let video_object = list_item
+            let list_item = list_item
                 .downcast_ref::<ListItem>()
-                .expect("list_item not a ListItem")
+                .expect("list_item not a ListItem");
+            let video_object = list_item
                 .item()
                 .and_downcast::<VideoObject>()
                 .expect("list_item not a VideoObject");
@@ -169,6 +170,10 @@ impl TranscodeListWidget {
                 .and_downcast::<TranscodeListItemWidget>()
                 .expect("list_item child not a TranscodeListItemWidget");
             widget.bind(&video_object);
+
+            list_item.connect_selected_notify(move |list_item| {
+                widget.set_selected(list_item.is_selected());
+            });
         });
 
         factory.connect_unbind(move |_, list_item| {
