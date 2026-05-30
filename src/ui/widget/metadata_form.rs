@@ -41,7 +41,11 @@ impl MetadataFormWidget {
         Object::builder().build()
     }
 
-    // TODO
+    /// Update the form data from a title data object.
+    ///
+    /// # Args
+    ///
+    /// `title`  The title data object.
     pub fn update_from_title(&self, title: &TitleObject) {
         let imp = self.imp();
 
@@ -74,7 +78,11 @@ impl MetadataFormWidget {
             .set_text(&title.memo());
     }
 
-    // TODO
+    /// Update the form data from a video data object.
+    ///
+    /// # Args
+    ///
+    /// `video`  The video data object.
     pub fn update_from_video(&self, video: &VideoObject) {
         let title = video.title()
             .downcast::<TitleObject>()
@@ -321,7 +329,13 @@ impl Default for MetadataFormWidget {
     }
 }
 
-// TODO
+/// Returns `true` if the provided media type is a show indicating the associated item should be
+/// visible or `false` if the media type is something else (e.g. a show) to indicate the item
+/// should be hidden.
+///
+/// # Args
+///
+/// `selected`:  The numeric (index) representation of the media type.
 fn hide_if_movie(selected: u32) -> Option<bool>  {
     match MediaType::from_index(selected) {
         Some(media_type) => Some(media_type == MediaType::Show),

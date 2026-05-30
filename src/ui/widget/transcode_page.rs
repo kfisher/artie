@@ -14,13 +14,12 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
 use crate::ui::ContextObject;
-use crate::ui::data::VideoObject;
 use crate::ui::widget::{
     MetadataFormWidget,
     TranscodeFormWidget,
     TranscodeListWidget,
     TranscodeQueueWidget,
-    VideoPlayerWidget,
+    VideoPlayerWidget, metadata_form
 };
 
 glib::wrapper! {
@@ -57,15 +56,6 @@ impl TranscodePageWidget {
             .expect("context was None");
         let transcode_list = TranscodeListWidget::new(&context);
 
-        let transcode_page = self.clone();
-        transcode_list.connect_video_selected(glib::clone!(
-            #[weak]
-            transcode_page,
-            move |video| {
-                transcode_page.set_selected(video);
-            }
-        ));
-
         let main_section = Box::builder()
             .orientation(Orientation::Vertical)
             .build();
@@ -80,8 +70,8 @@ impl TranscodePageWidget {
             .build();
         main_section.append(&main_section_row_0);
 
-        let video_preview = VideoPlayerWidget::new();
-        main_section_row_0.append(&video_preview);
+        let video_player = VideoPlayerWidget::new();
+        main_section_row_0.append(&video_player);
 
         let metadata_form = MetadataFormWidget::new();
         metadata_form.set_hexpand(true);
@@ -114,18 +104,26 @@ impl TranscodePageWidget {
         self.set_orientation(Orientation::Horizontal);
         self.set_spacing(8);
 
+        let transcode_page = self.clone();
+        transcode_list.connect_video_selected(glib::clone!(
+            #[weak]
+            transcode_page,
+            #[weak]
+            metadata_form,
+            move |video| {
+                transcode_page.set_selected_video(Some(video.clone()));
+                metadata_form.update_from_video(video);
+            }
+        ));
+
+        self.bind_property("selected-video", &video_player, "video")
+            .sync_create()
+            .build();
+
         let imp = self.imp();
         imp.metadata_form.replace(Some(metadata_form));
         imp.transcode_form.replace(Some(transcode_form));
-    }
-
-    // TODO
-    fn set_selected(&self, video: &VideoObject) {
-        let metadata_form = self.imp().metadata_form
-            .borrow()
-            .clone()
-            .expect("metadata_form was None");
-        metadata_form.update_from_video(video);
+        imp.video_player.replace(Some(video_player));
     }
 }
 
@@ -140,7 +138,8 @@ mod imp {
     use gtk::subclass::prelude::*;
 
     use crate::ui::ContextObject;
-    use crate::ui::widget::{MetadataFormWidget, TranscodeFormWidget};
+    use crate::ui::data::VideoObject;
+    use crate::ui::widget::{MetadataFormWidget, TranscodeFormWidget, VideoPlayerWidget};
 
     /// Implemenation for [`super::TranscodePageWidget`].
     #[derive(Default, Properties)]
@@ -150,6 +149,10 @@ mod imp {
         #[property(get, construct_only)]
         pub(super) context: RefCell<Option<ContextObject>>,
 
+        /// The currently selected video.
+        #[property(get, set, nullable)]
+        pub(super) selected_video: RefCell<Option<VideoObject>>,
+
         /// List view for displaying a list of available drives.
         pub(super) drive_list_view: RefCell<Option<ListView>>,
 
@@ -158,6 +161,9 @@ mod imp {
 
         /// Form use to edit the transcode parameters.
         pub(super) transcode_form: RefCell<Option<TranscodeFormWidget>>,
+
+        /// The widget used to play the video preview.
+        pub(super) video_player: RefCell<Option<VideoPlayerWidget>>,
     }
 
     impl TranscodePageWidget {
