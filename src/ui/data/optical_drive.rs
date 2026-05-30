@@ -135,7 +135,7 @@ impl OpticalDriveObject {
             } => {
                 self.set_drive_state(OpticalDriveState::Copying);
                 self.set_stage(stage);
-                self.set_elapsed_time(helpers::format_elapsed_time(&elapsed_time));
+                self.set_elapsed_time(helpers::format_duration(&elapsed_time));
                 self.set_task(task);
                 self.set_task_progress(task_progress);
                 self.set_subtask(subtask);

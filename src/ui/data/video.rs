@@ -5,6 +5,7 @@
 
 use gtk::glib::{self, Object};
 
+use crate::path;
 use crate::models::Video;
 use crate::ui::data::TitleObject;
 use crate::ui::helpers;
@@ -24,10 +25,14 @@ impl VideoObject {
             .as_ref()
             .map(|t| TitleObject::new(t.as_ref()));
 
+        let path = path::location_path(&video.location)
+            .unwrap_or_default();
+
         Object::builder()
             .property("id", video.id)
             .property("title", title)
-            .property("duration", helpers::format_elapsed_time(&video.duration))
+            .property("duration", helpers::format_duration(&video.duration))
+            .property("path", path)
             .build()
     }
 }
@@ -55,6 +60,10 @@ mod imp {
         /// The video's runtime.
         #[property(name = "duration", get, set, type = String)]
         pub(super) duration: RefCell<String>,
+
+        /// The path to the video.
+        #[property(name = "path", get, set, type = String)]
+        pub(super) path: RefCell<String>,
     }
 
     #[glib::object_subclass]
