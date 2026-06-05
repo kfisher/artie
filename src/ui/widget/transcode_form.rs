@@ -20,7 +20,7 @@ use gtk::glib::{self, Object};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
-use crate::ui::data::{AudioTrackObject, SubtitleTrackObject, VideoObject, VideoTrackObject};
+use crate::ui::data::{AudioTrackObject, SubtitleTrackObject, VideoTrackObject};
 
 glib::wrapper! {
     pub struct TranscodeFormWidget(ObjectSubclass<imp::TranscodeFormWidget>)
@@ -46,31 +46,50 @@ impl TranscodeFormWidget {
     ///
     /// Called by the implementation ([`imp::TranscodeFormWidget`]) when constructed.
     fn build_ui(&self) {
-        self.create_and_replace_grid(&None);
+        // let audio_tracks = video.audio_tracks()
+        //     .unwrap();
+
+        // let subtitle_tracks = video.subtitle_tracks()
+        //     .unwrap();
+
+        // let video_tracks = video.video_tracks()
+        //     .unwrap();
+
+        let video_track_header = create_header("Video Tracks");
+        let video_track_table  = create_video_track_table();
+
+        let audio_track_header = create_header("Audio Tracks");
+        let audio_track_table  = create_audio_track_table();
+
+        let subtitle_track_header = create_header("Subtitle Tracks");
+        let subtitle_track_table  = create_subtitle_track_table();
+
+        let grid = Grid::builder()
+            .hexpand(true)
+            .build();
+        //                                  +---------- Column
+        //                                  |, +------- Row
+        //                                  |, |  +---- Width
+        //                                  |, |  |  +- Height
+        grid.attach(&video_track_header,    0, 0, 1, 1);
+        grid.attach(&video_track_table,     0, 1, 1, 1);
+        grid.attach(&audio_track_header,    0, 2, 1, 1);
+        grid.attach(&audio_track_table,     0, 3, 1, 1);
+        grid.attach(&subtitle_track_header, 0, 4, 1, 1);
+        grid.attach(&subtitle_track_table,  0, 5, 1, 1);
+
+        self.append(&grid);
 
         self.add_css_class("transcode-form-widget");
         self.set_hexpand(true);
         self.set_vexpand(true);
         self.set_orientation(Orientation::Vertical);
-    }
 
-    fn create_and_replace_grid(&self, video: &Option<VideoObject>) {
         let imp = self.imp();
-
-        if let Some(old_grid) = imp.grid.borrow().as_ref() {
-            self.remove(old_grid);
-        }
-
-        let new_grid = Grid::builder()
-            .hexpand(true)
-            .build();
-
-        if let Some(video) = video {
-            populate_grid(&new_grid, video);
-        }
-
-        self.append(&new_grid);
-        imp.grid.replace(Some(new_grid));
+        imp.grid.replace(Some(grid));
+        imp.audio_track_table.replace(Some(audio_track_table));
+        imp.subtitle_track_table.replace(Some(subtitle_track_table));
+        imp.video_track_table.replace(Some(video_track_table));
     }
 }
 
@@ -80,21 +99,10 @@ impl Default for TranscodeFormWidget {
     }
 }
 
-const HEADER_COL_SPAN: i32 = 1;
-
-// TODO
-fn build_audio_track_ui(grid: &Grid, starting_row: i32, audio_tracks: &ListStore) -> i32 {
-    let audio_header = Label::builder()
-        .hexpand(true)
-        .label("Audio Tracks")
-        .build();
-    audio_header.add_css_class("header");
-
-    let mut next_row = starting_row;
-    grid.attach(&audio_header, 0, next_row, HEADER_COL_SPAN, 1);
-    next_row += 1;
-
-    let selection_model = NoSelection::new(Some(audio_tracks.clone()));
+/// Create the table for displaying audio track information.
+fn create_audio_track_table() -> ColumnView {
+    let empty_list = ListStore::new::<AudioTrackObject>();
+    let selection_model = NoSelection::new(Some(empty_list));
     let column_view = ColumnView::builder()
         .model(&selection_model)
         .build();
@@ -224,24 +232,13 @@ fn build_audio_track_ui(grid: &Grid, starting_row: i32, audio_tracks: &ListStore
     column_view.append_column(&language_column);
     column_view.append_column(&layout_column);
 
-    grid.attach(&column_view, 0, next_row, 1, 1);
-    next_row += 1;
-
-    next_row
+    column_view
 }
 
-// TODO
-fn build_subtitle_track_ui(grid: &Grid, starting_row: i32, subtitle_tracks: &ListStore) -> i32 {
-    let subtitle_header = Label::builder()
-        .label("Subtitle Tracks")
-        .build();
-    subtitle_header.add_css_class("header");
-
-    let mut next_row = starting_row;
-    grid.attach(&subtitle_header, 0, next_row, HEADER_COL_SPAN, 1);
-    next_row += 1;
-
-    let selection_model = NoSelection::new(Some(subtitle_tracks.clone()));
+/// Create the table for displaying subtitle track information.
+fn create_subtitle_track_table() -> ColumnView {
+    let empty_list = ListStore::new::<SubtitleTrackObject>();
+    let selection_model = NoSelection::new(Some(empty_list));
     let column_view = ColumnView::new(Some(selection_model));
 
     let group_leader = CheckButton::new();
@@ -319,24 +316,13 @@ fn build_subtitle_track_ui(grid: &Grid, starting_row: i32, subtitle_tracks: &Lis
     column_view.append_column(&language_column);
     column_view.append_column(&codec_column);
 
-    grid.attach(&column_view, 0, next_row, 1, 1);
-    next_row += 1;
-
-    next_row
+    column_view
 }
 
-// TODO
-fn build_video_track_ui(grid: &Grid, starting_row: i32, video_tracks: &ListStore) -> i32 {
-    let video_header = Label::builder()
-        .label("Video Tracks")
-        .build();
-    video_header.add_css_class("header");
-
-    let mut next_row = starting_row;
-    grid.attach(&video_header, 0, next_row, HEADER_COL_SPAN, 1);
-    next_row += 1;
-
-    let selection_model = NoSelection::new(Some(video_tracks.clone()));
+/// Create the table for displaying video track information.
+fn create_video_track_table() -> ColumnView {
+    let empty_list = ListStore::new::<VideoTrackObject>();
+    let selection_model = NoSelection::new(Some(empty_list));
     let column_view = ColumnView::new(Some(selection_model));
 
     let group_leader = CheckButton::new();
@@ -438,32 +424,29 @@ fn build_video_track_ui(grid: &Grid, starting_row: i32, video_tracks: &ListStore
     column_view.append_column(&size_column);
     column_view.append_column(&aspect_ratio_column);
 
-    grid.attach(&column_view, 0, next_row, 1, 1);
-    next_row += 1;
-
-    next_row
+    column_view
 }
 
-// TODO
-fn populate_grid(grid: &Grid, video: &VideoObject) {
-    let audio_tracks = video.audio_tracks()
-        .unwrap();
+/// Create a header row.
+///
+/// # Args
+///
+/// `text`:  The header text.
+fn create_header(text: &str) -> Label {
+    let audio_header = Label::builder()
+        .hexpand(true)
+        .label(text)
+        .build();
+    audio_header.add_css_class("header");
 
-    let subtitle_tracks = video.subtitle_tracks()
-        .unwrap();
-
-    let video_tracks = video.video_tracks()
-        .unwrap();
-
-    let next_row = build_video_track_ui(&grid, 0, &video_tracks);
-    let next_row = build_audio_track_ui(&grid, next_row, &audio_tracks);
-    build_subtitle_track_ui(&grid, next_row, &subtitle_tracks);
+    audio_header
 }
 
 mod imp {
     use std::cell::RefCell;
 
-    use gtk::{Box, Grid};
+    use gtk::{Box, ColumnView, Grid, NoSelection};
+    use gtk::gio::ListStore;
     use gtk::glib::{self, Properties};
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
@@ -477,14 +460,79 @@ mod imp {
         #[property(get, set = Self::set_video, nullable)]
         pub(super) video: RefCell<Option<VideoObject>>,
 
-        // TODO
+        /// The base grid layout.
         pub(super) grid: RefCell<Option<Grid>>,
+
+        /// The table used to display audio track information and controls.
+        pub(super) audio_track_table: RefCell<Option<ColumnView>>,
+
+        /// The table used to display subtitle track information and controls.
+        pub(super) subtitle_track_table: RefCell<Option<ColumnView>>,
+
+        /// The table used to display video track information and controls.
+        pub(super) video_track_table: RefCell<Option<ColumnView>>,
     }
 
     impl TranscodeFormWidget {
+        /// Setter for the active video.
+        ///
+        /// This will also update the audio, subtitle, and video track tables.
+        ///
+        /// # Args
+        ///
+        /// `video`:  The new selected video. `None` if no video is selected or a video was
+        /// unselected without selecting another.
         fn set_video(&self, video: Option<VideoObject>) {
-            self.obj().create_and_replace_grid(&video);
+            if let Some(video) = &video {
+                self.update_audio_model(video.audio_tracks());
+                self.update_subtitle_model(video.subtitle_tracks());
+                self.update_video_model(video.video_tracks());
+            } else {
+                self.update_audio_model(None);
+                self.update_subtitle_model(None);
+                self.update_video_model(None);
+            }
+
             self.video.replace(video);
+        }
+
+        /// Update the audio track table.
+        ///
+        /// # Args
+        ///
+        /// `audio_tracks`:  The audio track data. `None` if a video is not selected.
+        fn update_audio_model(&self, audio_tracks: Option<ListStore>) {
+            self.audio_track_table
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .set_model(Some(&NoSelection::new(audio_tracks)));
+        }
+
+        /// Update the subtitle track table.
+        ///
+        /// # Args
+        ///
+        /// `subtitle_tracks`:  The subtitle track data. `None` if a video is not selected.
+        fn update_subtitle_model(&self, subtitle_tracks: Option<ListStore>) {
+            self.subtitle_track_table
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .set_model(Some(&NoSelection::new(subtitle_tracks)));
+        }
+
+        /// Update the video track table.
+        ///
+        /// # Args
+        ///
+        /// `video_tracks`:  The video track data. `None` if a video is not selected.
+        fn update_video_model(&self, video_tracks: Option<ListStore>) {
+            self.video_track_table
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .set_model(Some(&NoSelection::new(video_tracks)));
         }
     }
 
