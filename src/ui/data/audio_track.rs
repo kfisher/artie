@@ -8,7 +8,8 @@ use gtk::glib::{self, Object};
 use crate::models::AudioTrack;
 
 glib::wrapper! {
-    pub struct AudioTrackObject(ObjectSubclass<imp::AudioTrackObject>);
+    pub struct AudioTrackObject(ObjectSubclass<imp::AudioTrackObject>)
+        @extends super::TrackObject;
 }
 
 impl AudioTrackObject {
@@ -61,10 +62,13 @@ mod imp {
     impl ObjectSubclass for AudioTrackObject {
         const NAME: &'static str = "ArtieAudioTrackObject";
         type Type = super::AudioTrackObject;
+        type ParentType = super::super::TrackObject;
     }
 
     #[glib::derived_properties]
     impl ObjectImpl for AudioTrackObject {}
+
+    impl super::super::TrackObjectImpl for AudioTrackObject {}
 }
 
 #[cfg(test)]

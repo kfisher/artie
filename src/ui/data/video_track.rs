@@ -8,7 +8,8 @@ use gtk::glib::{self, Object};
 use crate::models::VideoTrack;
 
 glib::wrapper! {
-    pub struct VideoTrackObject(ObjectSubclass<imp::VideoTrackObject>);
+    pub struct VideoTrackObject(ObjectSubclass<imp::VideoTrackObject>)
+        @extends super::TrackObject;
 }
 
 impl VideoTrackObject {
@@ -56,10 +57,13 @@ mod imp {
     impl ObjectSubclass for VideoTrackObject {
         const NAME: &'static str = "ArtieVideoTrackObject";
         type Type = super::VideoTrackObject;
+        type ParentType = super::super::TrackObject;
     }
 
     #[glib::derived_properties]
     impl ObjectImpl for VideoTrackObject {}
+
+    impl super::super::TrackObjectImpl for VideoTrackObject {}
 }
 
 #[cfg(test)]

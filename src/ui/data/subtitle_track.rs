@@ -8,7 +8,8 @@ use gtk::glib::{self, Object};
 use crate::models::SubtitleTrack;
 
 glib::wrapper! {
-    pub struct SubtitleTrackObject(ObjectSubclass<imp::SubtitleTrackObject>);
+    pub struct SubtitleTrackObject(ObjectSubclass<imp::SubtitleTrackObject>)
+        @extends super::TrackObject;
 }
 
 impl SubtitleTrackObject {
@@ -51,10 +52,13 @@ mod imp {
     impl ObjectSubclass for SubtitleTrackObject {
         const NAME: &'static str = "ArtieSubtitleTrackObject";
         type Type = super::SubtitleTrackObject;
+        type ParentType = super::super::TrackObject;
     }
 
     #[glib::derived_properties]
     impl ObjectImpl for SubtitleTrackObject {}
+
+    impl super::super::TrackObjectImpl for SubtitleTrackObject {}
 }
 
 #[cfg(test)]
