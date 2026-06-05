@@ -4,6 +4,7 @@
 //! Widget for entering transcode parameters.
 
 use gtk::{
+    Align,
     CheckButton,
     ColumnView,
     ColumnViewColumn,
@@ -94,21 +95,37 @@ fn build_audio_track_ui(grid: &Grid, starting_row: i32, audio_tracks: &ListStore
     next_row += 1;
 
     let selection_model = NoSelection::new(Some(audio_tracks.clone()));
-    let column_view = ColumnView::new(Some(selection_model));
+    let column_view = ColumnView::builder()
+        .model(&selection_model)
+        .build();
 
     let group_leader = CheckButton::new();
     let preview_factory = SignalListItemFactory::new();
     preview_factory.connect_setup(move |_, obj| {
+        let button = CheckButton::builder()
+            .halign(Align::Center)
+            .hexpand(false)
+            .group(&group_leader)
+            .build();
         obj.downcast_ref::<ListItem>()
             .unwrap()
-            .set_child(Some(&CheckButton::builder().group(&group_leader).build()));
+            .set_child(Some(&button));
     });
+
+    let preview_column = ColumnViewColumn::builder()
+        .title("Preview")
+        .factory(&preview_factory)
+        .build();
 
     let name_factory = SignalListItemFactory::new();
     name_factory.connect_setup(|_, obj| {
+        let label = Label::builder()
+            .halign(Align::Start)
+            .hexpand(true)
+            .build();
         obj.downcast_ref::<ListItem>()
             .unwrap()
-            .set_child(Some(&Label::new(None)));
+            .set_child(Some(&label));
     });
     name_factory.connect_bind(|_, obj| {
         let item = obj.downcast_ref::<ListItem>().unwrap();
@@ -122,6 +139,12 @@ fn build_audio_track_ui(grid: &Grid, starting_row: i32, audio_tracks: &ListStore
             .unwrap()
             .set_label(&track.name());
     });
+
+    let name_column = ColumnViewColumn::builder()
+        .title("Name")
+        .expand(true)
+        .factory(&name_factory)
+        .build();
 
     let codec_factory = SignalListItemFactory::new();
     codec_factory.connect_setup(|_, obj| {
@@ -142,6 +165,11 @@ fn build_audio_track_ui(grid: &Grid, starting_row: i32, audio_tracks: &ListStore
             .set_label(&track.codec());
     });
 
+    let codec_column = ColumnViewColumn::builder()
+        .title("Codec")
+        .factory(&codec_factory)
+        .build();
+
     let language_factory = SignalListItemFactory::new();
     language_factory.connect_setup(|_, obj| {
         obj.downcast_ref::<ListItem>()
@@ -160,6 +188,11 @@ fn build_audio_track_ui(grid: &Grid, starting_row: i32, audio_tracks: &ListStore
             .unwrap()
             .set_label(&track.language());
     });
+
+    let language_column = ColumnViewColumn::builder()
+        .title("Language")
+        .factory(&language_factory)
+        .build();
 
     let layout_factory = SignalListItemFactory::new();
     layout_factory.connect_setup(|_, obj| {
@@ -180,11 +213,16 @@ fn build_audio_track_ui(grid: &Grid, starting_row: i32, audio_tracks: &ListStore
             .set_label(&track.layout());
     });
 
-    column_view.append_column(&ColumnViewColumn::new(Some("Preview"), Some(preview_factory)));
-    column_view.append_column(&ColumnViewColumn::new(Some("Name"), Some(name_factory)));
-    column_view.append_column(&ColumnViewColumn::new(Some("Codec"), Some(codec_factory)));
-    column_view.append_column(&ColumnViewColumn::new(Some("Language"), Some(language_factory)));
-    column_view.append_column(&ColumnViewColumn::new(Some("Layout"), Some(layout_factory)));
+    let layout_column = ColumnViewColumn::builder()
+        .title("Layout")
+        .factory(&layout_factory)
+        .build();
+
+    column_view.append_column(&preview_column);
+    column_view.append_column(&name_column);
+    column_view.append_column(&codec_column);
+    column_view.append_column(&language_column);
+    column_view.append_column(&layout_column);
 
     grid.attach(&column_view, 0, next_row, 1, 1);
     next_row += 1;
@@ -209,10 +247,20 @@ fn build_subtitle_track_ui(grid: &Grid, starting_row: i32, subtitle_tracks: &Lis
     let group_leader = CheckButton::new();
     let preview_factory = SignalListItemFactory::new();
     preview_factory.connect_setup(move |_, obj| {
+        let button = CheckButton::builder()
+            .halign(Align::Center)
+            .hexpand(false)
+            .group(&group_leader)
+            .build();
         obj.downcast_ref::<ListItem>()
             .unwrap()
-            .set_child(Some(&CheckButton::builder().group(&group_leader).build()));
+            .set_child(Some(&button));
     });
+
+    let preview_column = ColumnViewColumn::builder()
+        .title("Preview")
+        .factory(&preview_factory)
+        .build();
 
     let codec_factory = SignalListItemFactory::new();
     codec_factory.connect_setup(|_, obj| {
@@ -233,11 +281,19 @@ fn build_subtitle_track_ui(grid: &Grid, starting_row: i32, subtitle_tracks: &Lis
             .set_label(&track.codec());
     });
 
+    let codec_column = ColumnViewColumn::builder()
+        .title("Codec")
+        .factory(&codec_factory)
+        .build();
+
     let language_factory = SignalListItemFactory::new();
     language_factory.connect_setup(|_, obj| {
+        let label = Label::builder()
+            .halign(Align::Start)
+            .build();
         obj.downcast_ref::<ListItem>()
             .unwrap()
-            .set_child(Some(&Label::new(None)));
+            .set_child(Some(&label));
     });
     language_factory.connect_bind(|_, obj| {
         let item = obj.downcast_ref::<ListItem>()
@@ -253,9 +309,15 @@ fn build_subtitle_track_ui(grid: &Grid, starting_row: i32, subtitle_tracks: &Lis
             .set_label(&track.language());
     });
 
-    column_view.append_column(&ColumnViewColumn::new(Some("Preview"), Some(preview_factory)));
-    column_view.append_column(&ColumnViewColumn::new(Some("Codec"), Some(codec_factory)));
-    column_view.append_column(&ColumnViewColumn::new(Some("Language"), Some(language_factory)));
+    let language_column = ColumnViewColumn::builder()
+        .expand(true)
+        .title("Language")
+        .factory(&language_factory)
+        .build();
+
+    column_view.append_column(&preview_column);
+    column_view.append_column(&language_column);
+    column_view.append_column(&codec_column);
 
     grid.attach(&column_view, 0, next_row, 1, 1);
     next_row += 1;
@@ -280,16 +342,29 @@ fn build_video_track_ui(grid: &Grid, starting_row: i32, video_tracks: &ListStore
     let group_leader = CheckButton::new();
     let preview_factory = SignalListItemFactory::new();
     preview_factory.connect_setup(move |_, obj| {
+        let button = CheckButton::builder()
+            .halign(Align::Center)
+            .hexpand(false)
+            .group(&group_leader)
+            .build();
         obj.downcast_ref::<ListItem>()
             .unwrap()
-            .set_child(Some(&CheckButton::builder().group(&group_leader).build()));
+            .set_child(Some(&button));
     });
+
+    let preview_column = ColumnViewColumn::builder()
+        .title("Preview")
+        .factory(&preview_factory)
+        .build();
 
     let codec_factory = SignalListItemFactory::new();
     codec_factory.connect_setup(|_, obj| {
+        let label = Label::builder()
+            .halign(Align::Start)
+            .build();
         obj.downcast_ref::<ListItem>()
             .unwrap()
-            .set_child(Some(&Label::new(None)));
+            .set_child(Some(&label));
     });
     codec_factory.connect_bind(|_, obj| {
         let item = obj.downcast_ref::<ListItem>().unwrap();
@@ -303,6 +378,12 @@ fn build_video_track_ui(grid: &Grid, starting_row: i32, video_tracks: &ListStore
             .unwrap()
             .set_label(&track.codec());
     });
+
+    let codec_column = ColumnViewColumn::builder()
+        .expand(true)
+        .title("Codec")
+        .factory(&codec_factory)
+        .build();
 
     let size_factory = SignalListItemFactory::new();
     size_factory.connect_setup(|_, obj| {
@@ -323,6 +404,11 @@ fn build_video_track_ui(grid: &Grid, starting_row: i32, video_tracks: &ListStore
             .set_label(&track.size());
     });
 
+    let size_column = ColumnViewColumn::builder()
+        .title("Size")
+        .factory(&size_factory)
+        .build();
+
     let aspect_ratio_factory = SignalListItemFactory::new();
     aspect_ratio_factory.connect_setup(|_, obj| {
         obj.downcast_ref::<ListItem>()
@@ -342,10 +428,15 @@ fn build_video_track_ui(grid: &Grid, starting_row: i32, video_tracks: &ListStore
             .set_label(&track.aspect_ratio());
     });
 
-    column_view.append_column(&ColumnViewColumn::new(Some("Preview"), Some(preview_factory)));
-    column_view.append_column(&ColumnViewColumn::new(Some("Codec"), Some(codec_factory)));
-    column_view.append_column(&ColumnViewColumn::new(Some("Size"), Some(size_factory)));
-    column_view.append_column(&ColumnViewColumn::new(Some("Aspect Ratio"), Some(aspect_ratio_factory)));
+    let aspect_ratio_column = ColumnViewColumn::builder()
+        .title("Aspect Ratio")
+        .factory(&aspect_ratio_factory)
+        .build();
+
+    column_view.append_column(&preview_column);
+    column_view.append_column(&codec_column);
+    column_view.append_column(&size_column);
+    column_view.append_column(&aspect_ratio_column);
 
     grid.attach(&column_view, 0, next_row, 1, 1);
     next_row += 1;

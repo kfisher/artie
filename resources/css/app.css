@@ -206,6 +206,67 @@ button.success:active {
     background-color: var(--color-success-base);
 }
 
+checkbutton {
+    background-color: transparent;
+}
+
+check,
+radio {
+    background-color: var(--color-surface-2-base);
+    border-color: var(--color-surface-2-border);
+    border-radius: var(--border-radius);
+    border-style: solid;
+    border-width: 1px;
+    min-height: 16px;
+    min-width: 16px;
+}
+
+check:checked,
+radio:checked {
+    background-color: var(--color-primary-base);
+}
+
+columnview > header > button {
+    background-color: var(--color-surface-3-base);
+    border-bottom: 0px solid var(--color-surface-3-border);
+    border-left: 1px solid var(--color-surface-3-border);
+    border-radius: 0;
+    border-right: 0px solid var(--color-surface-3-border);
+    border-top: 1px solid var(--color-surface-3-border);
+    color: var(--color-surface-3-text);
+    font-weight: bold;
+}
+
+columnview > header > button:last-child {
+    border-right: 1px solid var(--color-surface-3-border);
+}
+
+columnview > listview > row {
+    border-bottom: 1px solid var(--color-surface-3-border);
+}
+
+columnview > listview > row:first-child {
+    border-top: 1px solid var(--color-surface-3-border);
+}
+
+columnview > listview > row > cell {
+    background-color: var(--color-surface-2-base);
+    border-bottom: 0px solid var(--color-surface-3-border);
+    border-left: 1px solid var(--color-surface-3-border);
+    border-right: 0px solid var(--color-surface-3-border);
+    border-top: 0px solid var(--color-surface-3-border);
+    padding: 8px 4px;
+}
+
+columnview > listview > row > cell radio {
+    background-color: var(--color-surface-3-base);
+    border-color: var(--color-surface-3-border);
+}
+
+columnview > listview > row > cell:last-child {
+    border-right: 1px solid var(--color-surface-3-border);
+}
+
 entry {
     background-color: var(--color-surface-2-base);
     border-color: var(--color-surface-2-border);
@@ -466,6 +527,10 @@ window.background {
     font-weight: bold;
     margin-bottom: 8px;
     padding-bottom: 8px;
+}
+
+.transcode-form-widget .header:not(:first-child) {
+    margin-top: 16px;
 }
 
 .metadata-form-widget .controls {
