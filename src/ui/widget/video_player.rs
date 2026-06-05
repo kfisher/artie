@@ -15,7 +15,7 @@ use gst::{
     SeekFlags,
     State,
     StreamCollection,
-    // StreamType,
+    StreamType,
 };
 use gst::prelude::*;
 
@@ -36,7 +36,6 @@ use gtk::subclass::prelude::*;
 
 use tokio::sync::mpsc;
 
-use crate::ui::data::VideoObject;
 use crate::ui::helpers;
 use crate::ui::widget::IconButton;
 
@@ -343,7 +342,7 @@ impl VideoPlayerWidget {
             video_player,
             async move {
                 while let Some(stream_collection) = rx.recv().await {
-                    video_player.update_stream_collection(&stream_collection);
+                    video_player.update_stream_data(&stream_collection);
                 }
             }
         ));
@@ -404,42 +403,33 @@ impl VideoPlayerWidget {
         );
     }
 
-    // TODO
-    fn update_stream_collection(&self, _stream_collection: &StreamCollection) {
-        /*
-        let imp = self.imp();
-
-        let mut audio_streams = imp.audio_streams
-            .borrow_mut();
-        audio_streams.clear();
-
-        let mut subtitle_streams = imp.subtitle_streams
-            .borrow_mut();
-        subtitle_streams.clear();
-
+    /// Updates the video, audio, and subtitle stream information.
+    ///
+    /// # Args
+    ///
+    /// `stream_collection`  The stream data reported by GStreamer for the video currently being
+    /// played.
+    fn update_stream_data(&self, stream_collection: &StreamCollection) {
         for stream in stream_collection {
-            let Some(id) = stream.stream_id() else {
+            let Some(_id) = stream.stream_id() else {
                 continue;
             };
 
-            let data = imp::StreamData {
-                id: id.to_string(),
-            };
-
             match stream.stream_type() {
+                StreamType::VIDEO => {
+                    tracing::info!("TODO: handle video stream")
+                },
                 StreamType::AUDIO => {
-                    audio_streams.push(data);
+                    tracing::info!("TODO: handle audio stream")
                 },
                 StreamType::TEXT => {
-                    subtitle_streams.push(data);
+                    tracing::info!("TODO: handle subtitle stream")
                 },
-                _ => ()
+                _ => {
+                    tracing::warn!(type=?stream.stream_type(), "unexpected stream type");
+                }
             }
         }
-
-        // TODO
-        tracing::info!("stream data updated");
-        */
     }
 }
 
@@ -509,10 +499,6 @@ mod imp {
 
     use crate::ui::data::VideoObject;
     use crate::ui::widget::IconButton;
-
-    pub(super) struct StreamData {
-        pub id: String,
-    }
 
     /// Implemenation for [`super::VideoPlayerWidget`].
     #[derive(Default, Properties)]
