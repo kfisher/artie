@@ -118,6 +118,28 @@ impl AudioCodec {
     }
 }
 
+impl fmt::Display for AudioCodec {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let text = match &self {
+            Self::AAC => "AAC",
+            Self::AC3 => "AC-3",
+            Self::ALAC16 => "ALAC-16",
+            Self::ALAC24 => "ALAC-24",
+            Self::DTS => "DTS",
+            Self::DTSHD => "DTS-HD",
+            Self::EAC3 => "Enhanced AC-3",
+            Self::Flac16 => "Flac 16",
+            Self::Flac24 => "Flac 24",
+            Self::MP2 => "MPEG-1",
+            Self::MP3 => "MP3",
+            Self::Opus => "Opus",
+            Self::TrueHD => "TrueHD",
+            Self::Vorbis => "Vorbis",
+        };
+        write!(f, "{}", text)
+    }
+}
+
 /// Specifies the methods of audio track encoding when transcoding.
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Deserialize, Serialize)]
@@ -402,6 +424,16 @@ impl SubtitleCodec {
     }
 }
 
+impl fmt::Display for SubtitleCodec {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let text = match &self {
+            Self::CC => "CC",
+            Self::PGS => "PGS",
+        };
+        write!(f, "{}", text)
+    }
+}
+
 /// Specifies the various video codecs.
 ///
 /// This isn't meant to be an all inclusive list of video codecs. It was generated using the
@@ -465,6 +497,21 @@ impl VideoCodec {
             // ("", VideoCodec::VP8),
             // ("", VideoCodec::VP9),
         ]))
+    }
+}
+
+impl fmt::Display for VideoCodec {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let text = match &self {
+            Self::H264 => "H264",
+            Self::H265 => "H265",
+            Self::MPEG2 => "MPEG-2",
+            Self::MPEG4 => "MPEG-4",
+            Self::Theora => "Theora",
+            Self::VP8 => "VP8",
+            Self::VP9 => "VP9",
+        };
+        write!(f, "{}", text)
     }
 }
 

@@ -3,12 +3,18 @@
 
 //! General (non-widget) GLib objects.
 
+mod audio_track;
 mod enums;
 mod optical_drive;
+mod subtitle_track;
 mod title;
 mod video;
+mod video_track;
 
+pub use audio_track::AudioTrackObject;
 pub use enums::{MediaType, OpticalDriveState};
 pub use optical_drive::OpticalDriveObject;
+pub use subtitle_track::SubtitleTrackObject;
 pub use title::TitleObject;
 pub use video::VideoObject;
+pub use video_track::VideoTrackObject;

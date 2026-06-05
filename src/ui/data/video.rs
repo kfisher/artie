@@ -3,12 +3,14 @@
 
 //! GObject representation of a video.
 
+use gtk::gio::ListStore;
 use gtk::glib::{self, Object};
 
 use crate::path;
 use crate::models::Video;
-use crate::ui::data::TitleObject;
+use crate::ui::data::{AudioTrackObject, SubtitleTrackObject, TitleObject, VideoTrackObject};
 use crate::ui::helpers;
+
 
 glib::wrapper! {
     pub struct VideoObject(ObjectSubclass<imp::VideoObject>);
@@ -25,6 +27,21 @@ impl VideoObject {
             .as_ref()
             .map(|t| TitleObject::new(t.as_ref()));
 
+        let audio_tracks = video.audio_tracks
+            .iter()
+            .map(|t| AudioTrackObject::new(t));
+        let audio_tracks = ListStore::from_iter(audio_tracks);
+
+        let subtitle_tracks = video.subtitle_tracks
+            .iter()
+            .map(|t| SubtitleTrackObject::new(t));
+        let subtitle_tracks = ListStore::from_iter(subtitle_tracks);
+
+        let video_tracks = video.video_tracks
+            .iter()
+            .map(|t| VideoTrackObject::new(t));
+        let video_tracks = ListStore::from_iter(video_tracks);
+
         let path = path::location_path(&video.location)
             .unwrap_or_default();
 
@@ -33,6 +50,9 @@ impl VideoObject {
             .property("title", title)
             .property("duration", helpers::format_duration(&video.duration))
             .property("path", path)
+            .property("audio-tracks", audio_tracks)
+            .property("subtitle-tracks", subtitle_tracks)
+            .property("video-tracks", video_tracks)
             .build()
     }
 }
@@ -41,6 +61,7 @@ mod imp {
     use std::cell::{Cell, RefCell};
 
     use gtk::glib::{self, Object, Properties};
+    use gtk::gio::ListStore;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
@@ -64,6 +85,24 @@ mod imp {
         /// The path to the video.
         #[property(name = "path", get, set, type = String)]
         pub(super) path: RefCell<String>,
+
+        /// List of audio tracks.
+        ///
+        /// Each item should be a [`crate::ui::data::AudioTrackObject`] instance.
+        #[property(name = "audio-tracks", get, set)]
+        pub(super) audio_tracks: RefCell<Option<ListStore>>,
+
+        /// List of sutitle tracks.
+        ///
+        /// Each item should be a [`crate::ui::data::SubtitleTrackObject`] instance.
+        #[property(name = "subtitle-tracks", get, set)]
+        pub(super) subtitle_tracks: RefCell<Option<ListStore>>,
+
+        /// List of video tracks.
+        ///
+        /// Each item should be a [`crate::ui::data::VideoTrackObject`] instance.
+        #[property(name = "video-tracks", get, set)]
+        pub(super) video_tracks: RefCell<Option<ListStore>>,
     }
 
     #[glib::object_subclass]
