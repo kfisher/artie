@@ -19,7 +19,7 @@ use crate::ui::widget::{
     TranscodeFormWidget,
     TranscodeListWidget,
     TranscodeQueueWidget,
-    VideoPlayerWidget, metadata_form
+    VideoPlayerWidget,
 };
 
 glib::wrapper! {
@@ -117,6 +117,10 @@ impl TranscodePageWidget {
         ));
 
         self.bind_property("selected-video", &video_player, "video")
+            .sync_create()
+            .build();
+
+        self.bind_property("selected-video", &transcode_form, "video")
             .sync_create()
             .build();
 
