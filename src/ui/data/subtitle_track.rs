@@ -8,8 +8,7 @@ use gtk::glib::{self, Object};
 use crate::models::SubtitleTrack;
 
 glib::wrapper! {
-    pub struct SubtitleTrackObject(ObjectSubclass<imp::SubtitleTrackObject>)
-        @extends super::TrackObject;
+    pub struct SubtitleTrackObject(ObjectSubclass<imp::SubtitleTrackObject>);
 }
 
 impl SubtitleTrackObject {
@@ -33,6 +32,8 @@ mod imp {
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
+    use crate::ui::data::TrackPreviewObject;
+
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::SubtitleTrackObject)]
     pub struct SubtitleTrackObject {
@@ -46,19 +47,22 @@ mod imp {
         /// The track's language.
         #[property(name = "language", get, set, type = String)]
         pub language: RefCell<String>,
+
+        /// Preview data for the track.
+        ///
+        /// This will only be valid when the video is selected for preview. 
+        #[property(name = "preview", get, set)]
+        pub(super) preview: RefCell<TrackPreviewObject>,
     }
 
     #[glib::object_subclass]
     impl ObjectSubclass for SubtitleTrackObject {
         const NAME: &'static str = "ArtieSubtitleTrackObject";
         type Type = super::SubtitleTrackObject;
-        type ParentType = super::super::TrackObject;
     }
 
     #[glib::derived_properties]
     impl ObjectImpl for SubtitleTrackObject {}
-
-    impl super::super::TrackObjectImpl for SubtitleTrackObject {}
 }
 
 #[cfg(test)]

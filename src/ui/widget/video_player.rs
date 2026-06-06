@@ -199,6 +199,8 @@ impl VideoPlayerWidget {
             return;
         };
 
+        video.reset_preview_data();
+
         let path = std::path::PathBuf::from(video.path());
         if !path.is_file() {
             tracing::error!(?path, "path does not exist");
@@ -410,6 +412,16 @@ impl VideoPlayerWidget {
     /// `stream_collection`  The stream data reported by GStreamer for the video currently being
     /// played.
     fn update_stream_data(&self, stream_collection: &StreamCollection) {
+        let video = self.imp().video
+            .borrow()
+            .clone();
+        let Some(video) = video else {
+            return;
+        };
+
+        let mut audio_track_index = 0;
+        let mut subtitle_track_index = 0;
+        let mut v_index = 0;
         for stream in stream_collection {
             let Some(_id) = stream.stream_id() else {
                 continue;
@@ -417,13 +429,52 @@ impl VideoPlayerWidget {
 
             match stream.stream_type() {
                 StreamType::VIDEO => {
-                    tracing::info!("TODO: handle video stream")
+                    // let tags = stream.tags();
+                    // tracing::warn!(tags=?tags, "video-tags");
+
+                    // There will generally only ever be one video track, but the MKV format
+                    // supports more than one. Not sure if GStreamer supports more then one or not,
+                    // but it doesn't apply the SELECT flag to videos it appears. Therefore, assume
+                    // the first track is the selected track.
+                    let selected = v_index == 0;
+
+                    if let Some(video_track) = video.get_video_track(v_index) {
+                        let preview = video_track.preview();
+                        preview.set_selected(selected);
+                        preview.set_stream_id(stream.stream_id());
+                    }
+
+                    v_index += 1;
                 },
                 StreamType::AUDIO => {
-                    tracing::info!("TODO: handle audio stream")
+                    // let tags = stream.tags();
+                    // tracing::warn!(tags=?tags, "audio-tags");
+
+                    let flags = stream.stream_flags();
+                    let selected = flags.contains(gst::StreamFlags::SELECT);
+
+                    if let Some(audio_track) = video.get_audio_track(audio_track_index) {
+                        let preview = audio_track.preview();
+                        preview.set_selected(selected);
+                        preview.set_stream_id(stream.stream_id());
+                    }
+
+                    audio_track_index += 1;
                 },
                 StreamType::TEXT => {
-                    tracing::info!("TODO: handle subtitle stream")
+                    // let tags = stream.tags();
+                    // tracing::error!(tags=?tags, "subtitle-tags");
+
+                    let flags = stream.stream_flags();
+                    let selected = flags.contains(gst::StreamFlags::SELECT);
+
+                    if let Some(subtitle_track) = video.get_subtitle_track(subtitle_track_index) {
+                        let preview = subtitle_track.preview();
+                        preview.set_selected(selected);
+                        preview.set_stream_id(stream.stream_id());
+                    }
+
+                    subtitle_track_index += 1;
                 },
                 _ => {
                     tracing::warn!(type=?stream.stream_type(), "unexpected stream type");

@@ -8,8 +8,7 @@ use gtk::glib::{self, Object};
 use crate::models::VideoTrack;
 
 glib::wrapper! {
-    pub struct VideoTrackObject(ObjectSubclass<imp::VideoTrackObject>)
-        @extends super::TrackObject;
+    pub struct VideoTrackObject(ObjectSubclass<imp::VideoTrackObject>);
 }
 
 impl VideoTrackObject {
@@ -34,6 +33,8 @@ mod imp {
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
+    use crate::ui::data::TrackPreviewObject;
+
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::VideoTrackObject)]
     pub struct VideoTrackObject {
@@ -51,19 +52,22 @@ mod imp {
         /// The video's aspect ratio (e.g. 16:9)
         #[property(name = "aspect-ratio", get, set, type = String)]
         pub aspect_ratio: RefCell<String>,
+
+        /// Preview data for the track.
+        ///
+        /// This will only be valid when the video is selected for preview. 
+        #[property(name = "preview", get, set)]
+        pub(super) preview: RefCell<TrackPreviewObject>,
     }
 
     #[glib::object_subclass]
     impl ObjectSubclass for VideoTrackObject {
         const NAME: &'static str = "ArtieVideoTrackObject";
         type Type = super::VideoTrackObject;
-        type ParentType = super::super::TrackObject;
     }
 
     #[glib::derived_properties]
     impl ObjectImpl for VideoTrackObject {}
-
-    impl super::super::TrackObjectImpl for VideoTrackObject {}
 }
 
 #[cfg(test)]

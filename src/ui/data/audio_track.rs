@@ -8,8 +8,7 @@ use gtk::glib::{self, Object};
 use crate::models::AudioTrack;
 
 glib::wrapper! {
-    pub struct AudioTrackObject(ObjectSubclass<imp::AudioTrackObject>)
-        @extends super::TrackObject;
+    pub struct AudioTrackObject(ObjectSubclass<imp::AudioTrackObject>);
 }
 
 impl AudioTrackObject {
@@ -35,6 +34,8 @@ mod imp {
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
+    use crate::ui::data::TrackPreviewObject;
+
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::AudioTrackObject)]
     pub struct AudioTrackObject {
@@ -56,19 +57,22 @@ mod imp {
         /// The audio channel layout for the channel.
         #[property(name = "layout", get, set, type = String)]
         pub layout: RefCell<String>,
+
+        /// Preview data for the track.
+        ///
+        /// This will only be valid when the video is selected for preview. 
+        #[property(name = "preview", get, set)]
+        pub(super) preview: RefCell<TrackPreviewObject>,
     }
 
     #[glib::object_subclass]
     impl ObjectSubclass for AudioTrackObject {
         const NAME: &'static str = "ArtieAudioTrackObject";
         type Type = super::AudioTrackObject;
-        type ParentType = super::super::TrackObject;
     }
 
     #[glib::derived_properties]
     impl ObjectImpl for AudioTrackObject {}
-
-    impl super::super::TrackObjectImpl for AudioTrackObject {}
 }
 
 #[cfg(test)]

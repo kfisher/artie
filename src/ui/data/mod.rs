@@ -8,7 +8,7 @@ mod enums;
 mod optical_drive;
 mod subtitle_track;
 mod title;
-mod track_object;
+mod track_preview;
 mod video;
 mod video_track;
 
@@ -17,6 +17,6 @@ pub use enums::{MediaType, OpticalDriveState};
 pub use optical_drive::OpticalDriveObject;
 pub use subtitle_track::SubtitleTrackObject;
 pub use title::TitleObject;
-pub use track_object::{TrackObject, TrackObjectImpl};
+pub use track_preview::TrackPreviewObject;
 pub use video::VideoObject;
 pub use video_track::VideoTrackObject;
