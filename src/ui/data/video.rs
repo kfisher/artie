@@ -8,12 +8,51 @@ use gtk::gio::ListStore;
 use gtk::gio::prelude::ListModelExt;
 use gtk::glib::{self, Object};
 use gtk::subclass::prelude::*;
+use gtk::prelude::*;
 
 use crate::path;
 use crate::models::Video;
 use crate::ui::data::{AudioTrackObject, SubtitleTrackObject, TitleObject, VideoTrackObject};
 use crate::ui::helpers;
 
+/// Container for the selected preview video, audio, and subtitle tracks.
+pub struct PreviewTracks {
+    /// The selected audio track.
+    pub audio_track: Option<AudioTrackObject>,
+
+    /// The selected subtitle track.
+    pub subtitle_track: Option<SubtitleTrackObject>,
+
+    /// The selected video track.
+    pub video_track: Option<VideoTrackObject>,
+}
+
+impl PreviewTracks {
+    /// Get the array of stream identifiers.
+    pub fn gstreamer_identifiers(&self) -> Vec<String> {
+        let mut streams = Vec::default();
+
+        if let Some(video_track) = self.video_track.as_ref() {
+            if let Some(stream_id) = video_track.preview().stream_id() {
+                streams.push(stream_id);
+            }
+        }
+
+        if let Some(audio_track) = self.audio_track.as_ref() {
+            if let Some(stream_id) = audio_track.preview().stream_id() {
+                streams.push(stream_id);
+            }
+        }
+
+        if let Some(subtitle_track) = self.subtitle_track.as_ref() {
+            if let Some(stream_id) = subtitle_track.preview().stream_id() {
+                streams.push(stream_id);
+            }
+        }
+
+        streams
+    }
+}
 
 glib::wrapper! {
     pub struct VideoObject(ObjectSubclass<imp::VideoObject>);
@@ -61,6 +100,16 @@ impl VideoObject {
         obj.setup_bindings();
 
         obj
+    }
+
+    /// Get the selected preview track information.
+    pub fn get_selected_preview_tracks(&self) -> PreviewTracks {
+        let imp = self.imp();
+        PreviewTracks {
+            video_track: imp.preview_video_track.borrow().clone(),
+            audio_track: imp.preview_audio_track.borrow().clone(),
+            subtitle_track: imp.preview_subtitle_track.borrow().clone(),
+        }
     }
 
     /// Get an audio track.
@@ -143,6 +192,26 @@ impl VideoObject {
                 .unwrap();
             self.bind_audio_track_object(audio_track);
         }
+
+        let subtitle_tracks = self.subtitle_tracks()
+            .unwrap();
+        for subtitle_track in &subtitle_tracks {
+            let subtitle_track = subtitle_track
+                .unwrap()
+                .downcast::<SubtitleTrackObject>()
+                .unwrap();
+            self.bind_subtitle_track_object(subtitle_track);
+        }
+
+        let video_tracks = self.video_tracks()
+            .unwrap();
+        for video_track in &video_tracks {
+            let video_track = video_track
+                .unwrap()
+                .downcast::<VideoTrackObject>()
+                .unwrap();
+            self.bind_video_track_object(video_track);
+        }
     }
 
     /// Bind to an audio track.
@@ -163,6 +232,42 @@ impl VideoObject {
         ));
     }
 
+    /// Bind to an subtitle track.
+    ///
+    /// # Args
+    ///
+    /// `subtitle_track`:  The subtitle track to bind to.
+    fn bind_subtitle_track_object(&self, subtitle_track: SubtitleTrackObject) {
+        let video = self;
+        subtitle_track.preview().connect_selected_notify(glib::clone!(
+            #[weak]
+            subtitle_track,
+            #[weak]
+            video,
+            move |preview| {
+                video.preview_subtitle_track(subtitle_track, preview.selected());
+            }
+        ));
+    }
+
+    /// Bind to an video track.
+    ///
+    /// # Args
+    ///
+    /// `video_track`:  The video track to bind to.
+    fn bind_video_track_object(&self, video_track: VideoTrackObject) {
+        let video = self;
+        video_track.preview().connect_selected_notify(glib::clone!(
+            #[weak]
+            video_track,
+            #[weak]
+            video,
+            move |preview| {
+                video.preview_video_track(video_track, preview.selected());
+            }
+        ));
+    }
+
     /// Update the audio track that will be previewed.
     ///
     /// # Args
@@ -177,16 +282,46 @@ impl VideoObject {
         }
     }
 
-    // TODO
+    /// Update the subtitle track that will be previewed.
+    ///
+    /// # Args
+    ///
+    /// `subtitle_track`:  The subtitle track to preview. It is assumed that this subtitle track
+    /// belongs to this video and the video's stream_id has been set.
+    fn preview_subtitle_track(&self, subtitle_track: SubtitleTrackObject, selected: bool) {
+        let imp = self.imp();
+        if selected {
+            imp.set_preview_subtitle_track(subtitle_track);
+            self.preview_changed();
+        }
+    }
+
+    /// Update the video track that will be previewed.
+    ///
+    /// # Args
+    ///
+    /// `video_track`:  The video track to preview. It is assumed that this video track belongs to
+    /// this video and the video's stream_id has been set.
+    fn preview_video_track(&self, video_track: VideoTrackObject, selected: bool) {
+        let imp = self.imp();
+        if selected {
+            imp.set_preview_video_track(video_track);
+            self.preview_changed();
+        }
+    }
+
+    /// Emit the 'preview-changed' signal.
     fn preview_changed(&self) {
-        tracing::warn!("TODO: UPDATE VIDEO")
+        self.emit_by_name::<()>("preview-changed", &[]);
     }
 }
 
 mod imp {
     use std::cell::{Cell, RefCell};
+    use std::sync::OnceLock;
 
     use gtk::glib::{self, Object, Properties};
+    use gst::glib::subclass::Signal;
     use gtk::gio::ListStore;
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
@@ -300,7 +435,17 @@ mod imp {
     }
 
     #[glib::derived_properties]
-    impl ObjectImpl for VideoObject {}
+    impl ObjectImpl for VideoObject {
+        fn signals() -> &'static [Signal] {
+            static SIGNALS: OnceLock<Vec<Signal>> = OnceLock::new();
+            SIGNALS.get_or_init(|| {
+                vec![
+                    Signal::builder("preview-changed")
+                        .build(),
+                ]
+            })
+        }
+    }
 }
 
 #[cfg(test)]

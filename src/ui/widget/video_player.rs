@@ -17,6 +17,7 @@ use gst::{
     StreamCollection,
     StreamType,
 };
+use gst::event::SelectStreams;
 use gst::prelude::*;
 
 use gtk::{
@@ -36,6 +37,7 @@ use gtk::subclass::prelude::*;
 
 use tokio::sync::mpsc;
 
+use crate::ui::data::VideoObject;
 use crate::ui::helpers;
 use crate::ui::widget::IconButton;
 
@@ -58,6 +60,50 @@ impl VideoPlayerWidget {
     pub fn new() -> Self {
         Object::builder()
             .build()
+    }
+
+    /// Bind to the selected video.
+    fn bind_video(&self, video: &VideoObject) {
+        let mut video_signals = self.imp().video_signals.borrow_mut();
+
+        let video_player = self.clone();
+        let preview_changed = video.connect_closure(
+            "preview-changed",
+            false,
+            glib::closure_local!(move |_video: VideoObject| {
+                video_player.change_preview_tracks();
+            }),
+        );
+        video_signals.push(preview_changed);
+    }
+
+    fn change_preview_tracks(&self) {
+        // If the controls aren't enabled, then the video isn't ready yet or is invalid. In either
+        // case, ignore this signal instance.
+        if !self.controls_enabled() {
+            return;
+        }
+
+        let imp = self.imp();
+
+        let Some(playbin_element) = imp.playbin_element.borrow().clone() else {
+            return;
+        };
+
+        let video = imp.video
+            .borrow()
+            .clone();
+        let Some(video) = video else {
+            return;
+        };
+
+        let streams = video.get_selected_preview_tracks()
+            .gstreamer_identifiers();
+        tracing::trace!(?streams, "change selected tracks");
+
+        let event = SelectStreams::builder(streams.iter().map(|s| s.as_ref()))
+            .build();
+        playbin_element.send_event(event);
     }
 
     /// Builds the widget.
@@ -94,6 +140,7 @@ impl VideoPlayerWidget {
 
         let pause_button = IconButton::icon_only("fontawesome.v7.solid.pause");
         pause_button.set_sensitive(false);
+        pause_button.set_visible(false);
         pause_button.add_css_class("default");
 
         let video_player = self.clone();
@@ -152,6 +199,16 @@ impl VideoPlayerWidget {
 
         self.add_css_class("video-player-widget");
 
+        self.bind_property("controls-enabled", &pause_button, "sensitive")
+            .sync_create()
+            .build();
+        self.bind_property("controls-enabled", &play_button, "sensitive")
+            .sync_create()
+            .build();
+        self.bind_property("controls-enabled", &slider, "sensitive")
+            .sync_create()
+            .build();
+
         let widget = self.clone();
         glib::spawn_future_local(glib::clone!(
             #[weak]
@@ -207,6 +264,8 @@ impl VideoPlayerWidget {
             return;
         }
 
+        self.bind_video(&video);
+
         let path = format!("file://{0}", video.path());
         playbin_element.set_property("uri", path);
 
@@ -251,27 +310,6 @@ impl VideoPlayerWidget {
 
         imp.pause_button.borrow().set_visible(true);
         imp.play_button.borrow().set_visible(false);
-    }
-
-    /// Enabled or disable the controls.
-    ///
-    /// # Args
-    ///
-    /// `enabled`  Indicates if the player controls should be enabled or disabled.
-    fn set_controls_enabled(&self, enabled: bool) {
-        let imp = self.imp();
-
-        imp.play_button
-            .borrow()
-            .set_sensitive(enabled);
-
-        imp.pause_button
-            .borrow()
-            .set_sensitive(enabled);
-
-        imp.video_slider
-            .borrow()
-            .set_sensitive(enabled);
     }
 
     /// Initializes the GStreamer pipeline.
@@ -421,7 +459,7 @@ impl VideoPlayerWidget {
 
         let mut audio_track_index = 0;
         let mut subtitle_track_index = 0;
-        let mut v_index = 0;
+        let mut video_track_index = 0;
         for stream in stream_collection {
             let Some(_id) = stream.stream_id() else {
                 continue;
@@ -436,15 +474,15 @@ impl VideoPlayerWidget {
                     // supports more than one. Not sure if GStreamer supports more then one or not,
                     // but it doesn't apply the SELECT flag to videos it appears. Therefore, assume
                     // the first track is the selected track.
-                    let selected = v_index == 0;
+                    let selected = video_track_index == 0;
 
-                    if let Some(video_track) = video.get_video_track(v_index) {
+                    if let Some(video_track) = video.get_video_track(video_track_index) {
                         let preview = video_track.preview();
                         preview.set_selected(selected);
                         preview.set_stream_id(stream.stream_id());
                     }
 
-                    v_index += 1;
+                    video_track_index += 1;
                 },
                 StreamType::AUDIO => {
                     // let tags = stream.tags();
@@ -481,6 +519,8 @@ impl VideoPlayerWidget {
                 }
             }
         }
+
+        self.set_controls_enabled(true);
     }
 }
 
@@ -538,7 +578,7 @@ fn update_time(
 mod imp {
     //! Implemenation for the copy page widget.
 
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
 
     use gst::{Element, State};
     use gst::prelude::*;
@@ -555,8 +595,12 @@ mod imp {
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::VideoPlayerWidget)]
     pub struct VideoPlayerWidget {
+        /// The enabled/disabled status of the controls.
+        #[property(name = "controls-enabled", get, set)]
+        pub(super) controls_enabled: Cell<bool>,
+
         /// The active video.
-        #[property(get, set = Self::set_video, nullable)]
+        #[property(name = "video", get, set = Self::set_video, nullable)]
         pub(super) video: RefCell<Option<VideoObject>>,
 
         /// Provides an all-in-one abstraction for playing video/audio.
@@ -590,10 +634,18 @@ mod imp {
 
         /// Label used to display the duration of the video.
         pub(super) duration_label: RefCell<Label>,
+
+        /// Signal identifiers for the selected video connections.
+        pub(super) video_signals: RefCell<Vec<SignalHandlerId>>,
     }
 
     impl VideoPlayerWidget {
         fn set_video(&self, video: Option<VideoObject>) {
+            if let Some(old_video) = self.video.borrow().clone() {
+                for signal_id in self.video_signals.borrow_mut().drain(..) {
+                    old_video.disconnect(signal_id);
+                }
+            }
             self.video.replace(video);
             self.obj().on_video_changed();
         }

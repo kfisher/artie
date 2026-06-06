@@ -156,6 +156,10 @@ button.toggle.default:checked {
     color: var(--color-surface-1-text);
 }
 
+button.default:disabled {
+    background-color: var(--color-surface-3-hover);
+}
+
 button.default:hover {
     background-color: var(--color-surface-3-hover);
 }
@@ -418,6 +422,10 @@ scale > trough > slider {
     min-width: 16px;
     min-height: 16px;
     border-radius: 100%;
+}
+
+scale:disabled > trough > slider {
+    background-color: var(--color-secondary-hover);
 }
 
 window.background {
