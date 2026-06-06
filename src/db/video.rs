@@ -9,7 +9,16 @@ use std::time::Duration;
 use rusqlite::Connection;
 
 use crate::{Error, Result};
-use crate::models::{AudioTrack, MediaLocation, Reference, SubtitleTrack, Title, Video, VideoSource, VideoTrack};
+use crate::models::{
+    AudioTrack,
+    MediaLocation,
+    Reference,
+    SubtitleTrack,
+    Title,
+    Video,
+    VideoSource,
+    VideoTrack,
+};
 
 use super::conv;
 
@@ -248,9 +257,15 @@ pub fn inbox_videos(conn: &Connection) -> Result<Vec<Video>> {
 ///
 /// [`crate::Error::SerdeJson`] raised if the tracks cannot be serialized to JSON.
 pub fn set_audio_tracks(conn: &Connection, id: u32, tracks: &[AudioTrack]) -> Result<()> {
-    let sql = "UPDATE video SET audio_tracks = jsonb(?1) WHERE id = ?2";
+    let sql = "
+        UPDATE video
+           SET audio_tracks = jsonb(?1)
+         WHERE id = ?2
+    ";
+
     let json = serde_json::to_string(tracks)?;
     conn.execute(sql, (json, id))?;
+
     tracing::trace!(id, "set video audio_tracks");
     Ok(())
 }
@@ -271,9 +286,15 @@ pub fn set_audio_tracks(conn: &Connection, id: u32, tracks: &[AudioTrack]) -> Re
 ///
 /// [`crate::Error::SerdeJson`] raised if the tracks cannot be serialized to JSON.
 pub fn set_video_tracks(conn: &Connection, id: u32, tracks: &[VideoTrack]) -> Result<()> {
-    let sql = "UPDATE video SET video_tracks = jsonb(?1) WHERE id = ?2";
+    let sql = "
+        UPDATE video
+           SET video_tracks = jsonb(?1)
+         WHERE id = ?2
+    ";
+
     let json = serde_json::to_string(tracks)?;
     conn.execute(sql, (json, id))?;
+
     tracing::trace!(id, "set video video_tracks");
     Ok(())
 }
@@ -294,9 +315,15 @@ pub fn set_video_tracks(conn: &Connection, id: u32, tracks: &[VideoTrack]) -> Re
 ///
 /// [`crate::Error::SerdeJson`] raised if the tracks cannot be serialized to JSON.
 pub fn set_subtitle_tracks(conn: &Connection, id: u32, tracks: &[SubtitleTrack]) -> Result<()> {
-    let sql = "UPDATE video SET subtitle_tracks = jsonb(?1) WHERE id = ?2";
+    let sql = "
+        UPDATE video
+           SET subtitle_tracks = jsonb(?1)
+         WHERE id = ?2
+    ";
+
     let json = serde_json::to_string(tracks)?;
     conn.execute(sql, (json, id))?;
+
     tracing::trace!(id, "set video subtitle_tracks");
     Ok(())
 }
