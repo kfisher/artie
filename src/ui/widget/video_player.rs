@@ -39,7 +39,7 @@ use tokio::sync::mpsc;
 
 use crate::ui::data::VideoObject;
 use crate::ui::helpers;
-use crate::ui::widget::IconButton;
+use crate::ui::widget::{IconButton, IconToggleButton};
 
 glib::wrapper! {
     pub struct VideoPlayerWidget(ObjectSubclass<imp::VideoPlayerWidget>)
@@ -177,6 +177,22 @@ impl VideoPlayerWidget {
             .build();
         duration_time.add_css_class("time-stamp");
 
+        let cc_button = IconToggleButton::builder()
+            .icon_name("fontawesome.v7.solid.closed-captioning-symbolic")
+            .build();
+        cc_button.add_css_class("default");
+        cc_button.set_sensitive(false);
+        cc_button.add_css_class("ghost");
+
+        let video_player = self;
+        cc_button.connect_clicked(glib::clone!(
+            #[weak]
+            video_player,
+            move |button| {
+                video_player.enable_subtitles(button.is_active());
+            }
+        ));
+
         let controls = Box::builder()
             .orientation(Orientation::Horizontal)
             .spacing(2)
@@ -186,6 +202,7 @@ impl VideoPlayerWidget {
         controls.append(&current_time);
         controls.append(&slider);
         controls.append(&duration_time);
+        controls.append(&cc_button);
         controls.add_css_class("controls");
 
         self.append(&graphics_offload);
@@ -208,6 +225,9 @@ impl VideoPlayerWidget {
         self.bind_property("controls-enabled", &slider, "sensitive")
             .sync_create()
             .build();
+        self.bind_property("controls-enabled", &cc_button, "sensitive")
+            .sync_create()
+            .build();
 
         let widget = self.clone();
         glib::spawn_future_local(glib::clone!(
@@ -224,6 +244,18 @@ impl VideoPlayerWidget {
         imp.video_slider_value_changed.replace(Some(video_slider_value_changed));
         imp.duration_label.replace(duration_time);
         imp.position_label.replace(current_time);
+    }
+
+    /// Enables or disables the display of subtitles.
+    pub fn enable_subtitles(&self, enabled: bool) {
+        let playbin_element = self.imp().playbin_element
+            .borrow()
+            .clone();
+        let Some(playbin_element) = playbin_element else {
+            return;
+        };
+
+        enable_subtitles(&playbin_element, enabled);
     }
 
     /// Called when the video changes
@@ -389,20 +421,9 @@ impl VideoPlayerWidget {
 
         pipeline_bus.add_signal_watch();
 
-        let flags = playbin_element.property_value("flags");
-
-        let flags_class = FlagsClass::with_type(flags.type_())
-            .expect("flags_class was None");
-
-        let flags = flags_class.builder_with_value(flags)
-            .expect("flags builder was None")
-            .set_by_nick("audio")
-            .set_by_nick("video")
-            .unset_by_nick("text")
-            .build()
-            .expect("built flags was None");
-
-        playbin_element.set_property_from_value("flags", &flags);
+        // The CC button toggle will be initialized as inactive, so insure the pipeline reflects
+        // that initial value.
+        enable_subtitles(&playbin_element, false);
 
         let imp = self.imp();
         imp.playbin_element.replace(Some(playbin_element));
@@ -522,6 +543,30 @@ impl VideoPlayerWidget {
 
         self.set_controls_enabled(true);
     }
+}
+
+fn enable_subtitles(playbin_element: &Element, enabled: bool) {
+    let flags = playbin_element.property_value("flags");
+
+    let flags_class = FlagsClass::with_type(flags.type_())
+        .expect("flags_class was None");
+
+    let flags = flags_class.builder_with_value(flags)
+        .expect("flags builder was None")
+        .set_by_nick("audio")
+        .set_by_nick("video");
+
+    let flags = if enabled {
+        flags.set_by_nick("text")
+    } else {
+        flags.unset_by_nick("text")
+    };
+
+    let flags = flags
+        .build()
+        .unwrap();
+
+    playbin_element.set_property_from_value("flags", &flags);
 }
 
 /// Task for updating the video player UI.

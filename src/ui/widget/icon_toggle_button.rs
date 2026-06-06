@@ -7,7 +7,6 @@ use glib::Object;
 use gtk::{Box, Image, Label, Orientation};
 use gtk::glib;
 use gtk::prelude::*;
-// use gtk::subclass::prelude::*;
 
 glib::wrapper! {
     pub struct IconToggleButton(ObjectSubclass<imp::IconToggleButton>)
@@ -42,8 +41,32 @@ impl IconToggleButton {
     fn new(icon_name: String, label: String) -> Self {
         Object::builder()
             .property("icon-name", icon_name)
+            .property("icon-size", -1)
             .property("label", label)
+            .property("spacing", 4)
             .build()
+    }
+
+    /// Creates a button with an icon only.
+    ///
+    /// # Args
+    ///
+    /// `icon_name`:  The name of the icon. This is the name of the SVG file without the path or
+    /// file extension.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the GObject cannot be created.
+    fn icon_only(icon_name: &str) -> Self {
+        let obj: IconToggleButton = Object::builder()
+            .property("icon-name", icon_name)
+            .property("icon-size", 24)
+            .property("spacing", 0)
+            .build();
+
+        obj.add_css_class("icon-only");
+
+        obj
     }
 
     /// Builds the widget.
@@ -52,8 +75,10 @@ impl IconToggleButton {
     fn build_ui(&self) {
         let icon = Image::builder()
             .build();
-
         self.bind_property("icon-name", &icon, "icon-name")
+            .sync_create()
+            .build();
+        self.bind_property("icon-size", &icon, "pixel-size")
             .sync_create()
             .build();
         let label = Label::builder()
@@ -64,8 +89,8 @@ impl IconToggleButton {
 
         let layout = Box::builder()
             .orientation(Orientation::Horizontal)
-            .spacing(4)
             .build();
+        self.bind_property("spacing", &layout, "spacing").sync_create().build();
         layout.append(&icon);
         layout.append(&label);
 
@@ -117,10 +142,13 @@ impl IconToggleButtonBuilder {
     ///
     /// This will panic if the GObject cannot be created.
     pub fn build(self) -> IconToggleButton {
-        IconToggleButton::new(
-            self.icon_name.unwrap_or_default(),
-            self.label.unwrap_or_default(),
-        )
+        if self.icon_name.is_some() && self.label.is_some() {
+            IconToggleButton::new(self.icon_name.unwrap(), self.label.unwrap())
+        } else if self.icon_name.is_some() {
+            IconToggleButton::icon_only(&self.icon_name.unwrap())
+        } else {
+            IconToggleButton::new(String::default(), String::default())
+        }
     }
 }
 
@@ -130,7 +158,7 @@ mod tests {
 }
 
 mod imp {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
 
     use gtk::ToggleButton;
     use gtk::glib::{self, Properties};
@@ -143,12 +171,20 @@ mod imp {
         /// The icon name.
         ///
         /// This is the name of the SVG file without the extension.
-        #[property(get, set)]
+        #[property(name="icon-name", get, set)]
         pub(super) icon_name: RefCell<String>,
 
         /// The button's text.
-        #[property(get, set)]
+        #[property(name="label", get, set)]
         pub(super) label: RefCell<String>,
+
+        /// Spacing between the icon and label.
+        #[property(name="spacing", get, set)]
+        spacing: Cell<i32>,
+
+        /// The size of the icon.
+        #[property(name="icon-size", get, set)]
+        icon_size: Cell<i32>,
     }
 
     impl IconToggleButton {

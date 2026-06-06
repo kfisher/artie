@@ -79,6 +79,7 @@
     --color-text-hover: #00FF00;
 
     --border-radius: 4px;
+    --disabled-opacity: 50%;
 }
 
 /*************************************************************************************************
@@ -150,14 +151,28 @@ button.toggle.default {
     color: var(--color-surface-2-text);
 }
 
+button.toggle.default.ghost {
+    background-color: transparent;
+    border-color: transparent;
+}
+
 button.toggle.default:checked {
-    background-color: var(--color-surface-1-base);
-    border-color: var(--color-surface-1-border);
-    color: var(--color-surface-1-text);
+    background-color: var(--color-surface-3-text);
+    color: var(--color-surface-3-base);
+}
+
+button.toggle.default.ghost:checked {
+    background-color: transparent;
+    border-color: transparent;
+    color: var(--color-primary-base);
+}
+
+button.toggle.default.ghost:disabled {
+    opacity: var(--disabled-opacity);
 }
 
 button.default:disabled {
-    background-color: var(--color-surface-3-hover);
+    opacity: var(--disabled-opacity);
 }
 
 button.default:hover {
@@ -415,6 +430,7 @@ scale > trough {
     min-height: 2px;
 }
 
+
 scale > trough > slider {
     background-color: var(--color-secondary-base);
     margin-bottom: -8px;
@@ -424,8 +440,12 @@ scale > trough > slider {
     border-radius: 100%;
 }
 
+scale:disabled > trough {
+    opacity: var(--disabled-opacity);
+}
+
 scale:disabled > trough > slider {
-    background-color: var(--color-secondary-hover);
+    opacity: 75%;
 }
 
 window.background {

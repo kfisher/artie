@@ -4,6 +4,7 @@
         <file>css/app.css</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.ban-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.circle-check-symbolic.svg</file>
+        <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.closed-captioning-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.compact-disc-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.exclamation-triangle-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.file-import-symbolic.svg</file>
