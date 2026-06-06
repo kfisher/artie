@@ -243,7 +243,7 @@ fn process_title_info(
 /// [`Error::MissingAudioCodecMapping`] if the audio codec specified in the stream data is not
 /// currently supported. This might just mean the MakeMKV identifier has not been mapped to the
 /// application identifier for the codec.
-fn process_audio_stream(
+pub fn process_audio_stream(
     container_index: usize,
     audio_index: usize,
     stream: &StreamInfo,
@@ -256,7 +256,7 @@ fn process_audio_stream(
         name: stream.name()?,
         codec: AudioCodec::from_makemkv(&codec)?,
         encode_method: None,
-        language_code: stream.language_name()?,
+        language_code: stream.language_code()?,
         channel_count: stream.channel_count()?,
         channel_layout: stream.channel_layout()?,
     };
@@ -283,7 +283,7 @@ fn process_audio_stream(
 /// [`Error::MissingSubtitleCodecMapping`] if the subtitle codec specified in the stream data is
 /// not currently supported. This might just mean the MakeMKV identifier has not been mapped to the
 /// application identifier for the codec.
-fn process_subtitle_stream(
+pub fn process_subtitle_stream(
     container_index: usize,
     subtitle_index: usize,
     stream: &StreamInfo,
@@ -294,7 +294,7 @@ fn process_subtitle_stream(
         container_index: container_index as u8,
         subtitle_index: subtitle_index as u8,
         codec: SubtitleCodec::from_makemkv(&codec)?,
-        language_code: stream.language_name()?,
+        language_code: stream.language_code()?,
     };
 
     Ok(track)
@@ -319,7 +319,7 @@ fn process_subtitle_stream(
 /// [`Error::MissingVideoCodecMapping`] if the video codec specified in the stream data is not
 /// currently supported. This might just mean the MakeMKV identifier has not been mapped to the
 /// application identifier for the codec.
-fn process_video_stream(
+pub fn process_video_stream(
     container_index: usize,
     video_index: usize,
     stream: &StreamInfo,
