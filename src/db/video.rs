@@ -9,7 +9,7 @@ use std::time::Duration;
 use rusqlite::Connection;
 
 use crate::{Error, Result};
-use crate::models::{MediaLocation, Reference, Title, Video, VideoSource};
+use crate::models::{AudioTrack, MediaLocation, Reference, SubtitleTrack, Title, Video, VideoSource, VideoTrack};
 
 use super::conv;
 
@@ -232,6 +232,75 @@ pub fn inbox_videos(conn: &Connection) -> Result<Vec<Video>> {
     .collect()
 }
 
+/// Updates the audio tracks field of a video record.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `id`:  The id of the video record to update.
+///
+/// `tracks`:  The audio tracks to store.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
+///
+/// [`crate::Error::SerdeJson`] raised if the tracks cannot be serialized to JSON.
+pub fn set_audio_tracks(conn: &Connection, id: u32, tracks: &[AudioTrack]) -> Result<()> {
+    let sql = "UPDATE video SET audio_tracks = jsonb(?1) WHERE id = ?2";
+    let json = serde_json::to_string(tracks)?;
+    conn.execute(sql, (json, id))?;
+    tracing::trace!(id, "set video audio_tracks");
+    Ok(())
+}
+
+/// Updates the video tracks field of a video record.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `id`:  The id of the video record to update.
+///
+/// `tracks`:  The video tracks to store.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
+///
+/// [`crate::Error::SerdeJson`] raised if the tracks cannot be serialized to JSON.
+pub fn set_video_tracks(conn: &Connection, id: u32, tracks: &[VideoTrack]) -> Result<()> {
+    let sql = "UPDATE video SET video_tracks = jsonb(?1) WHERE id = ?2";
+    let json = serde_json::to_string(tracks)?;
+    conn.execute(sql, (json, id))?;
+    tracing::trace!(id, "set video video_tracks");
+    Ok(())
+}
+
+/// Updates the subtitle tracks field of a video record.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `id`:  The id of the video record to update.
+///
+/// `tracks`:  The subtitle tracks to store.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
+///
+/// [`crate::Error::SerdeJson`] raised if the tracks cannot be serialized to JSON.
+pub fn set_subtitle_tracks(conn: &Connection, id: u32, tracks: &[SubtitleTrack]) -> Result<()> {
+    let sql = "UPDATE video SET subtitle_tracks = jsonb(?1) WHERE id = ?2";
+    let json = serde_json::to_string(tracks)?;
+    conn.execute(sql, (json, id))?;
+    tracing::trace!(id, "set video subtitle_tracks");
+    Ok(())
+}
+
 /// Creates the database table for storing video data if it does not exist.
 ///
 /// # Args
@@ -282,12 +351,18 @@ mod tests {
     use crate::db::title;
     use crate::db::transcode_operation;
     use crate::models::{
+        AudioCodec,
+        AudioTrack,
         ContainerType,
         CopyOperation,
         MediaLocation,
         MediaType,
         Reference,
-        VideoSource
+        SubtitleCodec,
+        SubtitleTrack,
+        VideoCodec,
+        VideoSource,
+        VideoTrack,
     };
 
     /// Creates all required tables and seed data, returning (conn, copy_operation_id, title_id).
@@ -446,5 +521,135 @@ mod tests {
         let inbox = inbox_videos(&conn).expect("Failed to list inbox");
 
         assert!(inbox.is_empty());
+    }
+
+    fn make_audio_track() -> AudioTrack {
+        AudioTrack {
+            container_index: 1,
+            audio_index: 1,
+            name: "English".to_owned(),
+            codec: AudioCodec::AC3,
+            encode_method: None,
+            language_code: "eng".to_owned(),
+            channel_count: 6,
+            channel_layout: "5.1".to_owned(),
+        }
+    }
+
+    fn make_video_track() -> VideoTrack {
+        VideoTrack {
+            container_index: 1,
+            video_index: 1,
+            codec: VideoCodec::H265,
+            size: "1920x1080".to_owned(),
+            aspect_ratio: "16:9".to_owned(),
+        }
+    }
+
+    fn make_subtitle_track() -> SubtitleTrack {
+        SubtitleTrack {
+            container_index: 2,
+            subtitle_index: 1,
+            codec: SubtitleCodec::PGS,
+            language_code: "eng".to_owned(),
+        }
+    }
+
+    #[test]
+    fn test_set_audio_tracks() {
+        let (conn, copy_op_id, title_id) = setup_test_db();
+        let mut video = make_video(copy_op_id, title_id);
+        create(&conn, &mut video).unwrap();
+        let tracks = vec![make_audio_track()];
+
+        set_audio_tracks(&conn, video.id, &tracks).expect("Failed to set audio tracks");
+
+        let json: String = conn
+            .query_row("SELECT json(audio_tracks) FROM video WHERE id = ?1", [video.id], |r| r.get(0))
+            .unwrap();
+        let stored: Vec<AudioTrack> = serde_json::from_str(&json).unwrap();
+        assert_eq!(stored.len(), 1);
+        assert_eq!(stored[0].language_code, "eng");
+        assert_eq!(stored[0].channel_count, 6);
+    }
+
+    #[test]
+    fn test_set_audio_tracks_empty() {
+        let (conn, copy_op_id, title_id) = setup_test_db();
+        let mut video = make_video(copy_op_id, title_id);
+        create(&conn, &mut video).unwrap();
+
+        set_audio_tracks(&conn, video.id, &[]).expect("Failed to set empty audio tracks");
+
+        let json: String = conn
+            .query_row("SELECT json(audio_tracks) FROM video WHERE id = ?1", [video.id], |r| r.get(0))
+            .unwrap();
+        let stored: Vec<AudioTrack> = serde_json::from_str(&json).unwrap();
+        assert!(stored.is_empty());
+    }
+
+    #[test]
+    fn test_set_video_tracks() {
+        let (conn, copy_op_id, title_id) = setup_test_db();
+        let mut video = make_video(copy_op_id, title_id);
+        create(&conn, &mut video).unwrap();
+        let tracks = vec![make_video_track()];
+
+        set_video_tracks(&conn, video.id, &tracks).expect("Failed to set video tracks");
+
+        let json: String = conn
+            .query_row("SELECT json(video_tracks) FROM video WHERE id = ?1", [video.id], |r| r.get(0))
+            .unwrap();
+        let stored: Vec<VideoTrack> = serde_json::from_str(&json).unwrap();
+        assert_eq!(stored.len(), 1);
+        assert_eq!(stored[0].size, "1920x1080");
+        assert_eq!(stored[0].aspect_ratio, "16:9");
+    }
+
+    #[test]
+    fn test_set_video_tracks_empty() {
+        let (conn, copy_op_id, title_id) = setup_test_db();
+        let mut video = make_video(copy_op_id, title_id);
+        create(&conn, &mut video).unwrap();
+
+        set_video_tracks(&conn, video.id, &[]).expect("Failed to set empty video tracks");
+
+        let json: String = conn
+            .query_row("SELECT json(video_tracks) FROM video WHERE id = ?1", [video.id], |r| r.get(0))
+            .unwrap();
+        let stored: Vec<VideoTrack> = serde_json::from_str(&json).unwrap();
+        assert!(stored.is_empty());
+    }
+
+    #[test]
+    fn test_set_subtitle_tracks() {
+        let (conn, copy_op_id, title_id) = setup_test_db();
+        let mut video = make_video(copy_op_id, title_id);
+        create(&conn, &mut video).unwrap();
+        let tracks = vec![make_subtitle_track()];
+
+        set_subtitle_tracks(&conn, video.id, &tracks).expect("Failed to set subtitle tracks");
+
+        let json: String = conn
+            .query_row("SELECT json(subtitle_tracks) FROM video WHERE id = ?1", [video.id], |r| r.get(0))
+            .unwrap();
+        let stored: Vec<SubtitleTrack> = serde_json::from_str(&json).unwrap();
+        assert_eq!(stored.len(), 1);
+        assert_eq!(stored[0].language_code, "eng");
+    }
+
+    #[test]
+    fn test_set_subtitle_tracks_empty() {
+        let (conn, copy_op_id, title_id) = setup_test_db();
+        let mut video = make_video(copy_op_id, title_id);
+        create(&conn, &mut video).unwrap();
+
+        set_subtitle_tracks(&conn, video.id, &[]).expect("Failed to set empty subtitle tracks");
+
+        let json: String = conn
+            .query_row("SELECT json(subtitle_tracks) FROM video WHERE id = ?1", [video.id], |r| r.get(0))
+            .unwrap();
+        let stored: Vec<SubtitleTrack> = serde_json::from_str(&json).unwrap();
+        assert!(stored.is_empty());
     }
 }
