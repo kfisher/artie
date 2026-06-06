@@ -21,7 +21,7 @@ impl AudioTrackObject {
         Object::builder()
             .property("name", &audio_track.name)
             .property("codec", &audio_track.codec.to_string())
-            .property("language", &audio_track.language)
+            .property("language", &audio_track.language_code)
             .property("layout", &audio_track.channel_layout)
             .build()
     }

@@ -388,6 +388,13 @@ impl StreamInfo {
             .ok_or(Error::AttributeNotFound { attr: Attribute::CodecShort })
     }
 
+    /// Returns the language code for an audio or subtitle stream.
+    pub fn language_code(&self) -> Result<String> {
+        self.attributes.get(&Attribute::LangCode)
+            .map(|s| s.to_owned())
+            .ok_or(Error::AttributeNotFound { attr: Attribute::LangCode })
+    }
+
     /// Returns the language for an audio or subtitle stream.
     pub fn language_name(&self) -> Result<String> {
         self.attributes.get(&Attribute::LangName)
@@ -417,6 +424,13 @@ impl StreamInfo {
             Some(s) => s.eq_ignore_ascii_case("Video"),
             None => false,
         }
+    }
+
+    /// Returns the name for the stream.
+    pub fn name(&self) -> Result<String> {
+        self.attributes.get(&Attribute::Name)
+            .map(|s| s.to_owned())
+            .ok_or(Error::AttributeNotFound { attr: Attribute::Name })
     }
 
     /// Get the stream type.

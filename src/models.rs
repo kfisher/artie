@@ -528,12 +528,19 @@ pub enum VideoSource {
 /// Represents an audio track in a video.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AudioTrack {
+    /// The index of the audio stream within the container (e.g. MKV).
+    ///
+    /// The container indexes will start at 1. So the first stream within the container will have
+    /// an index of 1 instead of 0. This is to better match how external software typically numbers
+    /// tracks.
+    pub container_index: u8,
+
     /// The audio track's index.
     ///
-    /// Audio track indexes will start at 1. So the first audio track at in the audio track vector
-    /// of a video will have an audio track index of 1. This is to better match how external
-    /// software typically numbers tracks.
-    pub index: u8,
+    /// This is the index of the audio track in a list of tracks consisting of only audio tracks
+    /// Like the container index, these start at 1 instead of 0 to better match how they are used
+    /// externally.
+    pub audio_index: u8,
 
     /// The name of the audio track.
     ///
@@ -551,7 +558,7 @@ pub struct AudioTrack {
     pub encode_method: Option<AudioEncodeMethod>,
 
     /// The audio track's language.
-    pub language: String,
+    pub language_code: String,
 
     /// The number of audio channels.
     ///
@@ -750,18 +757,25 @@ pub struct SpecialFeature {
 /// Represents a subtitle track.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct SubtitleTrack {
+    /// The index of the subtitle or text stream within the container (e.g. MKV).
+    ///
+    /// The container indexes will start at 1. So the first stream within the container will have
+    /// an index of 1 instead of 0. This is to better match how external software typically numbers
+    /// tracks.
+    pub container_index: u8,
+
     /// The subtitle's track index.
     ///
-    /// Subtitle track indexes will start at 1. So the first audio track at in the subtitle track
-    /// vector of a subtitle will have an subtitle track index of 1. This is to better match how
-    /// external software typically numbers tracks.
-    pub index: u8,
+    /// This is the index of the subtitle track in a list of tracks consisting of only subtitle
+    /// tracks. Like the container index, these start at 1 instead of 0 to better match how they
+    /// are used externally.
+    pub subtitle_index: u8,
 
     /// The subtitle's codec.
     pub codec: SubtitleCodec,
 
     /// The subtitle language.
-    pub language: String,
+    pub language_code: String,
 }
 
 /// Represents an title.
@@ -941,12 +955,19 @@ pub struct Video {
 /// Represents a video track.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct VideoTrack {
+    /// The index of the video stream within the container (e.g. MKV).
+    ///
+    /// The container indexes will start at 1. So the first stream within the container will have
+    /// an index of 1 instead of 0. This is to better match how external software typically numbers
+    /// tracks.
+    pub container_index: u8,
+
     /// The video's track index.
     ///
-    /// Video track indexes will start at 1. So the first audio track at in the video track vector
-    /// of a video will have an video track index of 1. This is to better match how external
-    /// software typically numbers tracks.
-    pub index: u8,
+    /// This is the index of the video track in a list of tracks consisting of only video tracks
+    /// Like the container index, these start at 1 instead of 0 to better match how they are used
+    /// externally.
+    pub video_index: u8,
 
     /// The video's codec.
     pub codec: VideoCodec,

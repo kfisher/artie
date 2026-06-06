@@ -20,7 +20,7 @@ impl SubtitleTrackObject {
     pub fn new(subtitle_track: &SubtitleTrack) -> Self {
         Object::builder()
             .property("codec", subtitle_track.codec.to_string())
-            .property("language", &subtitle_track.language)
+            .property("language", &subtitle_track.language_code)
             .build()
     }
 }
