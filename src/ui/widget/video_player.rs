@@ -488,9 +488,6 @@ impl VideoPlayerWidget {
 
             match stream.stream_type() {
                 StreamType::VIDEO => {
-                    // let tags = stream.tags();
-                    // tracing::warn!(tags=?tags, "video-tags");
-
                     // There will generally only ever be one video track, but the MKV format
                     // supports more than one. Not sure if GStreamer supports more then one or not,
                     // but it doesn't apply the SELECT flag to videos it appears. Therefore, assume
@@ -506,9 +503,6 @@ impl VideoPlayerWidget {
                     video_track_index += 1;
                 },
                 StreamType::AUDIO => {
-                    // let tags = stream.tags();
-                    // tracing::warn!(tags=?tags, "audio-tags");
-
                     let flags = stream.stream_flags();
                     let selected = flags.contains(gst::StreamFlags::SELECT);
 
@@ -521,9 +515,6 @@ impl VideoPlayerWidget {
                     audio_track_index += 1;
                 },
                 StreamType::TEXT => {
-                    // let tags = stream.tags();
-                    // tracing::error!(tags=?tags, "subtitle-tags");
-
                     let flags = stream.stream_flags();
                     let selected = flags.contains(gst::StreamFlags::SELECT);
 
