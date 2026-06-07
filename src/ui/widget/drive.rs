@@ -617,7 +617,6 @@ impl DriveWidget {
             .clone();
         copy_button.connect_clicked(move |_| {
             if !copy_form.validate() {
-                tracing::debug!(form=%copy_form, "copy form invalid");
                 return;
             }
 

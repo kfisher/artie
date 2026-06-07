@@ -7,7 +7,7 @@ use gtk::glib::{self, Object};
 use gtk::subclass::prelude::*;
 
 use crate::bus::Handle;
-use crate::drive::{self, FormData, FormDataUpdate, OpticalDrive};
+use crate::drive::{self, CopyFormData, FormDataUpdate, OpticalDrive};
 use crate::models::CopyParamaters;
 use crate::ui::data::OpticalDriveState;
 use crate::ui::helpers;
@@ -65,7 +65,7 @@ impl OpticalDriveObject {
     }
 
     /// Get the last saved values for a drive's copy parameters.
-    pub async fn read_form_data(&self) -> Option<FormData> {
+    pub async fn read_form_data(&self) -> Option<CopyFormData> {
         let bus = self.bus();
         let serial_number = self.serial_number();
         match drive::read_form_data(&bus, &serial_number).await {

@@ -7,6 +7,7 @@ mod context;
 mod data;
 mod helpers;
 mod widget;
+mod validators;
 
 use gtk::gdk::Display;
 use gtk::gio::prelude::*;

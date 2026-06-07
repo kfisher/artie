@@ -55,7 +55,7 @@ use crate::{Error, Result};
 use crate::bus;
 use crate::models::{CopyParamaters, MediaLocation};
 
-pub use data::{FormData, FormDataUpdate};
+pub use data::{CopyFormData, FormDataUpdate};
 pub use manager::init;
 
 use actor::DriveRequest;
@@ -556,7 +556,7 @@ pub async fn makemkv_progress(
 /// data file if it exists.
 ///
 /// [`Error::UnsupportedRequest`] if the request is made on the worker node.
-pub async fn read_form_data(bus: &bus::Handle, serial_number: &str) -> Result<FormData> {
+pub async fn read_form_data(bus: &bus::Handle, serial_number: &str) -> Result<CopyFormData> {
     let (tx, rx) = oneshot::channel();
     let msg = Message::Drive {
         serial_number: serial_number.to_owned(),

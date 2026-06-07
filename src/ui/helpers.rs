@@ -6,6 +6,7 @@
 use std::time::Duration;
 
 use gtk::Entry;
+use gtk::glib;
 use gtk::prelude::*;
 
 /// CSS class added to form fields when its value is invalid.
@@ -71,6 +72,25 @@ pub fn format_duration_secs(total_seconds: u64) -> String {
 /// `duration`:  The duration to format.
 pub fn format_duration(duration: &Duration) -> String {
     format_duration_secs(duration.as_secs())
+}
+
+/// insert-text signal handler that restricts input to numbers only.
+///
+/// # Args
+///
+/// `entry`:  The entry widget that is being resticted.
+///
+/// `text`:
+///
+/// `position`:
+pub fn number_only_insert_text(entry: &gtk::Editable, text: &str, _position: &mut i32) {
+    const NUMBERS: &str = "0123456789";
+    let filtered: String = text.chars()
+        .filter(|c| NUMBERS.contains(*c))
+        .collect();
+    if filtered != text {
+        glib::signal::signal_stop_emission_by_name(entry, "insert-text");
+    }
 }
 
 #[cfg(test)]

@@ -29,7 +29,7 @@ use crate::actor::{self, Response};
 use crate::bus;
 use crate::drive::{
     self,
-    FormData,
+    CopyFormData,
     FormDataUpdate,
     Handle,
     Message,
@@ -112,7 +112,7 @@ pub enum DriveRequest {
 
     /// Get the last saved values for a drive's copy parameters.
     ReadFormData {
-        response: Response<FormData>,
+        response: Response<CopyFormData>,
     },
 
     /// Reset the drive state back to idle.
@@ -551,7 +551,7 @@ impl MessageProcessor {
     /// # Errors
     ///
     /// [`Error::ResponseSend`] if the response cannot be sent.
-    fn read_form_data(&self, resp: Response<FormData>) -> Result<()> {
+    fn read_form_data(&self, resp: Response<CopyFormData>) -> Result<()> {
         let data = data::get_form_data(&self.drive.serial_number);
         resp.send(data)
             .inspect_err(|_| send_error_trace(&self.drive.serial_number, "ReadFormData"))

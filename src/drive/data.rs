@@ -27,7 +27,7 @@ pub struct Data {
     pub rank: u8,
 
     /// The current form data.
-    pub form: FormData,
+    pub form: CopyFormData,
 }
 
 impl Data {
@@ -35,7 +35,7 @@ impl Data {
         Self {
             name: serial_number.to_owned(),
             rank: u8::MAX,
-            form: FormData::default(),
+            form: CopyFormData::default(),
         }
     }
 
@@ -75,7 +75,7 @@ impl Data {
 /// This allows the form values to be restored between application runs which is useful when
 /// copying multiple discs with common data (e.g. multiple discs for a show).
 #[derive(Deserialize, Debug, Default, Serialize)]
-pub struct FormData {
+pub struct CopyFormData {
     /// The type of media being copied (Movie or TV Show).
     pub media_type: String,
 
@@ -260,7 +260,7 @@ pub fn get_drive_rank(serial_number: &str) -> Result<u8> {
 ///
 /// See [`Data::load`] for errors that can occur when attempting to read the data file. The file
 /// not existing is not treated as an error.
-pub fn get_form_data(serial_number: &str) -> Result<FormData> {
+pub fn get_form_data(serial_number: &str) -> Result<CopyFormData> {
     get_data(serial_number).map(|data| data.form)
 }
 
@@ -301,7 +301,7 @@ mod tests {
         let data = Data {
             name: String::from("Test Drive"),
             rank: 1,
-            form: FormData {
+            form: CopyFormData {
                 media_type: String::from("Test Type"),
                 title: String::from("Test Title"),
                 year: String::from("Test Year"),

@@ -3,8 +3,6 @@
 
 //! Widget for entering copy parameters.
 
-use std::fmt::{self, Display, Formatter};
-
 use gtk::{
     Align,
     Box,
@@ -18,9 +16,9 @@ use gtk::glib::{self, Object};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
-use crate::drive::FormData;
+use crate::drive::CopyFormData;
 use crate::models::{CopyParamaters, MediaType};
-use crate::ui::helpers;
+use crate::ui::data::TitleFormObject;
 
 glib::wrapper! {
     pub struct CopyFormWidget(ObjectSubclass<imp::CopyFormWidget>)
@@ -39,18 +37,17 @@ impl CopyFormWidget {
     ///
     /// This will panic if the GObject cannot be created.
     pub fn new() -> Self {
-        Object::builder().build()
+        Object::builder()
+            .build()
     }
 
     /// Clears the form's values.
     pub fn clear(&self) {
-        let imp = self.imp();
-        imp.title_entry.borrow().set_text("");
-        imp.year_entry.borrow().set_text("");
-        imp.disc_number_entry.borrow().set_text("");
-        imp.season_number_entry.borrow().set_text("");
-        imp.location_entry.borrow().set_text("");
-        imp.memo_entry.borrow().set_text("");
+        self.imp().form_data
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .clear()
     }
 
     /// Subscribe to changes to the media type.
@@ -63,11 +60,11 @@ impl CopyFormWidget {
     where
         F: Fn(MediaType) + 'static
     {
-        self.imp().type_dropdown.borrow().connect_selected_notify(move |type_dropdown| {
-            if let Some(media_type) = MediaType::from_index(type_dropdown.selected()) {
-                f(media_type);
-            }
-        });
+        self.imp().form_data
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .connect_media_type_changed(f);
     }
 
     /// Subscribe to changes to the title.
@@ -75,24 +72,15 @@ impl CopyFormWidget {
     /// # Args
     ///
     /// `f`:  Callback function called when the title changes.
-    ///
-    /// # Panics
-    ///
-    /// This will panic if the delegate for the entry is `None`.
     pub fn connect_title_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
     {
-        let title_entry = self.imp().title_entry
+        self.imp().form_data
             .borrow()
-            .clone();
-        if let Some(delegate) = title_entry.delegate() {
-            delegate.connect_text_notify(move |entry| {
-                f(&entry.text());
-            });
-        } else {
-            panic!("failed to get delegate for title");
-        }
+            .as_ref()
+            .unwrap()
+            .connect_title_changed(f);
     }
 
     /// Subscribe to changes to the year.
@@ -100,24 +88,15 @@ impl CopyFormWidget {
     /// # Args
     ///
     /// `f`:  Callback function called when the year changes.
-    ///
-    /// # Panics
-    ///
-    /// This will panic if the delegate for the entry is `None`.
     pub fn connect_year_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
     {
-        let year_entry = self.imp().year_entry
+        self.imp().form_data
             .borrow()
-            .clone();
-        if let Some(delegate) = year_entry.delegate() {
-            delegate.connect_text_notify(move |entry| {
-                f(&entry.text());
-            });
-        } else {
-            panic!("failed to get delegate for year");
-        }
+            .as_ref()
+            .unwrap()
+            .connect_year_changed(f);
     }
 
     /// Subscribe to changes to the disc number.
@@ -125,24 +104,15 @@ impl CopyFormWidget {
     /// # Args
     ///
     /// `f`:  Callback function called when the disc number changes.
-    ///
-    /// # Panics
-    ///
-    /// This will panic if the delegate for the entry is `None`.
     pub fn connect_disc_number_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
     {
-        let disc_number_entry = self.imp().disc_number_entry
+        self.imp().form_data
             .borrow()
-            .clone();
-        if let Some(delegate) = disc_number_entry.delegate() {
-            delegate.connect_text_notify(move |entry| {
-                f(&entry.text());
-            });
-        } else {
-            panic!("failed to get delegate for disc_number");
-        }
+            .as_ref()
+            .unwrap()
+            .connect_disc_number_changed(f);
     }
 
     /// Subscribe to changes to the season number.
@@ -150,24 +120,15 @@ impl CopyFormWidget {
     /// # Args
     ///
     /// `f`:  Callback function called when the season number changes.
-    ///
-    /// # Panics
-    ///
-    /// This will panic if the delegate for the entry is `None`.
     pub fn connect_season_number_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
     {
-        let season_number_entry = self.imp().season_number_entry
+        self.imp().form_data
             .borrow()
-            .clone();
-        if let Some(delegate) = season_number_entry.delegate() {
-            delegate.connect_text_notify(move |entry| {
-                f(&entry.text());
-            });
-        } else {
-            panic!("failed to get delegate for season_number");
-        }
+            .as_ref()
+            .unwrap()
+            .connect_season_number_changed(f);
     }
 
     /// Subscribe to changes to the storage location.
@@ -175,24 +136,15 @@ impl CopyFormWidget {
     /// # Args
     ///
     /// `f`:  Callback function called when the storage location changes.
-    ///
-    /// # Panics
-    ///
-    /// This will panic if the delegate for the entry is `None`.
     pub fn connect_location_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
     {
-        let location_entry = self.imp().location_entry
+        self.imp().form_data
             .borrow()
-            .clone();
-        if let Some(delegate) = location_entry.delegate() {
-            delegate.connect_text_notify(move |entry| {
-                f(&entry.text());
-            });
-        } else {
-            panic!("failed to get delegate for location");
-        }
+            .as_ref()
+            .unwrap()
+            .connect_location_changed(f);
     }
 
     /// Subscribe to changes to the memo.
@@ -200,86 +152,33 @@ impl CopyFormWidget {
     /// # Args
     ///
     /// `f`:  Callback function called when the memo changes.
-    ///
-    /// # Panics
-    ///
-    /// This will panic if the delegate for the entry is `None`.
     pub fn connect_memo_changed<F>(&self, f: F)
     where
         F: Fn(&str) + 'static
     {
-        let memo_entry = self.imp().memo_entry
+        self.imp().form_data
             .borrow()
-            .clone();
-        if let Some(delegate) = memo_entry.delegate() {
-            delegate.connect_text_notify(move |entry| {
-                f(&entry.text());
-            });
-        } else {
-            panic!("failed to get delegate for memo");
-        }
+            .as_ref()
+            .unwrap()
+            .connect_memo_changed(f);
     }
 
     /// Gets the copy parameters based off the current form values.
     pub fn get_copy_parameters(&self) -> CopyParamaters {
-        let imp = self.imp();
-
-        let media_type = MediaType::from_index(imp.type_dropdown.borrow().selected())
-            .unwrap_or_default();
-
-        let title = imp.title_entry
+        self.imp().form_data
             .borrow()
-            .text();
-
-        let release_year = imp.year_entry
-            .borrow()
-            .text()
-            .parse::<u16>()
-            .unwrap_or_default();
-
-        let season_number = imp.season_number_entry
-            .borrow()
-            .text()
-            .parse::<u16>()
-            .unwrap_or_default();
-
-        let disc_number = imp.disc_number_entry
-            .borrow()
-            .text()
-            .parse::<u16>()
-            .unwrap_or_default();
-
-        let location = imp.location_entry
-            .borrow()
-            .text();
-
-        let memo = imp.memo_entry
-            .borrow()
-            .text();
-
-        CopyParamaters {
-            media_type,
-            title: title.into(),
-            release_year,
-            season_number,
-            disc_number,
-            location: location.into(),
-            memo: memo.into(),
-        }
+            .as_ref()
+            .unwrap()
+            .get_copy_parameters()
     }
 
     /// Sets the current values of the form to the provided data.
-    pub fn set_form_data(&self, form_data: &FormData) {
-        let imp = self.imp();
-        if let Some(media_type) = MediaType::from_string(&form_data.media_type) {
-            imp.type_dropdown.borrow().set_selected(media_type.as_index());
-        };
-        imp.title_entry.borrow().set_text(&form_data.title);
-        imp.year_entry.borrow().set_text(&form_data.year);
-        imp.disc_number_entry.borrow().set_text(&form_data.disc_number);
-        imp.season_number_entry.borrow().set_text(&form_data.season_number);
-        imp.location_entry.borrow().set_text(&form_data.storage_location);
-        imp.memo_entry.borrow().set_text(&form_data.memo);
+    pub fn set_form_data(&self, data: &CopyFormData) {
+        self.imp().form_data
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .update_from_copy_form_data(data);
     }
 
     /// Validates the form returning true if valid or false if invalid.
@@ -287,16 +186,11 @@ impl CopyFormWidget {
     /// This will also update the widget's display based on the validity so that the user knows
     /// which fields are invalid.
     pub fn validate(&self) -> bool {
-        let valid = [
-            self.validate_title(),
-            self.validate_release_year(),
-            self.validate_disc_number(),
-            self.validate_season_number(),
-            self.validate_location(),
-            self.validate_memo(),
-        ];
-
-        valid.iter().all(|v| *v)
+        self.imp().form_data
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .validate()
     }
 
     /// Builds the widget.
@@ -452,174 +346,20 @@ impl CopyFormWidget {
         self.append(&form_row_0);
         self.append(&form_row_1);
 
-        let imp = self.imp();
-        imp.type_dropdown.replace(type_dropdown);
-        imp.title_entry.replace(title_entry);
-        imp.year_entry.replace(year_entry);
-        imp.disc_number_entry.replace(disc_number_entry);
-        imp.season_number_field.replace(season_number_field);
-        imp.season_number_entry.replace(season_number_entry);
-        imp.location_entry.replace(location_entry);
-        imp.memo_entry.replace(memo_entry);
-    }
-
-    /// Configures the bindings.
-    ///
-    /// Called by the implementation ([`imp::CopyFormWidget`]) when constructed.
-    fn setup_bindings(&self) {
-        let imp = self.imp();
-
-        let type_dropdown = imp.type_dropdown
-            .borrow();
-        let season_number_field = imp.season_number_field
-            .borrow()
-            .clone();
-        type_dropdown
-            .bind_property("selected", &season_number_field, "visible")
-            .transform_to(|_, selected: u32| {
-                match MediaType::from_index(selected) {
-                    Some(media_type) => Some(media_type == MediaType::Show),
-                    None => Some(false),
-                }
-            })
-            .sync_create()
+        let title_form = TitleFormObject::builder()
+            .media_type_dropdown(&type_dropdown)
+            .title_entry(&title_entry)
+            .year_entry(&year_entry)
+            .disc_number_entry(&disc_number_entry)
+            .season_number_entry(&season_number_entry)
+            .location_entry(&location_entry)
+            .memo_entry(&memo_entry)
+            .hide_if_movie(&season_number_field.upcast_ref())
             .build();
-    }
 
-    /// Configures the signals and callbacks.
-    ///
-    /// Called by the implementation ([`imp::CopyFormWidget`]) when constructed.
-    ///
-    /// # Panics
-    ///
-    /// This will panic if any of the required delegates are `None`.
-    fn setup_callbacks(&self) {
         let imp = self.imp();
-
-        let year_entry = imp.year_entry
-            .borrow()
-            .clone();
-        if let Some(delegate) = year_entry.delegate() {
-            delegate.connect_insert_text(number_only_insert_text);
-        } else {
-            panic!("failed to get delegate for year");
-        }
-
-        let disc_number_entry = imp.disc_number_entry
-            .borrow();
-        if let Some(delegate) = disc_number_entry.delegate() {
-            delegate.connect_insert_text(number_only_insert_text);
-        } else {
-            panic!("failed to get delegate for disc number");
-        }
-
-        let season_number_entry = imp.season_number_entry
-            .borrow();
-        if let Some(delegate) = season_number_entry.delegate() {
-            delegate.connect_insert_text(number_only_insert_text);
-        } else {
-            panic!("failed to get delegate for season number");
-        }
-    }
-
-    /// Validates the title and return the result.
-    ///
-    /// This will update the entry's CSS to reflect is validly.
-    fn validate_title(&self) -> bool {
-        let entry = self.imp().title_entry.borrow();
-        let valid = !entry.text().trim().is_empty();
-
-        helpers::update_validity_style(&entry, valid);
-
-        valid
-    }
-
-    /// Validates the release year and return the result.
-    ///
-    /// This will update the entry's CSS to reflect is validly.
-    fn validate_release_year(&self) -> bool {
-        let entry = self.imp().year_entry.borrow();
-        if let Ok(year) = entry.text().parse::<u16>() && (1000..=9999).contains(&year) {
-            helpers::update_validity_style(&entry, true);
-            return true;
-        };
-
-        helpers::update_validity_style(&entry, false);
-        false
-    }
-
-    /// Validates the disc number and return the result.
-    ///
-    /// This will update the entry's CSS to reflect is validly.
-    fn validate_disc_number(&self) -> bool {
-        let entry = self.imp().disc_number_entry.borrow();
-        if let Ok(disc_number) = entry.text().parse::<u16>() && disc_number > 0 {
-            helpers::update_validity_style(&entry, true);
-            return true;
-        };
-
-        helpers::update_validity_style(&entry, false);
-        false
-    }
-
-    /// Validates the season number and return the result.
-    ///
-    /// This will update the entry's CSS to reflect is validly.
-    fn validate_season_number(&self) -> bool {
-        let entry = self.imp().season_number_entry.borrow();
-
-        let type_dropdown = self.imp().type_dropdown.borrow();
-        if let Some(media_type) = MediaType::from_index(type_dropdown.selected()) && media_type != MediaType::Show {
-            helpers::update_validity_style(&entry, true);
-            return true
-        }
-
-        if let Ok(season_number) = entry.text().parse::<u16>() && season_number > 0 {
-            helpers::update_validity_style(&entry, true);
-            return true;
-        };
-
-        helpers::update_validity_style(&entry, false);
-        false
-    }
-
-    /// Validates the location field and return the result.
-    ///
-    /// This will update the entry's CSS to reflect is validly.
-    fn validate_location(&self) -> bool {
-        let entry = self.imp().location_entry.borrow();
-        let valid = !entry.text().trim().is_empty();
-
-        helpers::update_validity_style(&entry, valid);
-
-        valid
-    }
-
-    /// Validates the memo field and return the result.
-    ///
-    /// This will update the entry's CSS to reflect is validly.
-    fn validate_memo(&self) -> bool {
-        // The memo is optional so it is always valid. This function was created anyways should we
-        // want to add requirements to the memo that would need checked in the future.
-        true
-    }
-}
-
-impl Display for CopyFormWidget {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let imp = self.imp();
-        write!(
-            f,
-            "{{ type: '{}', title: '{}', year: '{}', disc: '{}', season: '{}', location: '{}', memo: '{}'}}",
-            MediaType::from_index(imp.type_dropdown.borrow().selected())
-                .map_or_else(|| "", |media_type| media_type.as_str()),
-            imp.title_entry.borrow().text(),
-            imp.year_entry.borrow().text(),
-            imp.disc_number_entry.borrow().text(),
-            imp.season_number_entry.borrow().text(),
-            imp.location_entry.borrow().text(),
-            imp.memo_entry.borrow().text(),
-        )
+        imp.form_data.replace(Some(title_form));
+        imp.season_number_field.replace(season_number_field);
     }
 }
 
@@ -629,49 +369,25 @@ impl Default for CopyFormWidget {
     }
 }
 
-/// insert-text signal handler that restricts input to numbers only.
-fn number_only_insert_text(entry: &gtk::Editable, text: &str, _position: &mut i32) {
-    const NUMBERS: &str = "0123456789";
-    let filtered: String = text.chars()
-        .filter(|c| NUMBERS.contains(*c))
-        .collect();
-    if filtered != text {
-        glib::signal::signal_stop_emission_by_name(entry, "insert-text");
-    }
-}
-
 mod imp {
     use std::cell::RefCell;
 
-    use gtk::{Box, Entry, DropDown};
+    use gtk::Box;
     use gtk::glib;
     use gtk::subclass::prelude::*;
 
+    use crate::ui::data::TitleFormObject;
+
     #[derive(Default)]
     pub struct CopyFormWidget {
-        /// Dropdown used to select the type of media.
-        pub(super) type_dropdown: RefCell<DropDown>,
-
-        /// The entry for the movie title.
-        pub(super) title_entry: RefCell<Entry>,
-
-        /// The entry for the release year.
-        pub(super) year_entry: RefCell<Entry>,
-
-        /// The entry for the disc number.
-        pub(super) disc_number_entry: RefCell<Entry>,
-
         /// The label and entry for the season number.
         pub(super) season_number_field: RefCell<Box>,
 
-        /// The entry for the season number.
-        pub(super) season_number_entry: RefCell<Entry>,
-
-        /// The entry for the location.
-        pub(super) location_entry: RefCell<Entry>,
-
-        /// The entry for the meoy.
-        pub(super) memo_entry: RefCell<Entry>,
+        /// Container for the core form elements.
+        ///
+        /// This contains each input widget used in the form and is responsible for handing
+        /// validation.
+        pub(super) form_data: RefCell<Option<TitleFormObject>>,
     }
 
     #[glib::object_subclass]
@@ -687,8 +403,6 @@ mod imp {
 
             let obj = self.obj();
             obj.build_ui();
-            obj.setup_bindings();
-            obj.setup_callbacks();
         }
     }
 
