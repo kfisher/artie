@@ -80,7 +80,7 @@ mod imp {
 
     #[glib::object_subclass]
     impl ObjectSubclass for TrackPreviewObject {
-        const NAME: &'static str = "ArtieTrackObject";
+        const NAME: &'static str = "ArtieTrackPreviewObject";
         type Type = super::TrackPreviewObject;
     }
 

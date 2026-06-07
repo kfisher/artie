@@ -481,10 +481,13 @@ impl VideoPlayerWidget {
         let mut audio_track_index = 0;
         let mut subtitle_track_index = 0;
         let mut video_track_index = 0;
-        for stream in stream_collection {
+        for (_index, stream) in stream_collection.iter().enumerate() {
             let Some(_id) = stream.stream_id() else {
                 continue;
             };
+
+            // TODO: The container_index has been added to the track data. Double check that here
+            //       or even add an API to video to use container index.
 
             match stream.stream_type() {
                 StreamType::VIDEO => {
