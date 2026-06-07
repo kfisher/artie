@@ -49,3 +49,58 @@ pub enum OpticalDriveState {
     Success = 4,
     Failed = 5,
 }
+
+#[derive(Default, Debug, Eq, PartialEq, Clone, Copy, glib::Enum)]
+#[repr(u8)]
+#[enum_type(name = "ArtieSpecialFeatureType")]
+pub enum SpecialFeatureType {
+    #[default]
+    None = 0,
+    BehindTheScenes = 1,
+    DeletedScenes = 2,
+    Interviews = 3,
+    Scenes = 4,
+    Samples = 5,
+    Shorts = 6,
+    Featurettes = 7,
+    Clips = 8,
+    Extras = 9,
+    Trailers = 10,
+}
+
+impl SpecialFeatureType {
+    pub fn to_model(&self) -> crate::models::SpecialFeatureType {
+        match self {
+            SpecialFeatureType::None  => crate::models::SpecialFeatureType::None,
+            SpecialFeatureType::BehindTheScenes  => crate::models::SpecialFeatureType::BehindTheScenes,
+            SpecialFeatureType::DeletedScenes  => crate::models::SpecialFeatureType::DeletedScenes,
+            SpecialFeatureType::Interviews  => crate::models::SpecialFeatureType::Interviews,
+            SpecialFeatureType::Scenes  => crate::models::SpecialFeatureType::Scenes,
+            SpecialFeatureType::Samples  => crate::models::SpecialFeatureType::Samples,
+            SpecialFeatureType::Shorts  => crate::models::SpecialFeatureType::Shorts,
+            SpecialFeatureType::Featurettes  => crate::models::SpecialFeatureType::Featurettes,
+            SpecialFeatureType::Clips  => crate::models::SpecialFeatureType::Clips,
+            SpecialFeatureType::Extras  => crate::models::SpecialFeatureType::Extras,
+            SpecialFeatureType::Trailers  => crate::models::SpecialFeatureType::Trailers,
+        }
+    }
+}
+
+impl From<crate::models::SpecialFeatureType> for SpecialFeatureType {
+    fn from(value: crate::models::SpecialFeatureType) -> Self {
+        match value {
+            crate::models::SpecialFeatureType::None => SpecialFeatureType::None,
+            crate::models::SpecialFeatureType::BehindTheScenes => SpecialFeatureType::BehindTheScenes,
+            crate::models::SpecialFeatureType::DeletedScenes => SpecialFeatureType::DeletedScenes,
+            crate::models::SpecialFeatureType::Interviews => SpecialFeatureType::Interviews,
+            crate::models::SpecialFeatureType::Scenes => SpecialFeatureType::Scenes,
+            crate::models::SpecialFeatureType::Samples => SpecialFeatureType::Samples,
+            crate::models::SpecialFeatureType::Shorts => SpecialFeatureType::Shorts,
+            crate::models::SpecialFeatureType::Featurettes => SpecialFeatureType::Featurettes,
+            crate::models::SpecialFeatureType::Clips => SpecialFeatureType::Clips,
+            crate::models::SpecialFeatureType::Extras => SpecialFeatureType::Extras,
+            crate::models::SpecialFeatureType::Trailers => SpecialFeatureType::Trailers,
+        }
+    }
+}
+

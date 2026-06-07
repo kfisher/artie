@@ -18,7 +18,7 @@ use gtk::subclass::prelude::*;
 
 use crate::drive::CopyFormData;
 use crate::models::{CopyParamaters, MediaType};
-use crate::ui::data::TitleFormObject;
+use crate::ui::data::{TitleFormObject, TitleFormType};
 
 glib::wrapper! {
     pub struct CopyFormWidget(ObjectSubclass<imp::CopyFormWidget>)
@@ -346,7 +346,7 @@ impl CopyFormWidget {
         self.append(&form_row_0);
         self.append(&form_row_1);
 
-        let title_form = TitleFormObject::builder()
+        let title_form = TitleFormObject::builder(TitleFormType::CopyOnly)
             .media_type_dropdown(&type_dropdown)
             .title_entry(&title_entry)
             .year_entry(&year_entry)
@@ -354,7 +354,6 @@ impl CopyFormWidget {
             .season_number_entry(&season_number_entry)
             .location_entry(&location_entry)
             .memo_entry(&memo_entry)
-            .hide_if_movie(&season_number_field.upcast_ref())
             .build();
 
         let imp = self.imp();

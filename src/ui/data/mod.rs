@@ -14,11 +14,11 @@ mod video_track;
 mod title_form;
 
 pub use audio_track::AudioTrackObject;
-pub use enums::{MediaType, OpticalDriveState};
+pub use enums::{MediaType, OpticalDriveState, SpecialFeatureType};
 pub use optical_drive::OpticalDriveObject;
 pub use subtitle_track::SubtitleTrackObject;
 pub use title::TitleObject;
 pub use track_preview::TrackPreviewObject;
 pub use video::VideoObject;
 pub use video_track::VideoTrackObject;
-pub use title_form::TitleFormObject;
+pub use title_form::{TitleFormObject, TitleFormType};

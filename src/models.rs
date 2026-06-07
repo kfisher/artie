@@ -284,7 +284,7 @@ pub enum OperationState {
 ///
 /// [`SpecialFeatureType::None`] is used when a value is needed for something that is not a special
 /// feature. Avoids having to wrap values with [`Option`].
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SpecialFeatureType {
     None,
     BehindTheScenes,

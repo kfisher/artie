@@ -6,7 +6,7 @@
 use gtk::glib::{self, Object};
 
 use crate::models::Title;
-use crate::ui::data::MediaType;
+use crate::ui::data::{MediaType, SpecialFeatureType};
 
 glib::wrapper! {
     pub struct TitleObject(ObjectSubclass<imp::TitleObject>);
@@ -19,6 +19,15 @@ impl TitleObject {
     ///
     /// This will panic if the GObject cannot be created.
     pub fn new(title: &Title) -> Self {
+        let (special_feature_type, special_feature_name) = match &title.special_feature {
+            Some(special_feature) => {
+                (SpecialFeatureType::from(special_feature.kind), special_feature.name.clone())
+            },
+            None => {
+                (SpecialFeatureType::None, String::default())
+            }
+        };
+
         Object::builder()
             .property("disc-number", title.disc as u32)
             .property("id", title.id)
@@ -29,6 +38,11 @@ impl TitleObject {
             .property("season-number", title.season as u32)
             .property("title", &title.title)
             .property("year", title.year as u32)
+            .property("episode-number", title.episode_number as u32)
+            .property("episode-count", title.episode_count as u32)
+            .property("special-feature-type", special_feature_type)
+            .property("special-feature-name", special_feature_name)
+            .property("version", &title.version)
             .build()
     }
 }
@@ -40,7 +54,7 @@ mod imp {
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
-    use crate::ui::data::MediaType;
+    use crate::ui::data::{MediaType, SpecialFeatureType};
 
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::TitleObject)]
@@ -59,8 +73,8 @@ mod imp {
             get,
             set,
             type = MediaType,
-            builder(MediaType::Movie))
-        ]
+            builder(MediaType::Movie)
+        )]
         pub(super) media_type: Cell<MediaType>,
 
         /// The movie or show title.
@@ -90,6 +104,41 @@ mod imp {
         /// Additional information/context provided by the user.
         #[property(name = "memo", get, set, type = String)]
         pub(super) memo: RefCell<String>,
+
+        /// The episode number.
+        ///
+        /// In the case that this video covers multiple episodes, this will be the number for the
+        /// first episode.
+        ///
+        /// Only valid for television shows. For movies, should be set to zero.
+        #[property(name = "episode-number", get, set, type = u32)]
+        pub(super) episode_number: Cell<u32>,
+
+        /// The number of episodes this title covers.
+        ///
+        /// Only valid for television shows. For movies, should be set to zero.
+        #[property(name = "episode-count", get, set, type = u32)]
+        pub(super) episode_count: Cell<u32>,
+
+        /// The type of the special feature (if applicable).
+        #[property(
+            name = "special-feature-type",
+            get,
+            set,
+            type = SpecialFeatureType,
+            builder(SpecialFeatureType::None)
+        )]
+        pub(super) special_feature_type: Cell<SpecialFeatureType>,
+
+        /// The name of the special feature (if applicable).
+        #[property(name = "special-feature-name", get, set, type = String)]
+        pub(super) special_feature_name: RefCell<String>,
+
+        /// The version of the title (e.g. Directors Cut, 1080p, etc.)
+        ///
+        /// This should be empty for the default version of the title.
+        #[property(name = "version", get, set, type = String)]
+        pub(super) version: RefCell<String>,
     }
 
     #[glib::object_subclass]

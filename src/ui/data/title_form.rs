@@ -7,27 +7,46 @@
 //! provides the common functionality such as validation, restricting certain fields to numbers,
 //! and hiding show specific elements when movie is the selected type.
 
-use gtk::{DropDown, Entry, Widget};
+use gtk::{DropDown, Entry};
 use gtk::glib::{self, Object};
 use gtk::prelude::*;
 use gtk::glib::subclass::prelude::*;
 
 use crate::drive::CopyFormData;
-use crate::models::{CopyParamaters, MediaType};
+use crate::models::{CopyParamaters, MediaType, SpecialFeatureType};
+use crate::ui::data::TitleObject;
 use crate::ui::helpers;
 
 glib::wrapper! {
     pub struct TitleFormObject(ObjectSubclass<imp::TitleFormObject>);
 }
 
+/// Specifies the use case for the form.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum TitleFormType {
+    /// The form is being used to enter copy parameters for a disc.
+    ///
+    /// In this case, only the items required for the initial copy will be required and validated.
+    CopyOnly,
+
+    /// The form is being used to edit all title information.
+    #[default]
+    Full,
+}
+
 impl TitleFormObject {
     /// Create a new builder instance for this object.
+    ///
+    /// # Args
+    ///
+    /// `form_type`:  Indicates what this form is being used for. Will effect the required elements
+    /// to be specified by the builder as well as what elements are validated.
     ///
     /// # Panics
     ///
     /// This will panic if the GObject cannot be created.
-    pub fn builder() -> TitleFormBuilder {
-        TitleFormBuilder::new()
+    pub fn builder(form_type: TitleFormType) -> TitleFormBuilder {
+        TitleFormBuilder::new(form_type)
     }
 
     /// Clears the form's values.
@@ -55,6 +74,26 @@ impl TitleFormObject {
             .set_text("");
 
         imp.memo_entry
+            .borrow()
+            .set_text("");
+
+        imp.episode_number_entry
+            .borrow()
+            .set_text("");
+
+        imp.episode_count_entry
+            .borrow()
+            .set_text("");
+
+        imp.special_feature_type_dropdown
+            .borrow()
+            .set_selected(0);
+
+        imp.special_feature_name_entry
+            .borrow()
+            .set_text("");
+
+        imp.version_entry
             .borrow()
             .set_text("");
     }
@@ -307,7 +346,11 @@ impl TitleFormObject {
         }
     }
 
-    /// Sets the current values of the form to the provided data.
+    /// Update the form data from the provided copy form data.
+    ///
+    /// # Args
+    ///
+    /// `data`  The copy form data.
     pub fn update_from_copy_form_data(&self, data: &CopyFormData) {
         let imp = self.imp();
 
@@ -340,12 +383,83 @@ impl TitleFormObject {
             .set_text(&data.memo);
     }
 
+    /// Update the form data from a title data object.
+    ///
+    /// # Args
+    ///
+    /// `title`  The title data object.
+    pub fn update_from_title(&self, title: &TitleObject) {
+        let imp = self.imp();
+
+        imp.media_type_dropdown
+            .borrow()
+            .set_selected(title.media_type().to_model().as_index());
+
+        imp.title_entry
+            .borrow()
+            .set_text(&title.title());
+
+        imp.year_entry
+            .borrow()
+            .set_text(&format!("{}", &title.year()));
+
+        imp.disc_number_entry
+            .borrow()
+            .set_text(&format!("{}", &title.disc_number()));
+
+        imp.season_number_entry
+            .borrow()
+            .set_text(&format!("{}", &title.season_number()));
+
+        imp.location_entry
+            .borrow()
+            .set_text(&title.location());
+
+        imp.memo_entry
+            .borrow()
+            .set_text(&title.memo());
+
+        let episode_number = title.episode_number();
+        if episode_number != 0 {
+            imp.episode_number_entry
+                .borrow()
+                .set_text(&format!("{}", &title.episode_number()));
+        } else {
+            imp.episode_number_entry
+                .borrow()
+                .set_text("");
+        }
+
+        let episode_count = title.episode_count();
+        if episode_count != 0 {
+            imp.episode_count_entry
+                .borrow()
+                .set_text(&format!("{}", &title.episode_number()));
+        } else {
+            imp.episode_count_entry
+                .borrow()
+                .set_text(&format!("{}", 1));
+        }
+
+        imp.special_feature_type_dropdown
+            .borrow()
+            .set_selected(title.special_feature_type().to_model().as_index());
+
+        imp.special_feature_name_entry
+            .borrow()
+            .set_text(&title.special_feature_name());
+
+        imp.version_entry
+            .borrow()
+            .set_text(&title.version());
+    }
+
     /// Validates the form returning true if valid or false if invalid.
     ///
     /// This will also update the widget's display based on the validity so that the user knows
     /// which fields are invalid.
     pub fn validate(&self) -> bool {
-        let valid = [
+        let mut valid = vec![
             self.validate_title(),
             self.validate_release_year(),
             self.validate_disc_number(),
@@ -354,7 +468,39 @@ impl TitleFormObject {
             self.validate_memo(),
         ];
 
+        if self.is_copy_only() {
+            valid.push(self.validate_episode_number());
+            valid.push(self.validate_episode_count());
+            valid.push(self.validate_special_feature());
+            valid.push(self.validate_version());
+        }
+
         valid.iter().all(|v| *v)
+    }
+
+    /// Returns true if this form is configured for copy data only.
+    pub fn is_copy_only(&self) -> bool {
+        self.imp().form_type.get() == TitleFormType::CopyOnly
+    }
+
+    /// Returns true if the type is currently set to show.
+    pub fn is_show(&self) -> bool {
+        let dropdown = self.imp().media_type_dropdown
+            .borrow();
+        match MediaType::from_index(dropdown.selected()) {
+            Some(media_type) => media_type == MediaType::Show,
+            None => false,
+        }
+    }
+
+    /// Returns true if the special feature type is set to something other then None.
+    pub fn is_special_feature(&self) -> bool {
+        let dropdown = self.imp().special_feature_type_dropdown
+            .borrow();
+        match SpecialFeatureType::from_index(dropdown.selected()) {
+            Some(special_feature_type) => special_feature_type != SpecialFeatureType::None,
+            None => false,
+        }
     }
 
     /// Validates the title and return the result.
@@ -414,10 +560,8 @@ impl TitleFormObject {
         let entry = imp.season_number_entry
             .borrow();
 
-        let media_type_dropdown = imp.media_type_dropdown
-            .borrow();
-
-        if let Some(media_type) = MediaType::from_index(media_type_dropdown.selected()) && media_type != MediaType::Show {
+        // Only applicable if the title is a show.
+        if !self.is_show() {
             helpers::update_validity_style(&entry, true);
             return true
         }
@@ -454,10 +598,95 @@ impl TitleFormObject {
         // want to add requirements to the memo that would need checked in the future.
         true
     }
+
+    /// Validates the episode number field and return the result.
+    ///
+    /// This will update the entry's CSS to reflect is validly.
+    fn validate_episode_number(&self) -> bool {
+        let imp = self.imp();
+
+        let entry = imp.episode_number_entry
+            .borrow();
+
+        // Only applicable if the title is a show and not a special feature.
+        if !self.is_show() || self.is_special_feature() {
+            helpers::update_validity_style(&entry, true);
+            return true
+        }
+
+        if let Ok(episode_number) = entry.text().parse::<u16>() && episode_number > 0 {
+            helpers::update_validity_style(&entry, true);
+            return true;
+        };
+
+        helpers::update_validity_style(&entry, false);
+        false
+    }
+
+    /// Validates the episode count field and return the result.
+    ///
+    /// This will update the entry's CSS to reflect is validly.
+    fn validate_episode_count(&self) -> bool {
+        let imp = self.imp();
+
+        let entry = imp.episode_count_entry
+            .borrow();
+
+        // Only applicable if the title is a show and not a special feature.
+        if !self.is_show() || self.is_special_feature() {
+            helpers::update_validity_style(&entry, true);
+            return true
+        }
+
+        if let Ok(episode_count) = entry.text().parse::<u16>() && episode_count > 0 {
+            helpers::update_validity_style(&entry, true);
+            return true;
+        };
+
+        helpers::update_validity_style(&entry, false);
+        false
+    }
+
+    /// Validates the special feature type and name fields and return the result.
+    ///
+    /// This will update the entry's CSS to reflect is validly.
+    fn validate_special_feature(&self) -> bool {
+        let imp = self.imp();
+
+        let feature_name_entry = imp.special_feature_name_entry
+            .borrow();
+
+        if !self.is_special_feature() {
+            helpers::update_validity_style(&feature_name_entry, true);
+            return true
+        }
+
+        let valid = !feature_name_entry
+            .text()
+            .trim()
+            .is_empty();
+
+        helpers::update_validity_style(&feature_name_entry, valid);
+        valid
+    }
+
+    /// Validates the version field and return the result.
+    ///
+    /// This will update the entry's CSS to reflect is validly.
+    fn validate_version(&self) -> bool {
+        // The version field is optional so it is always valid. This function was created anyways
+        // should we want to add requirements to the version that would need checked in the future.
+        true
+    }
 }
 
-#[derive(Default)]
 pub struct TitleFormBuilder {
+    /// Indicates what this form is being used for.
+    ///
+    /// This will effect what elements are required by the builder and will control what elements
+    /// will be validated.
+    form_type: TitleFormType,
+
     /// Dropdown used to select the type of media.
     media_type_dropdown: Option<DropDown>,
 
@@ -476,16 +705,46 @@ pub struct TitleFormBuilder {
     /// The entry for the location.
     location_entry: Option<Entry>,
 
-    /// The entry for the meoy.
+    /// The entry for the memo.
     memo_entry: Option<Entry>,
 
-    /// List of widgets that should be hidden if the selected media type is movie.
-    hide_if_movie: Vec<Widget>,
+    /// The entry for the episode number
+    episode_number_entry: Option<Entry>,
+
+    /// The entry for the episode count
+    episode_count_entry: Option<Entry>,
+
+    /// The dropdown for the special feature type.
+    special_feature_type_dropdown: Option<DropDown>,
+
+    /// The entry for the special feature name.
+    special_feature_name_entry: Option<Entry>,
+
+    /// The entry for the version.
+    version_entry: Option<Entry>,
 }
 
 impl TitleFormBuilder {
-    pub fn new() -> Self {
-        Self::default()
+    ///
+    /// `form_type`:  Indicates what this form is being used for. Will effect the required elements
+    /// to be specified by the builder as well as what elements are validated.
+    ///
+    pub fn new(form_type: TitleFormType) -> Self {
+        Self {
+            form_type,
+            media_type_dropdown: None,
+            title_entry: None,
+            year_entry: None,
+            disc_number_entry: None,
+            season_number_entry: None,
+            location_entry: None,
+            memo_entry: None,
+            episode_number_entry: None,
+            episode_count_entry: None,
+            special_feature_type_dropdown: None,
+            special_feature_name_entry: None,
+            version_entry: None,
+        }
     }
 
     /// Builds the [`TitleFormObject`] instance consuming self in the process.
@@ -500,6 +759,14 @@ impl TitleFormBuilder {
     /// - season_number_entry
     /// - location_entry
     /// - memo_entry
+    ///
+    /// If the form type is [`FormType::Full`], then it will also panic if any of the following are
+    /// not specified:
+    /// - episode_number_entry
+    /// - episode_count_entry
+    /// - special_feature_type_dropdown
+    /// - special_feature_name_entry
+    /// - version_entry
     pub fn build(self) -> TitleFormObject {
         let obj: TitleFormObject = Object::builder()
             .build();
@@ -548,14 +815,39 @@ impl TitleFormBuilder {
             panic!("The builder expects memo_entry to be specified");
         }
 
-        for widget in self.hide_if_movie {
-            imp.media_type_dropdown
-                .borrow()
-                .bind_property("selected", &widget, "visible")
-                .transform_to(|_, selected: u32| hide_if_movie(selected))
-                .sync_create()
-                .build();
+        let is_copy_only = self.form_type == TitleFormType::CopyOnly;
+
+        if let Some(episode_number_entry) = self.episode_number_entry {
+            imp.episode_number_entry.replace(episode_number_entry);
+        } else if !is_copy_only {
+            panic!("The builder expects episode_number_entry to be specified");
         }
+
+        if let Some(episode_count_entry) = self.episode_count_entry {
+            imp.episode_count_entry.replace(episode_count_entry);
+        } else if !is_copy_only {
+            panic!("The builder expects episode_count_entry to be specified");
+        }
+
+        if let Some(special_feature_type_dropdown) = self.special_feature_type_dropdown {
+            imp.special_feature_type_dropdown.replace(special_feature_type_dropdown);
+        } else if !is_copy_only {
+            panic!("The builder expects special_feature_type_dropdown to be specified");
+        }
+
+        if let Some(special_feature_name_entry) = self.special_feature_name_entry {
+            imp.special_feature_name_entry.replace(special_feature_name_entry);
+        } else if !is_copy_only {
+            panic!("The builder expects special_feature_name_entry to be specified");
+        }
+
+        if let Some(version_entry) = self.version_entry {
+            imp.version_entry.replace(version_entry);
+        } else if !is_copy_only {
+            panic!("The builder expects version_entry to be specified");
+        }
+
+        imp.form_type.replace(self.form_type);
 
         obj
     }
@@ -644,29 +936,54 @@ impl TitleFormBuilder {
         self
     }
 
-    /// Bind the provided widget's "visible" property to the state of the media type selection so
-    /// that it will be hidden when the selected type is movie.
+    /// Sets the entry used for entering the episode number.
     ///
     /// # Args
     ///
-    /// `widget`:  The widget to bind.
-    pub fn hide_if_movie(mut self, widget: &Widget) -> Self {
-        self.hide_if_movie.push(widget.clone());
+    /// `entry`:  The entry widget.
+    pub fn episode_number_entry(mut self, entry: &Entry) -> Self {
+        self.episode_number_entry = Some(entry.clone());
         self
     }
-}
 
-/// Returns `true` if the provided media type is a show indicating the associated item should be
-/// visible or `false` if the media type is something else (e.g. a show) to indicate the item
-/// should be hidden.
-///
-/// # Args
-///
-/// `selected`:  The numeric (index) representation of the media type.
-fn hide_if_movie(selected: u32) -> Option<bool>  {
-    match MediaType::from_index(selected) {
-        Some(media_type) => Some(media_type == MediaType::Show),
-        None => Some(false),
+    /// Sets the entry used for entering the episode count.
+    ///
+    /// # Args
+    ///
+    /// `entry`:  The entry widget.
+    pub fn episode_count_entry(mut self, entry: &Entry) -> Self {
+        self.episode_count_entry = Some(entry.clone());
+        self
+    }
+
+    /// Sets the dropdown used for entering the special feature type.
+    ///
+    /// # Args
+    ///
+    /// `dropdown`:  The dropdown widget.
+    pub fn special_feature_type_dropdown(mut self, dropdown: &DropDown) -> Self {
+        self.special_feature_type_dropdown = Some(dropdown.clone());
+        self
+    }
+
+    /// Sets the entry used for entering the special feature name.
+    ///
+    /// # Args
+    ///
+    /// `entry`:  The entry widget.
+    pub fn special_feature_name_entry(mut self, entry: &Entry) -> Self {
+        self.special_feature_name_entry = Some(entry.clone());
+        self
+    }
+
+    /// Sets the entry used for entering the version.
+    ///
+    /// # Args
+    ///
+    /// `entry`:  The entry widget.
+    pub fn version_entry(mut self, entry: &Entry) -> Self {
+        self.version_entry = Some(entry.clone());
+        self
     }
 }
 
@@ -682,11 +999,13 @@ fn restrict_to_numbers(entry: &Entry) {
 }
 
 mod imp {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
 
     use gtk::{DropDown, Entry};
     use gtk::glib::{self, Properties};
     use gtk::subclass::prelude::*;
+
+    use crate::ui::data::TitleFormType;
 
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::TitleFormObject)]
@@ -711,6 +1030,26 @@ mod imp {
 
         /// The entry for the meoy.
         pub(super) memo_entry: RefCell<Entry>,
+
+        /// The entry for entering the title's episode number.
+        ///
+        /// For title's that span multiple episodes, this is the number for the first episode.
+        pub(super) episode_number_entry: RefCell<Entry>,
+
+        /// The entry for entering the number of episodes the title covers.
+        pub(super) episode_count_entry: RefCell<Entry>,
+
+        /// The dropdown for selecting the special feature type.
+        pub(super) special_feature_type_dropdown: RefCell<DropDown>,
+
+        /// The entry for entering the special feature name.
+        pub(super) special_feature_name_entry: RefCell<Entry>,
+
+        /// The entry for entering the title version (e.g. directors cut).
+        pub(super) version_entry: RefCell<Entry>,
+
+        /// Specifies the use case for the form.
+        pub(super) form_type: Cell<TitleFormType>,
     }
 
     #[glib::object_subclass]

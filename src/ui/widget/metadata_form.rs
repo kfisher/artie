@@ -3,6 +3,8 @@
 
 //! Widget for entering information about a title.
 
+// TODO: Should this be renamed to TitleFormWidget?
+
 use gtk::{
     Align,
     Box,
@@ -18,7 +20,7 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
 use crate::models::{MediaType, SpecialFeatureType};
-use crate::ui::data::{TitleObject, VideoObject};
+use crate::ui::data::{TitleFormObject, TitleFormType, TitleObject, VideoObject};
 use crate::ui::widget::IconButton;
 
 glib::wrapper! {
@@ -47,35 +49,11 @@ impl MetadataFormWidget {
     ///
     /// `title`  The title data object.
     pub fn update_from_title(&self, title: &TitleObject) {
-        let imp = self.imp();
-
-        imp.media_type_dropdown
+        self.imp().form_data
             .borrow()
-            .set_selected(title.media_type().to_model().as_index());
-
-        imp.title_entry
-            .borrow()
-            .set_text(&title.title());
-
-        imp.year_entry
-            .borrow()
-            .set_text(&format!("{}", &title.year()));
-
-        imp.disc_number_entry
-            .borrow()
-            .set_text(&format!("{}", &title.disc_number()));
-
-        imp.season_number_entry
-            .borrow()
-            .set_text(&format!("{}", &title.season_number()));
-
-        imp.location_entry
-            .borrow()
-            .set_text(&title.location());
-
-        imp.memo_entry
-            .borrow()
-            .set_text(&title.memo());
+            .as_ref()
+            .unwrap()
+            .update_from_title(title);
     }
 
     /// Update the form data from a video data object.
@@ -86,7 +64,7 @@ impl MetadataFormWidget {
     pub fn update_from_video(&self, video: &VideoObject) {
         let title = video.title()
             .downcast::<TitleObject>()
-            .expect("missing video title information");
+            .unwrap();
         self.update_from_title(&title);
     }
 
@@ -106,11 +84,16 @@ impl MetadataFormWidget {
             .hexpand(true)
             .build();
 
+        // To make things easier to update in the future, use a variable to represent the current
+        // row and increment between each row. This will allow items to be moved around or inserted
+        // without having to update all row values.
+        let mut current_row: i32 = 0;
+
         let media_type_label = Label::builder()
             .halign(Align::End)
             .label("Type")
             .build();
-        layout.attach(&media_type_label, 0, 0, 1, 1);
+        layout.attach(&media_type_label, 0, current_row, 1, 1);
 
         let media_type_model = StringList::new(&[
             MediaType::Movie.as_str(),
@@ -120,17 +103,21 @@ impl MetadataFormWidget {
             .hexpand(true)
             .model(&media_type_model)
             .build();
-        layout.attach(&media_type_dropdown, 1, 0, 1, 1);
+        layout.attach(&media_type_dropdown, 1, current_row, 1, 1);
+
+        current_row += 1;
 
         let title_label = Label::builder()
             .halign(Align::End)
             .label("Title")
             .build();
-        layout.attach(&title_label, 0, 1, 1, 1);
+        layout.attach(&title_label, 0, current_row, 1, 1);
 
         let title_entry = Entry::builder()
             .build();
-        layout.attach(&title_entry, 1, 1, 1, 1);
+        layout.attach(&title_entry, 1, current_row, 1, 1);
+
+        current_row += 1;
 
         // TODO: We will want help icons (with popup)
         // TODO: Additional information displayed for episode number / count
@@ -139,52 +126,60 @@ impl MetadataFormWidget {
             .halign(Align::End)
             .label("Year")
             .build();
-        layout.attach(&year_label, 0, 2, 1, 1);
+        layout.attach(&year_label, 0, current_row, 1, 1);
 
         let year_entry = Entry::builder()
             .max_length(4)
             .max_width_chars(12)
             .build();
-        layout.attach(&year_entry, 1, 2, 1, 1);
+        layout.attach(&year_entry, 1, current_row, 1, 1);
+
+        current_row += 1;
 
         let season_number_label = Label::builder()
             .halign(Align::End)
             .label("Season Number")
             .build();
-        layout.attach(&season_number_label, 0, 3, 1, 1);
+        layout.attach(&season_number_label, 0, current_row, 1, 1);
 
         let season_number_entry = Entry::builder()
             .max_length(2)
             .build();
-        layout.attach(&season_number_entry, 1, 3, 1, 1);
+        layout.attach(&season_number_entry, 1, current_row, 1, 1);
+
+        current_row += 1;
 
         let episode_number_label = Label::builder()
             .halign(Align::End)
             .label("Episode Number")
             .build();
-        layout.attach(&episode_number_label, 0, 4, 1, 1);
+        layout.attach(&episode_number_label, 0, current_row, 1, 1);
 
         let episode_number_entry = Entry::builder()
             .max_length(2)
             .build();
-        layout.attach(&episode_number_entry, 1, 4, 1, 1);
+        layout.attach(&episode_number_entry, 1, current_row, 1, 1);
+
+        current_row += 1;
 
         let episode_count_label = Label::builder()
             .halign(Align::End)
             .label("Episode Count")
             .build();
-        layout.attach(&episode_count_label, 0, 5, 1, 1);
+        layout.attach(&episode_count_label, 0, current_row, 1, 1);
 
         let episode_count_entry = Entry::builder()
             .max_length(2)
             .build();
-        layout.attach(&episode_count_entry, 1, 5, 1, 1);
+        layout.attach(&episode_count_entry, 1, current_row, 1, 1);
+
+        current_row += 1;
 
         let special_feature_label = Label::builder()
             .halign(Align::End)
             .label("Special Feature")
             .build();
-        layout.attach(&special_feature_label, 0, 6, 1, 1);
+        layout.attach(&special_feature_label, 0, current_row, 1, 1);
 
         let special_feature_model = StringList::new(&[
             "N/A", // SpecialFeatureType::None,
@@ -199,52 +194,72 @@ impl MetadataFormWidget {
             SpecialFeatureType::Extras.as_str(),
             SpecialFeatureType::Trailers.as_str(),
         ]);
-        let special_feature_dropdown = DropDown::builder()
+        let special_feature_type_dropdown = DropDown::builder()
             .model(&special_feature_model)
             .build();
-        layout.attach(&special_feature_dropdown, 1, 6, 1, 1);
+        layout.attach(&special_feature_type_dropdown, 1, current_row, 1, 1);
+
+        current_row += 1;
+
+        // let special_feature_name_label = Label::builder()
+        //     .halign(Align::End)
+        //     .label("Special Feature Name")
+        //     .build();
+        // layout.attach(&special_feature_name_label, 0, current_row, 1, 1);
+
+        let special_feature_name_entry = Entry::builder()
+            .build();
+        layout.attach(&special_feature_name_entry, 1, current_row, 1, 1);
+
+        current_row += 1;
 
         let version_label = Label::builder()
             .halign(Align::End)
             .label("Version")
             .build();
-        layout.attach(&version_label, 0, 7, 1, 1);
+        layout.attach(&version_label, 0, current_row, 1, 1);
 
         let version_entry = Entry::builder()
             .build();
-        layout.attach(&version_entry, 1, 7, 1, 1);
+        layout.attach(&version_entry, 1, current_row, 1, 1);
+
+        current_row += 1;
 
         let disc_number_label = Label::builder()
             .halign(Align::End)
             .label("Disc Number")
             .build();
-        layout.attach(&disc_number_label, 0, 8, 1, 1);
+        layout.attach(&disc_number_label, 0, current_row, 1, 1);
 
         let disc_number_entry = Entry::builder()
             .max_length(2)
             .max_width_chars(8)
             .build();
-        layout.attach(&disc_number_entry, 1, 8, 1, 1);
+        layout.attach(&disc_number_entry, 1, current_row, 1, 1);
+
+        current_row += 1;
 
         let location_label = Label::builder()
             .halign(Align::End)
             .label("Storage Location")
             .build();
-        layout.attach(&location_label, 0, 9, 1, 1);
+        layout.attach(&location_label, 0, current_row, 1, 1);
 
         let location_entry = Entry::builder()
             .build();
-        layout.attach(&location_entry, 1, 9, 1, 1);
+        layout.attach(&location_entry, 1, current_row, 1, 1);
+
+        current_row += 1;
 
         let memo_label = Label::builder()
             .halign(Align::End)
             .label("Memo")
             .build();
-        layout.attach(&memo_label, 0, 10, 1, 1);
+        layout.attach(&memo_label, 0, current_row, 1, 1);
 
         let memo_entry = Entry::builder()
             .build();
-        layout.attach(&memo_entry, 1, 10, 1, 1);
+        layout.attach(&memo_entry, 1, current_row, 1, 1);
 
         let revert_button = IconButton::new(
             "fontawesome.v7.solid.rotate-left",
@@ -269,39 +284,6 @@ impl MetadataFormWidget {
         controls.add_css_class("controls");
         controls.set_hexpand(true);
 
-        media_type_dropdown
-            .bind_property("selected", &season_number_label, "visible")
-            .transform_to(|_, selected: u32| hide_if_movie(selected))
-            .sync_create()
-            .build();
-        media_type_dropdown
-            .bind_property("selected", &season_number_entry, "visible")
-            .transform_to(|_, selected: u32| hide_if_movie(selected))
-            .sync_create()
-            .build();
-
-        media_type_dropdown
-            .bind_property("selected", &episode_number_label, "visible")
-            .transform_to(|_, selected: u32| hide_if_movie(selected))
-            .sync_create()
-            .build();
-        media_type_dropdown
-            .bind_property("selected", &episode_number_entry, "visible")
-            .transform_to(|_, selected: u32| hide_if_movie(selected))
-            .sync_create()
-            .build();
-
-        media_type_dropdown
-            .bind_property("selected", &episode_count_label, "visible")
-            .transform_to(|_, selected: u32| hide_if_movie(selected))
-            .sync_create()
-            .build();
-        media_type_dropdown
-            .bind_property("selected", &episode_count_entry, "visible")
-            .transform_to(|_, selected: u32| hide_if_movie(selected))
-            .sync_create()
-            .build();
-
         self.append(&header);
         self.append(&layout);
         self.append(&controls);
@@ -312,14 +294,23 @@ impl MetadataFormWidget {
         self.set_vexpand(false);
         self.set_orientation(Orientation::Vertical);
 
+        let title_form = TitleFormObject::builder(TitleFormType::Full)
+            .media_type_dropdown(&media_type_dropdown)
+            .title_entry(&title_entry)
+            .year_entry(&year_entry)
+            .disc_number_entry(&disc_number_entry)
+            .season_number_entry(&season_number_entry)
+            .location_entry(&location_entry)
+            .memo_entry(&memo_entry)
+            .episode_number_entry(&episode_number_entry)
+            .episode_count_entry(&episode_count_entry)
+            .special_feature_type_dropdown(&special_feature_type_dropdown)
+            .special_feature_name_entry(&special_feature_name_entry)
+            .version_entry(&version_entry)
+            .build();
+
         let imp = self.imp();
-        imp.media_type_dropdown.replace(media_type_dropdown);
-        imp.title_entry.replace(title_entry);
-        imp.year_entry.replace(year_entry);
-        imp.disc_number_entry.replace(disc_number_entry);
-        imp.season_number_entry.replace(season_number_entry);
-        imp.location_entry.replace(location_entry);
-        imp.memo_entry.replace(memo_entry);
+        imp.form_data.replace(Some(title_form));
     }
 }
 
@@ -346,35 +337,19 @@ fn hide_if_movie(selected: u32) -> Option<bool>  {
 mod imp {
     use std::cell::RefCell;
 
-    use gtk::{Box, Entry, DropDown};
+    use gtk::Box;
     use gtk::glib;
     use gtk::subclass::prelude::*;
 
+    use crate::ui::data::TitleFormObject;
+
     #[derive(Default)]
     pub struct MetadataFormWidget {
-        /// Dropdown used to select the type of media.
-        pub(super) media_type_dropdown: RefCell<DropDown>,
-
-        /// The entry for the movie title.
-        pub(super) title_entry: RefCell<Entry>,
-
-        /// The entry for the release year.
-        pub(super) year_entry: RefCell<Entry>,
-
-        /// The entry for the disc number.
-        pub(super) disc_number_entry: RefCell<Entry>,
-
-        /// The label and entry for the season number.
-        pub(super) season_number_field: RefCell<Box>,
-
-        /// The entry for the season number.
-        pub(super) season_number_entry: RefCell<Entry>,
-
-        /// The entry for the location.
-        pub(super) location_entry: RefCell<Entry>,
-
-        /// The entry for the meoy.
-        pub(super) memo_entry: RefCell<Entry>,
+        /// Container for the core form elements.
+        ///
+        /// This contains each input widget used in the form and is responsible for handing
+        /// validation.
+        pub(super) form_data: RefCell<Option<TitleFormObject>>,
     }
 
     #[glib::object_subclass]
