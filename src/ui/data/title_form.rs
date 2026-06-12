@@ -15,13 +15,9 @@ use gtk::prelude::*;
 use gtk::glib::subclass::prelude::*;
 
 use crate::drive::CopyFormData;
-use crate::models::{CopyParamaters, MediaType, SpecialFeatureType};
+use crate::models::{CopyParamaters, MediaType, SpecialFeature, SpecialFeatureType, Title};
 use crate::ui::data::TitleObject;
 use crate::ui::helpers;
-
-glib::wrapper! {
-    pub struct TitleFormObject(ObjectSubclass<imp::TitleFormObject>);
-}
 
 /// Specifies the use case for the form.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -34,6 +30,10 @@ pub enum TitleFormType {
     /// The form is being used to edit all title information.
     #[default]
     Full,
+}
+
+glib::wrapper! {
+    pub struct TitleFormObject(ObjectSubclass<imp::TitleFormObject>);
 }
 
 impl TitleFormObject {
@@ -338,11 +338,15 @@ impl TitleFormObject {
             .parse::<u16>()
             .unwrap_or_default();
 
-        let season_number = imp.season_number_entry
-            .borrow()
-            .text()
-            .parse::<u16>()
-            .unwrap_or_default();
+        let season_number = if self.is_show() {
+            imp.season_number_entry
+                .borrow()
+                .text()
+                .parse::<u16>()
+                .unwrap()
+        } else {
+            0
+        };
 
         let disc_number = imp.disc_number_entry
             .borrow()
@@ -366,6 +370,110 @@ impl TitleFormObject {
             disc_number,
             location: location.into(),
             memo: memo.into(),
+        }
+    }
+
+    /// Update the provided values based on the form's current values.
+    ///
+    /// # Args
+    ///
+    /// `title`:  The title that will be updated. Each field within the title that has an
+    /// associated entry for will be updated.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if the form data is invalid. It must be validated prior to calling this
+    /// function.
+    pub fn update_title(&self, title: &mut Title) {
+        if !self.validate() {
+            panic!("form data was invalid")
+        }
+
+        let imp = self.imp();
+
+        title.media_type = MediaType::from_index(imp.media_type_dropdown.borrow().selected())
+            .unwrap();
+
+        title.title = imp.title_entry
+            .borrow()
+            .text()
+            .into();
+
+        title.year = imp.year_entry
+            .borrow()
+            .text()
+            .parse::<u16>()
+            .unwrap();
+
+        title.disc = imp.disc_number_entry
+            .borrow()
+            .text()
+            .parse::<u16>()
+            .unwrap();
+
+        title.location = imp.location_entry
+            .borrow()
+            .text()
+            .into();
+
+        title.memo = imp.memo_entry
+            .borrow()
+            .text()
+            .into();
+
+        title.version = imp.version_entry
+            .borrow()
+            .text()
+            .into();
+
+        let is_show = self.is_show();
+        let is_special_feature = self.is_special_feature();
+
+        if is_special_feature {
+            let selected = imp.special_feature_type_dropdown
+                .borrow()
+                .selected();
+            let special_feature_type = SpecialFeatureType::from_index(selected)
+                .unwrap();
+            if special_feature_type.is_none() {
+                panic!("special feature type was None")
+            }
+            title.special_feature = Some(SpecialFeature {
+                kind: special_feature_type,
+                name: imp.special_feature_name_entry
+                    .borrow()
+                    .text()
+                    .into(),
+            });
+        } else {
+            title.special_feature = None;
+        }
+
+        if is_show {
+            title.season = imp.season_number_entry
+                .borrow()
+                .text()
+                .parse::<u16>()
+                .unwrap();
+        } else {
+            title.season = 0;
+        }
+
+        if is_show && !is_special_feature {
+            title.episode_number = imp.episode_number_entry
+                .borrow()
+                .text()
+                .parse::<u16>()
+                .unwrap();
+
+            title.episode_count = imp.episode_count_entry
+                .borrow()
+                .text()
+                .parse::<u16>()
+                .unwrap();
+        } else {
+            title.episode_number = 0;
+            title.episode_count = 0;
         }
     }
 
@@ -459,7 +567,7 @@ impl TitleFormObject {
         if episode_count != 0 {
             imp.episode_count_entry
                 .borrow()
-                .set_text(&format!("{}", &title.episode_number()));
+                .set_text(&format!("{}", &title.episode_count()));
         } else {
             imp.episode_count_entry
                 .borrow()

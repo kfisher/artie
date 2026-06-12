@@ -9,5 +9,7 @@
 //! be created using the [`process_copy_operation`] function.
 
 mod ingest;
+mod titles;
 
 pub use ingest::process_copy_operation;
+pub use titles::update_title;

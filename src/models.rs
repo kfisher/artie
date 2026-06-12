@@ -386,6 +386,14 @@ impl SpecialFeatureType {
             Self::Trailers => "Trailers",
         }
     }
+
+    /// Returns true if the special feature type is [`SpecialFeatureType::None`].
+    pub fn is_none(&self) -> bool {
+        match self {
+            Self::None => true,
+            _ => false,
+        }
+    }
 }
 
 /// Specifies the various subtitle codecs.

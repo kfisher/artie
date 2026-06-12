@@ -84,6 +84,19 @@ impl SpecialFeatureType {
             SpecialFeatureType::Trailers  => crate::models::SpecialFeatureType::Trailers,
         }
     }
+
+    pub fn to_special_feature(&self, name: &str) -> Option<crate::models::SpecialFeature> {
+        let special_feature_type = self.to_model();
+        if special_feature_type.is_none() {
+            None
+        } else {
+            let special_feature = crate::models::SpecialFeature {
+                kind: special_feature_type,
+                name: name.to_owned(),
+            };
+            Some(special_feature)
+        }
+    }
 }
 
 impl From<crate::models::SpecialFeatureType> for SpecialFeatureType {

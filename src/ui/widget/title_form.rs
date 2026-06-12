@@ -17,6 +17,7 @@ use gtk::glib::{self, Object};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
+use crate::library;
 use crate::models::{MediaType, SpecialFeatureType};
 use crate::ui::ContextObject;
 use crate::ui::data::{TitleFormObject, TitleFormType, TitleObject};
@@ -318,9 +319,12 @@ impl TitleFormWidget {
 
         apply_button.connect_clicked(glib::clone!(
             #[weak]
+            this,
+            #[weak]
             title_form,
             move |_button| {
                 if title_form.validate() {
+                    this.apply_updates();
                 }
             },
         ));
@@ -342,6 +346,38 @@ impl TitleFormWidget {
                 .unwrap()
                 .update_from_title(&title);
         }
+    }
+
+    /// Use the form's data to update the title's information in the database.
+    fn apply_updates(&self) {
+        let imp = self.imp();
+        let bus = imp.context
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .bus()
+            .unwrap();
+        let mut title = imp.video
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .title()
+            .downcast::<TitleObject>()
+            .unwrap()
+            .to_model();
+        imp.form_data
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .update_title(&mut title);
+        glib::spawn_future_local(async move {
+            if let Err(error) = library::update_title(&bus, &title).await {
+                // TODO: Need to notify the user.
+                tracing::error!(?error, "failed to update title");
+            } else {
+                // TODO: update the UI
+            }
+        });
     }
 }
 

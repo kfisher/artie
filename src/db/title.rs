@@ -117,11 +117,62 @@ pub fn create_table(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// Updates a title record in the database.
+///
+/// # Args
+///
+/// `conn`:  The connection to the database.
+///
+/// `title`:  The title data to update the record with.
+///
+/// # Errors
+///
+/// [`crate::Error::Database`] raised if the database operation fails.
+pub fn update(conn: &Connection, title: &Title) -> Result<()> {
+    let sql = "
+        UPDATE title
+           SET title=?1,
+               year=?2,
+               season=?3,
+               episode_number=?4,
+               episode_count=?5,
+               special_feature_kind=?6,
+               special_feature_name=?7,
+               version=?8,
+               disc=?9,
+               location=?10,
+               memo=?11
+         WHERE id=?12
+    ";
+
+    let (sf_kind, sf_name) = conv::special_feature_to_sql(&title.special_feature);
+
+    let params = rusqlite::params![
+        title.title,
+        title.year,
+        title.season,
+        title.episode_number,
+        title.episode_count,
+        sf_kind,
+        sf_name,
+        title.version,
+        title.disc,
+        title.location,
+        title.memo,
+        title.id,
+    ];
+
+    conn.execute(sql, params)?;
+
+    tracing::trace!(?title, "update title entry");
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use rusqlite::Connection;
-    use crate::models::MediaType;
+    use crate::models::{MediaType, SpecialFeature, SpecialFeatureType};
 
     fn setup_test_db() -> Connection {
         let conn = Connection::open_in_memory().expect("Failed to create in-memory database");
@@ -202,6 +253,73 @@ mod tests {
         create(&conn, &mut title).expect("Failed to create title");
 
         assert!(title.id > 0);
+    }
+
+    #[test]
+    fn test_update_title() {
+        let conn = setup_test_db();
+        let mut title = make_title("Test Movie");
+        create(&conn, &mut title).expect("Failed to create title");
+
+        title.title = "Updated Movie".to_owned();
+        title.year = 2025;
+        title.season = 1;
+        title.episode_number = 2;
+        title.episode_count = 3;
+        title.special_feature = Some(SpecialFeature {
+            kind: SpecialFeatureType::Trailers,
+            name: "Trailer".to_owned(),
+        });
+        title.version = "Director's Cut".to_owned();
+        title.disc = 2;
+        title.location = "shelf-b".to_owned();
+        title.memo = "updated memo".to_owned();
+
+        update(&conn, &title).expect("Failed to update title");
+
+        let updated: Title = conn.query_row(
+            "SELECT title, year, season, episode_number, episode_count, special_feature_kind,
+                    special_feature_name, version, disc, location, memo
+               FROM title
+              WHERE id = ?1",
+            [title.id],
+            |r| {
+                Ok(Title {
+                    id: title.id,
+                    index: title.index,
+                    media_type: title.media_type,
+                    title: r.get(0)?,
+                    year: r.get(1)?,
+                    season: r.get(2)?,
+                    episode_number: r.get(3)?,
+                    episode_count: r.get(4)?,
+                    special_feature: conv::special_feature_from_sql(r.get(5)?, r.get(6)?)
+                        .expect("invalid special feature"),
+                    version: r.get(7)?,
+                    disc: r.get(8)?,
+                    location: r.get(9)?,
+                    memo: r.get(10)?,
+                    videos: None,
+                })
+            },
+        ).expect("Failed to query updated title");
+
+        assert_eq!(updated.title, "Updated Movie");
+        assert_eq!(updated.year, 2025);
+        assert_eq!(updated.season, 1);
+        assert_eq!(updated.episode_number, 2);
+        assert_eq!(updated.episode_count, 3);
+        match &updated.special_feature {
+            Some(sf) => {
+                assert!(matches!(sf.kind, SpecialFeatureType::Trailers));
+                assert_eq!(sf.name, "Trailer");
+            },
+            None => panic!("expected special feature to be set"),
+        }
+        assert_eq!(updated.version, "Director's Cut");
+        assert_eq!(updated.disc, 2);
+        assert_eq!(updated.location, "shelf-b");
+        assert_eq!(updated.memo, "updated memo");
     }
 
     #[test]

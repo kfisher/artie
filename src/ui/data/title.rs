@@ -45,6 +45,26 @@ impl TitleObject {
             .property("version", &title.version)
             .build()
     }
+
+    /// Converts the GLib object to the standard model type.
+    pub fn to_model(&self) -> Title {
+        Title {
+            id: self.id(),
+            index: self.index(),
+            media_type: self.media_type().to_model(),
+            title: self.title(),
+            year: self.year() as u16,
+            season: self.season_number() as u16,
+            episode_number: self.episode_number() as u16,
+            episode_count: self.episode_count() as u16,
+            special_feature: self.special_feature_type().to_special_feature(&self.special_feature_name()),
+            version: self.version(),
+            disc: self.disc_number() as u16,
+            location: self.location(),
+            memo: self.memo(),
+            videos: None,
+        }
+    }
 }
 
 mod imp {
