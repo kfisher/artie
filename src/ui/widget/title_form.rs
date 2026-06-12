@@ -3,8 +3,6 @@
 
 //! Widget for entering information about a title.
 
-// TODO: Should this be renamed to TitleFormWidget?
-
 use gtk::{
     Align,
     Box,
@@ -20,7 +18,7 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
 use crate::models::{MediaType, SpecialFeatureType};
-use crate::ui::data::{TitleFormObject, TitleFormType, TitleObject, VideoObject};
+use crate::ui::data::{TitleFormObject, TitleFormType, TitleObject};
 use crate::ui::widget::IconButton;
 
 glib::wrapper! {
@@ -41,31 +39,6 @@ impl TitleFormWidget {
     /// This will panic if the GObject cannot be created.
     pub fn new() -> Self {
         Object::builder().build()
-    }
-
-    /// Update the form data from a title data object.
-    ///
-    /// # Args
-    ///
-    /// `title`  The title data object.
-    pub fn update_from_title(&self, title: &TitleObject) {
-        self.imp().form_data
-            .borrow()
-            .as_ref()
-            .unwrap()
-            .update_from_title(title);
-    }
-
-    /// Update the form data from a video data object.
-    ///
-    /// # Args
-    ///
-    /// `video`  The video data object.
-    pub fn update_from_video(&self, video: &VideoObject) {
-        let title = video.title()
-            .downcast::<TitleObject>()
-            .unwrap();
-        self.update_from_title(&title);
     }
 
     /// Builds the widget.
@@ -102,6 +75,7 @@ impl TitleFormWidget {
         let media_type_dropdown = DropDown::builder()
             .hexpand(true)
             .model(&media_type_model)
+            .sensitive(false)
             .build();
         layout.attach(&media_type_dropdown, 1, current_row, 1, 1);
 
@@ -114,6 +88,7 @@ impl TitleFormWidget {
         layout.attach(&title_label, 0, current_row, 1, 1);
 
         let title_entry = Entry::builder()
+            .sensitive(false)
             .build();
         layout.attach(&title_entry, 1, current_row, 1, 1);
 
@@ -131,6 +106,7 @@ impl TitleFormWidget {
         let year_entry = Entry::builder()
             .max_length(4)
             .max_width_chars(12)
+            .sensitive(false)
             .build();
         layout.attach(&year_entry, 1, current_row, 1, 1);
 
@@ -144,6 +120,7 @@ impl TitleFormWidget {
 
         let season_number_entry = Entry::builder()
             .max_length(2)
+            .sensitive(false)
             .build();
         layout.attach(&season_number_entry, 1, current_row, 1, 1);
 
@@ -234,6 +211,7 @@ impl TitleFormWidget {
         let disc_number_entry = Entry::builder()
             .max_length(2)
             .max_width_chars(8)
+            .sensitive(false)
             .build();
         layout.attach(&disc_number_entry, 1, current_row, 1, 1);
 
@@ -246,6 +224,7 @@ impl TitleFormWidget {
         layout.attach(&location_label, 0, current_row, 1, 1);
 
         let location_entry = Entry::builder()
+            .sensitive(false)
             .build();
         layout.attach(&location_entry, 1, current_row, 1, 1);
 
@@ -320,8 +299,42 @@ impl TitleFormWidget {
             .hide_when_special_feature(episode_count_entry.upcast_ref())
             .build();
 
+        let this = self;
+        revert_button.connect_clicked(glib::clone!(
+            #[weak]
+            this,
+            move |_button| {
+                // This will effectively reset the values back to the current values.
+                this.on_video_changed();
+            }
+        ));
+
+        apply_button.connect_clicked(glib::clone!(
+            #[weak]
+            title_form,
+            move |_button| {
+                if title_form.validate() {
+                }
+            },
+        ));
+
         let imp = self.imp();
         imp.form_data.replace(Some(title_form));
+    }
+
+    /// Called when the video changes
+    fn on_video_changed(&self) {
+        let imp = self.imp();
+        if let Some(video) = imp.video.borrow().as_ref() {
+            let title = video.title()
+                .downcast::<TitleObject>()
+                .unwrap();
+            imp.form_data
+                .borrow()
+                .as_ref()
+                .unwrap()
+                .update_from_title(&title);
+        }
     }
 }
 
@@ -349,18 +362,31 @@ mod imp {
     use std::cell::RefCell;
 
     use gtk::Box;
-    use gtk::glib;
+    use gtk::glib::{self, Properties};
+    use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
-    use crate::ui::data::TitleFormObject;
+    use crate::ui::data::{TitleFormObject, VideoObject};
 
-    #[derive(Default)]
+    #[derive(Default, Properties)]
+    #[properties(wrapper_type = super::TitleFormWidget)]
     pub struct TitleFormWidget {
+        /// The active video.
+        #[property(name = "video", get, set = Self::set_video, nullable)]
+        pub(super) video: RefCell<Option<VideoObject>>,
+
         /// Container for the core form elements.
         ///
         /// This contains each input widget used in the form and is responsible for handing
         /// validation.
         pub(super) form_data: RefCell<Option<TitleFormObject>>,
+    }
+
+    impl TitleFormWidget {
+        fn set_video(&self, video: Option<VideoObject>) {
+            self.video.replace(video);
+            self.obj().on_video_changed();
+        }
     }
 
     #[glib::object_subclass]
@@ -370,6 +396,7 @@ mod imp {
         type ParentType = Box;
     }
 
+    #[glib::derived_properties]
     impl ObjectImpl for TitleFormWidget {
         fn constructed(&self) {
             self.parent_constructed();

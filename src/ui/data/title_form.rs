@@ -55,6 +55,10 @@ impl TitleFormObject {
     pub fn clear(&self) {
         let imp = self.imp();
 
+        imp.media_type_dropdown
+            .borrow()
+            .set_selected(0);
+
         imp.title_entry
             .borrow()
             .set_text("");
@@ -98,6 +102,23 @@ impl TitleFormObject {
         imp.version_entry
             .borrow()
             .set_text("");
+    }
+
+    /// Clears the form's validation indicators.
+    pub fn clear_validation_indicators(&self) {
+        let imp = self.imp();
+
+        // helpers::update_validity_style(&entry, valid);
+        helpers::update_validity_style(imp.title_entry.borrow().as_ref(), true);
+        helpers::update_validity_style(imp.year_entry.borrow().as_ref(), true);
+        helpers::update_validity_style(imp.disc_number_entry.borrow().as_ref(), true);
+        helpers::update_validity_style(imp.season_number_entry.borrow().as_ref(), true);
+        helpers::update_validity_style(imp.location_entry.borrow().as_ref(), true);
+        helpers::update_validity_style(imp.memo_entry.borrow().as_ref(), true);
+        helpers::update_validity_style(imp.episode_number_entry.borrow().as_ref(), true);
+        helpers::update_validity_style(imp.episode_count_entry.borrow().as_ref(), true);
+        helpers::update_validity_style(imp.special_feature_name_entry.borrow().as_ref(), true);
+        helpers::update_validity_style(imp.version_entry.borrow().as_ref(), true);
     }
 
     /// Gets the media type dropdown widget.
@@ -391,6 +412,8 @@ impl TitleFormObject {
     ///
     /// `title`  The title data object.
     pub fn update_from_title(&self, title: &TitleObject) {
+        self.clear_validation_indicators();
+
         let imp = self.imp();
 
         imp.media_type_dropdown
@@ -470,7 +493,7 @@ impl TitleFormObject {
             self.validate_memo(),
         ];
 
-        if self.is_copy_only() {
+        if !self.is_copy_only() {
             valid.push(self.validate_episode_number());
             valid.push(self.validate_episode_count());
             valid.push(self.validate_special_feature());
@@ -1027,6 +1050,7 @@ impl TitleFormBuilder {
     ///
     /// `entry`:  The entry widget.
     pub fn episode_number_entry(mut self, entry: &Entry) -> Self {
+        restrict_to_numbers(entry);
         self.episode_number_entry = Some(entry.clone());
         self
     }
@@ -1037,6 +1061,7 @@ impl TitleFormBuilder {
     ///
     /// `entry`:  The entry widget.
     pub fn episode_count_entry(mut self, entry: &Entry) -> Self {
+        restrict_to_numbers(entry);
         self.episode_count_entry = Some(entry.clone());
         self
     }

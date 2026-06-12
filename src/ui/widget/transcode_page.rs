@@ -108,15 +108,16 @@ impl TranscodePageWidget {
         transcode_list.connect_video_selected(glib::clone!(
             #[weak]
             transcode_page,
-            #[weak]
-            title_form,
             move |video| {
                 transcode_page.set_selected_video(Some(video.clone()));
-                title_form.update_from_video(video);
             }
         ));
 
         self.bind_property("selected-video", &video_player, "video")
+            .sync_create()
+            .build();
+
+        self.bind_property("selected-video", &title_form, "video")
             .sync_create()
             .build();
 
