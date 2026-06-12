@@ -307,6 +307,17 @@ impl MetadataFormWidget {
             .special_feature_type_dropdown(&special_feature_type_dropdown)
             .special_feature_name_entry(&special_feature_name_entry)
             .version_entry(&version_entry)
+            .hide_when_movie(season_number_label.upcast_ref())
+            .hide_when_movie(season_number_entry.upcast_ref())
+            .hide_when_movie(episode_number_label.upcast_ref())
+            .hide_when_movie(episode_number_entry.upcast_ref())
+            .hide_when_movie(episode_count_label.upcast_ref())
+            .hide_when_movie(episode_count_entry.upcast_ref())
+            .hide_when_main_feature(special_feature_name_entry.upcast_ref())
+            .hide_when_special_feature(episode_number_label.upcast_ref())
+            .hide_when_special_feature(episode_number_entry.upcast_ref())
+            .hide_when_special_feature(episode_count_label.upcast_ref())
+            .hide_when_special_feature(episode_count_entry.upcast_ref())
             .build();
 
         let imp = self.imp();

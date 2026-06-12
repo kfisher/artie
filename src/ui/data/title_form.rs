@@ -7,7 +7,9 @@
 //! provides the common functionality such as validation, restricting certain fields to numbers,
 //! and hiding show specific elements when movie is the selected type.
 
-use gtk::{DropDown, Entry};
+use std::collections::HashMap;
+
+use gtk::{DropDown, Entry, Widget};
 use gtk::glib::{self, Object};
 use gtk::prelude::*;
 use gtk::glib::subclass::prelude::*;
@@ -483,26 +485,6 @@ impl TitleFormObject {
         self.imp().form_type.get() == TitleFormType::CopyOnly
     }
 
-    /// Returns true if the type is currently set to show.
-    pub fn is_show(&self) -> bool {
-        let dropdown = self.imp().media_type_dropdown
-            .borrow();
-        match MediaType::from_index(dropdown.selected()) {
-            Some(media_type) => media_type == MediaType::Show,
-            None => false,
-        }
-    }
-
-    /// Returns true if the special feature type is set to something other then None.
-    pub fn is_special_feature(&self) -> bool {
-        let dropdown = self.imp().special_feature_type_dropdown
-            .borrow();
-        match SpecialFeatureType::from_index(dropdown.selected()) {
-            Some(special_feature_type) => special_feature_type != SpecialFeatureType::None,
-            None => false,
-        }
-    }
-
     /// Validates the title and return the result.
     ///
     /// This will update the entry's CSS to reflect is validly.
@@ -678,6 +660,41 @@ impl TitleFormObject {
         // should we want to add requirements to the version that would need checked in the future.
         true
     }
+
+    /// Configures the internal bindings for the data.
+    fn configure_bindings(&self) {
+        let this = self;
+        self.imp().media_type_dropdown
+            .borrow()
+            .connect_selected_notify(glib::clone!(
+                #[weak]
+                this,
+                move |_type_dropdown| {
+                    this.visibility_changed();
+                }
+            ));
+
+        let this = self;
+        self.imp().special_feature_type_dropdown
+            .borrow()
+            .connect_selected_notify(glib::clone!(
+                #[weak]
+                this,
+                move |_type_dropdown| {
+                    this.visibility_changed();
+                }
+            ));
+    }
+
+    /// Called when an input effecting the visibility of the hideable widgets changes and updates
+    /// the visibility of those widgets accordingly.
+    fn visibility_changed(&self) {
+        let is_show = self.is_show();
+        let is_special_feature = self.is_special_feature();
+        for (widget, visibility_control) in self.imp().hideable_widgets.borrow().iter() {
+            visibility_control.set_visibility(&widget, is_show, is_special_feature);
+        }
+    }
 }
 
 pub struct TitleFormBuilder {
@@ -722,6 +739,15 @@ pub struct TitleFormBuilder {
 
     /// The entry for the version.
     version_entry: Option<Entry>,
+
+    /// List of widgets that should be hidden if the selected media type is movie.
+    hide_when_movie: Vec<Widget>,
+
+    /// List of widgets that should be hidden when not a special feature.
+    hide_when_main_feature: Vec<Widget>,
+
+    /// List of widgets that should be hidden when special feature.
+    hide_when_special_feature: Vec<Widget>,
 }
 
 impl TitleFormBuilder {
@@ -744,6 +770,9 @@ impl TitleFormBuilder {
             special_feature_type_dropdown: None,
             special_feature_name_entry: None,
             version_entry: None,
+            hide_when_movie: Vec::default(),
+            hide_when_main_feature: Vec::default(),
+            hide_when_special_feature: Vec::default(),
         }
     }
 
@@ -774,6 +803,15 @@ impl TitleFormBuilder {
         let imp = obj.imp();
 
         if let Some(media_type_dropdown) = self.media_type_dropdown {
+            media_type_dropdown.bind_property("selected", &obj, "is-show")
+                .transform_to(|_, selected: u32| {
+                    match MediaType::from_index(selected) {
+                        Some(media_type) => Some(media_type == MediaType::Show),
+                        None => Some(false),
+                    }
+                })
+                .sync_create()
+                .build();
             imp.media_type_dropdown.replace(media_type_dropdown);
         } else {
             panic!("The builder expects media_type_dropdown to be specified");
@@ -830,6 +868,15 @@ impl TitleFormBuilder {
         }
 
         if let Some(special_feature_type_dropdown) = self.special_feature_type_dropdown {
+            special_feature_type_dropdown.bind_property("selected", &obj, "is-special-feature")
+                .transform_to(|_, selected: u32| {
+                    match SpecialFeatureType::from_index(selected) {
+                        Some(t) => Some(t != SpecialFeatureType::None),
+                        None => Some(false),
+                    }
+                })
+                .sync_create()
+                .build();
             imp.special_feature_type_dropdown.replace(special_feature_type_dropdown);
         } else if !is_copy_only {
             panic!("The builder expects special_feature_type_dropdown to be specified");
@@ -848,6 +895,44 @@ impl TitleFormBuilder {
         }
 
         imp.form_type.replace(self.form_type);
+
+        let mut hideable_widgets = HashMap::new();
+
+        for widget in self.hide_when_movie {
+            hideable_widgets.insert(
+                widget,
+                VisibilityControl {
+                    hide_when_movie: true,
+                    hide_when_main_feature: false,
+                    hide_when_special_feature: false,
+                });
+        }
+
+        for widget in self.hide_when_main_feature {
+            hideable_widgets.entry(widget)
+                .and_modify(|value| value.hide_when_main_feature = true)
+                .or_insert(VisibilityControl {
+                    hide_when_movie: false,
+                    hide_when_main_feature: true,
+                    hide_when_special_feature: false,
+                });
+        }
+
+        for widget in self.hide_when_special_feature {
+            hideable_widgets.entry(widget)
+                .and_modify(|value| value.hide_when_special_feature = true)
+                .or_insert(VisibilityControl {
+                    hide_when_movie: false,
+                    hide_when_main_feature: false,
+                    hide_when_special_feature: true,
+                });
+        }
+
+        imp.hideable_widgets.replace(hideable_widgets);
+
+        obj.configure_bindings();
+
+        obj.visibility_changed();
 
         obj
     }
@@ -985,6 +1070,66 @@ impl TitleFormBuilder {
         self.version_entry = Some(entry.clone());
         self
     }
+
+    /// Add a widget that will be hidden when the selected media type is movie.
+    pub fn hide_when_movie(mut self, widget: &Widget) -> Self {
+        self.hide_when_movie.push(widget.clone());
+        self
+    }
+
+    /// Add a widget that will be hidden when the selected special feature type is None.
+    pub fn hide_when_main_feature(mut self, widget: &Widget) -> Self {
+        self.hide_when_main_feature.push(widget.clone());
+        self
+    }
+
+    /// Add a widget that will be hidden when the selected special feature type is not None.
+    pub fn hide_when_special_feature(mut self, widget: &Widget) -> Self {
+        self.hide_when_special_feature.push(widget.clone());
+        self
+    }
+}
+
+/// Container for the visibility control flags of a widget.
+struct VisibilityControl {
+    /// Indicates if the widget should be hidden when the media type is movie.
+    hide_when_movie: bool,
+
+    /// Indicates if the widget should be hidden when the special feature type is None.
+    hide_when_main_feature: bool,
+
+    /// Indicates if the widget should be hidden when the special feature type is not None.
+    hide_when_special_feature: bool,
+}
+
+impl VisibilityControl {
+    /// Update the visibility of the widget.
+    ///
+    /// # Args
+    ///
+    /// `widget`:  Widget to update the visibility for.
+    ///
+    /// `is_show`:  Inidicates if the selected media type is show.
+    ///
+    /// `is_special_feature`:  Indicates if the selected special feature type is not None.
+    fn set_visibility(&self, widget: &Widget, is_show: bool, is_special_feature: bool) {
+        if self.hide_when_movie && !is_show {
+            widget.set_visible(false);
+            return;
+        }
+
+        if self.hide_when_main_feature && !is_special_feature {
+            widget.set_visible(false);
+            return;
+        }
+
+        if self.hide_when_special_feature && is_special_feature {
+            widget.set_visible(false);
+            return;
+        }
+
+        widget.set_visible(true);
+    }
 }
 
 /// Adds a signal connection that will restrict the entry's values to numbers only.
@@ -1000,16 +1145,28 @@ fn restrict_to_numbers(entry: &Entry) {
 
 mod imp {
     use std::cell::{Cell, RefCell};
+    use std::collections::hash_map::HashMap;
 
-    use gtk::{DropDown, Entry};
+    use gtk::{DropDown, Entry, Widget};
     use gtk::glib::{self, Properties};
+    use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
     use crate::ui::data::TitleFormType;
 
+    use super::VisibilityControl;
+
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::TitleFormObject)]
     pub struct TitleFormObject {
+        /// Indicates if the selected media type is show.
+        #[property(name = "is-show", get, set)]
+        pub(super) is_show: Cell<bool>,
+
+        /// Indicates if the selected special feature is not `None`.
+        #[property(name = "is-special-feature", get, set)]
+        pub(super) is_special_feature: Cell<bool>,
+
         /// Dropdown used to select the type of media.
         pub(super) media_type_dropdown: RefCell<DropDown>,
 
@@ -1050,6 +1207,10 @@ mod imp {
 
         /// Specifies the use case for the form.
         pub(super) form_type: Cell<TitleFormType>,
+
+        /// Set of widgets show visiblilty will changed based on the selected media and special
+        /// feature types.
+        pub(super) hideable_widgets: RefCell<HashMap<Widget, VisibilityControl>>,
     }
 
     #[glib::object_subclass]

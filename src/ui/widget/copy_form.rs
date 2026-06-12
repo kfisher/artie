@@ -354,6 +354,7 @@ impl CopyFormWidget {
             .season_number_entry(&season_number_entry)
             .location_entry(&location_entry)
             .memo_entry(&memo_entry)
+            .hide_when_movie(season_number_field.upcast_ref())
             .build();
 
         let imp = self.imp();
