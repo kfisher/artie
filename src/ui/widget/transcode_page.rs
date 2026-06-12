@@ -73,7 +73,7 @@ impl TranscodePageWidget {
         let video_player = VideoPlayerWidget::new();
         main_section_row_0.append(&video_player);
 
-        let title_form = TitleFormWidget::new();
+        let title_form = TitleFormWidget::new(&context);
         title_form.set_hexpand(true);
         title_form.set_halign(gtk::Align::Fill);
         title_form.set_vexpand(true);

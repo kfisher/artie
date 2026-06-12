@@ -18,6 +18,7 @@ use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
 use crate::models::{MediaType, SpecialFeatureType};
+use crate::ui::ContextObject;
 use crate::ui::data::{TitleFormObject, TitleFormType, TitleObject};
 use crate::ui::widget::IconButton;
 
@@ -34,11 +35,17 @@ glib::wrapper! {
 impl TitleFormWidget {
     /// Constructs a new metadata form instance.
     ///
+    /// # Args
+    ///
+    /// `context`:  The application context fo the UI.
+    ///
     /// # Panics
     ///
     /// This will panic if the GObject cannot be created.
-    pub fn new() -> Self {
-        Object::builder().build()
+    pub fn new(context: &ContextObject) -> Self {
+        Object::builder()
+            .property("context", context)
+            .build()
     }
 
     /// Builds the widget.
@@ -338,12 +345,6 @@ impl TitleFormWidget {
     }
 }
 
-impl Default for TitleFormWidget {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// Returns `true` if the provided media type is a show indicating the associated item should be
 /// visible or `false` if the media type is something else (e.g. a show) to indicate the item
 /// should be hidden.
@@ -366,11 +367,16 @@ mod imp {
     use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
+    use crate::ui::ContextObject;
     use crate::ui::data::{TitleFormObject, VideoObject};
 
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::TitleFormWidget)]
     pub struct TitleFormWidget {
+        /// The application context.
+        #[property(get, construct_only)]
+        pub(super) context: RefCell<Option<ContextObject>>,
+
         /// The active video.
         #[property(name = "video", get, set = Self::set_video, nullable)]
         pub(super) video: RefCell<Option<VideoObject>>,
