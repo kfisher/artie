@@ -15,7 +15,7 @@ use gtk::subclass::prelude::*;
 
 use crate::ui::ContextObject;
 use crate::ui::widget::{
-    MetadataFormWidget,
+    TitleFormWidget,
     TranscodeFormWidget,
     TranscodeListWidget,
     TranscodeQueueWidget,
@@ -73,12 +73,12 @@ impl TranscodePageWidget {
         let video_player = VideoPlayerWidget::new();
         main_section_row_0.append(&video_player);
 
-        let metadata_form = MetadataFormWidget::new();
-        metadata_form.set_hexpand(true);
-        metadata_form.set_halign(gtk::Align::Fill);
-        metadata_form.set_vexpand(true);
-        metadata_form.set_valign(gtk::Align::Fill);
-        main_section_row_0.append(&metadata_form);
+        let title_form = TitleFormWidget::new();
+        title_form.set_hexpand(true);
+        title_form.set_halign(gtk::Align::Fill);
+        title_form.set_vexpand(true);
+        title_form.set_valign(gtk::Align::Fill);
+        main_section_row_0.append(&title_form);
 
         let main_section_row_1 = Box::builder()
             .hexpand(true)
@@ -109,10 +109,10 @@ impl TranscodePageWidget {
             #[weak]
             transcode_page,
             #[weak]
-            metadata_form,
+            title_form,
             move |video| {
                 transcode_page.set_selected_video(Some(video.clone()));
-                metadata_form.update_from_video(video);
+                title_form.update_from_video(video);
             }
         ));
 
@@ -125,7 +125,7 @@ impl TranscodePageWidget {
             .build();
 
         let imp = self.imp();
-        imp.metadata_form.replace(Some(metadata_form));
+        imp.title_form.replace(Some(title_form));
         imp.transcode_form.replace(Some(transcode_form));
         imp.video_player.replace(Some(video_player));
     }
@@ -143,7 +143,7 @@ mod imp {
 
     use crate::ui::ContextObject;
     use crate::ui::data::VideoObject;
-    use crate::ui::widget::{MetadataFormWidget, TranscodeFormWidget, VideoPlayerWidget};
+    use crate::ui::widget::{TitleFormWidget, TranscodeFormWidget, VideoPlayerWidget};
 
     /// Implemenation for [`super::TranscodePageWidget`].
     #[derive(Default, Properties)]
@@ -161,7 +161,7 @@ mod imp {
         pub(super) drive_list_view: RefCell<Option<ListView>>,
 
         /// Form use to edit information about the active title.
-        pub(super) metadata_form: RefCell<Option<MetadataFormWidget>>,
+        pub(super) title_form: RefCell<Option<TitleFormWidget>>,
 
         /// Form use to edit the transcode parameters.
         pub(super) transcode_form: RefCell<Option<TranscodeFormWidget>>,

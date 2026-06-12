@@ -24,7 +24,7 @@ use crate::ui::data::{TitleFormObject, TitleFormType, TitleObject, VideoObject};
 use crate::ui::widget::IconButton;
 
 glib::wrapper! {
-    pub struct MetadataFormWidget(ObjectSubclass<imp::MetadataFormWidget>)
+    pub struct TitleFormWidget(ObjectSubclass<imp::TitleFormWidget>)
         @extends gtk::Box,
                  gtk::Widget,
         @implements gtk::Accessible,
@@ -33,7 +33,7 @@ glib::wrapper! {
                     gtk::Orientable;
 }
 
-impl MetadataFormWidget {
+impl TitleFormWidget {
     /// Constructs a new metadata form instance.
     ///
     /// # Panics
@@ -70,7 +70,7 @@ impl MetadataFormWidget {
 
     /// Builds the widget.
     ///
-    /// Called by the implementation ([`imp::MetadataFormWidget`]) when constructed.
+    /// Called by the implementation ([`imp::TitleFormWidget`]) when constructed.
     fn build_ui(&self) {
         let header = Label::builder()
             .label("Title Info")
@@ -325,7 +325,7 @@ impl MetadataFormWidget {
     }
 }
 
-impl Default for MetadataFormWidget {
+impl Default for TitleFormWidget {
     fn default() -> Self {
         Self::new()
     }
@@ -355,7 +355,7 @@ mod imp {
     use crate::ui::data::TitleFormObject;
 
     #[derive(Default)]
-    pub struct MetadataFormWidget {
+    pub struct TitleFormWidget {
         /// Container for the core form elements.
         ///
         /// This contains each input widget used in the form and is responsible for handing
@@ -364,13 +364,13 @@ mod imp {
     }
 
     #[glib::object_subclass]
-    impl ObjectSubclass for MetadataFormWidget {
-        const NAME: &'static str = "ArtieMetadataFormWidget";
-        type Type = super::MetadataFormWidget;
+    impl ObjectSubclass for TitleFormWidget {
+        const NAME: &'static str = "ArtieTitleFormWidget";
+        type Type = super::TitleFormWidget;
         type ParentType = Box;
     }
 
-    impl ObjectImpl for MetadataFormWidget {
+    impl ObjectImpl for TitleFormWidget {
         fn constructed(&self) {
             self.parent_constructed();
 
@@ -379,9 +379,9 @@ mod imp {
         }
     }
 
-    impl WidgetImpl for MetadataFormWidget {}
+    impl WidgetImpl for TitleFormWidget {}
 
-    impl BoxImpl for MetadataFormWidget {}
+    impl BoxImpl for TitleFormWidget {}
 }
 
 #[cfg(test)]
