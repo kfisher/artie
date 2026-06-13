@@ -6,6 +6,7 @@
 mod copy_form;
 mod copy_page;
 mod drive;
+mod dual_icon_toggle_button;
 mod icon_button;
 mod icon_toggle_button;
 mod title_form;
@@ -21,6 +22,7 @@ mod window;
 pub use copy_form::CopyFormWidget;
 pub use copy_page::CopyPageWidget;
 pub use drive::DriveWidget;
+pub use dual_icon_toggle_button::DuelIconToggleButton;
 pub use icon_button::IconButton;
 pub use icon_toggle_button::IconToggleButton;
 pub use title_form::TitleFormWidget;

@@ -21,7 +21,7 @@ use crate::library;
 use crate::models::{MediaType, SpecialFeatureType};
 use crate::ui::ContextObject;
 use crate::ui::data::{TitleFormObject, TitleFormType, TitleObject};
-use crate::ui::widget::IconButton;
+use crate::ui::widget::{DuelIconToggleButton, IconButton};
 
 glib::wrapper! {
     pub struct TitleFormWidget(ObjectSubclass<imp::TitleFormWidget>)
@@ -248,6 +248,13 @@ impl TitleFormWidget {
             .build();
         layout.attach(&memo_entry, 1, current_row, 1, 1);
 
+        let lock_button = DuelIconToggleButton::builder()
+            .active_icon_name("fontawesome.v7.solid.unlock")
+            .inactive_icon_name("fontawesome.v7.solid.lock")
+            .build();
+        lock_button.set_active(false);
+        lock_button.add_css_class("default");
+
         let revert_button = IconButton::new(
             "fontawesome.v7.solid.rotate-left",
             "Revert",
@@ -266,6 +273,7 @@ impl TitleFormWidget {
             .orientation(Orientation::Horizontal)
             .spacing(8)
             .build();
+        controls.append(&lock_button);
         controls.append(&revert_button);
         controls.append(&apply_button);
         controls.add_css_class("controls");
@@ -311,9 +319,12 @@ impl TitleFormWidget {
         revert_button.connect_clicked(glib::clone!(
             #[weak]
             this,
+            #[weak]
+            lock_button,
             move |_button| {
                 // This will effectively reset the values back to the current values.
                 this.on_video_changed();
+                lock_button.set_active(false);
             }
         ));
 
@@ -328,6 +339,22 @@ impl TitleFormWidget {
                 }
             },
         ));
+
+        lock_button.bind_property("active", &media_type_dropdown, "sensitive")
+            .sync_create()
+            .build();
+        lock_button.bind_property("active", &title_entry, "sensitive")
+            .sync_create()
+            .build();
+        lock_button.bind_property("active", &year_entry, "sensitive")
+            .sync_create()
+            .build();
+        lock_button.bind_property("active", &disc_number_entry, "sensitive")
+            .sync_create()
+            .build();
+        lock_button.bind_property("active", &location_entry, "sensitive")
+            .sync_create()
+            .build();
 
         let imp = self.imp();
         imp.form_data.replace(Some(title_form));

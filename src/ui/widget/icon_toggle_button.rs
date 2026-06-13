@@ -1,7 +1,7 @@
 // Copyright 2026 Kevin Fisher. All rights reserved.
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! Button widget for displaying both an icon and a label.
+//! Button widgets for displaying both an icon and a label.
 
 use glib::Object;
 use gtk::{Box, Image, Label, Orientation};
