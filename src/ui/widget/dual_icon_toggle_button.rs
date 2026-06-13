@@ -60,7 +60,6 @@ impl DuelIconToggleButton {
         });
 
         self.set_child(Some(&icon));
-        self.add_css_class("duel-icon");
     }
 
     /// Updates the displayed icon based off the active/inactive state.
@@ -80,6 +79,12 @@ impl DuelIconToggleButton {
     }
 }
 
+impl Default for DuelIconToggleButton {
+    fn default() -> Self {
+        Self::new("", "")
+    }
+}
+
 /// Builder used to create instances of the toggle button.
 #[derive(Default)]
 pub struct DuelIconToggleButtonBuilder {
@@ -92,6 +97,9 @@ pub struct DuelIconToggleButtonBuilder {
     ///
     /// This is the name of the SVG file without the path or file extension.
     inactive_icon_name: Option<String>,
+
+    /// If true, the active and inactive states will have the same appearance.
+    no_highlight: bool,
 }
 
 impl DuelIconToggleButtonBuilder {
@@ -117,6 +125,13 @@ impl DuelIconToggleButtonBuilder {
         self
     }
 
+    /// Configure the button so that the button has the same general appearance in both the active
+    /// and inactive states.
+    pub fn no_highlight(mut self) -> Self {
+        self.no_highlight = true;
+        self
+    }
+
     /// Creates the widget using the builder's current configuration.
     ///
     /// # Panics
@@ -127,6 +142,10 @@ impl DuelIconToggleButtonBuilder {
             &self.active_icon_name.unwrap(),
             &self.inactive_icon_name.unwrap(),
         );
+
+        if self.no_highlight {
+            icon.add_css_class("no-highlight");
+        }
 
         icon.update_icon();
         icon

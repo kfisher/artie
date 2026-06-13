@@ -156,7 +156,7 @@ button.toggle.default.ghost {
     border-color: transparent;
 }
 
-button.toggle.default:checked {
+button.toggle.default:checked:not(.no-highlight) {
     background-color: var(--color-surface-3-text);
     color: var(--color-surface-3-base);
 }

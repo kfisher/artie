@@ -39,7 +39,7 @@ use tokio::sync::mpsc;
 
 use crate::ui::data::VideoObject;
 use crate::ui::helpers;
-use crate::ui::widget::{IconButton, IconToggleButton};
+use crate::ui::widget::{DuelIconToggleButton, IconToggleButton};
 
 glib::wrapper! {
     pub struct VideoPlayerWidget(ObjectSubclass<imp::VideoPlayerWidget>)
@@ -131,20 +131,25 @@ impl VideoPlayerWidget {
             .height_request(480)
             .build();
 
-        let play_button = IconButton::icon_only("fontawesome.v7.solid.play");
-        play_button.set_sensitive(false);
-        play_button.add_css_class("default");
+        let play_pause_button = DuelIconToggleButton::builder()
+            .active_icon_name("fontawesome.v7.solid.pause")
+            .inactive_icon_name("fontawesome.v7.solid.play")
+            .no_highlight()
+            .build();
+        play_pause_button.add_css_class("default");
 
-        let video_player = self.clone();
-        play_button.connect_clicked(move |_| video_player.play());
-
-        let pause_button = IconButton::icon_only("fontawesome.v7.solid.pause");
-        pause_button.set_sensitive(false);
-        pause_button.set_visible(false);
-        pause_button.add_css_class("default");
-
-        let video_player = self.clone();
-        pause_button.connect_clicked(move |_| video_player.pause());
+        let this = self;
+        play_pause_button.connect_active_notify(glib::clone!(
+            #[weak]
+            this,
+            move |button| {
+                if button.is_active() {
+                    this.play();
+                } else {
+                    this.pause();
+                }
+            }
+        ));
 
         let current_time = Label::builder()
             .label("--:--")
@@ -197,8 +202,7 @@ impl VideoPlayerWidget {
             .orientation(Orientation::Horizontal)
             .spacing(2)
             .build();
-        controls.append(&play_button);
-        controls.append(&pause_button);
+        controls.append(&play_pause_button);
         controls.append(&current_time);
         controls.append(&slider);
         controls.append(&duration_time);
@@ -216,10 +220,7 @@ impl VideoPlayerWidget {
 
         self.add_css_class("video-player-widget");
 
-        self.bind_property("controls-enabled", &pause_button, "sensitive")
-            .sync_create()
-            .build();
-        self.bind_property("controls-enabled", &play_button, "sensitive")
+        self.bind_property("controls-enabled", &play_pause_button, "sensitive")
             .sync_create()
             .build();
         self.bind_property("controls-enabled", &slider, "sensitive")
@@ -238,8 +239,7 @@ impl VideoPlayerWidget {
             }
         ));
 
-        imp.pause_button.replace(pause_button);
-        imp.play_button.replace(play_button);
+        imp.play_pause_button.replace(play_pause_button);
         imp.video_slider.replace(slider);
         imp.video_slider_value_changed.replace(Some(video_slider_value_changed));
         imp.duration_label.replace(duration_time);
@@ -319,9 +319,6 @@ impl VideoPlayerWidget {
         if let Err(error) = playbin_element.set_state(State::Paused) {
             tracing::error!(?error, "failed to pause video");
         }
-
-        imp.pause_button.borrow().set_visible(false);
-        imp.play_button.borrow().set_visible(true);
     }
 
     /// Play the video.
@@ -339,9 +336,6 @@ impl VideoPlayerWidget {
         if let Err(error) = playbin_element.set_state(State::Playing) {
             tracing::error!(?error, "failed to play video");
         }
-
-        imp.pause_button.borrow().set_visible(true);
-        imp.play_button.borrow().set_visible(false);
     }
 
     /// Initializes the GStreamer pipeline.
@@ -443,11 +437,13 @@ impl VideoPlayerWidget {
 
         let state = playbin_element.current_state();
         if state == State::Paused {
-            imp.pause_button.borrow().set_visible(false);
-            imp.play_button.borrow().set_visible(true);
+            imp.play_pause_button
+                .borrow()
+                .set_active(false);
         } else if state == State::Playing {
-            imp.pause_button.borrow().set_visible(true);
-            imp.play_button.borrow().set_visible(false);
+            imp.play_pause_button
+                .borrow()
+                .set_active(true);
         } else {
             return;
         }
@@ -628,7 +624,7 @@ mod imp {
     use gtk::subclass::prelude::*;
 
     use crate::ui::data::VideoObject;
-    use crate::ui::widget::IconButton;
+    use crate::ui::widget::DuelIconToggleButton;
 
     /// Implemenation for [`super::VideoPlayerWidget`].
     #[derive(Default, Properties)]
@@ -648,11 +644,8 @@ mod imp {
         /// providing the ability to control subtitles and the selected audio track.
         pub(super) playbin_element: RefCell<Option<Element>>,
 
-        /// The button used to pause the video.
-        pub(super) pause_button: RefCell<IconButton>,
-
-        /// The button used to play the video.
-        pub(super) play_button: RefCell<IconButton>,
+        /// The button used to play/pause the video.
+        pub(super) play_pause_button: RefCell<DuelIconToggleButton>,
 
         /// The path to the video.
         pub(super) video_path: RefCell<Option<String>>,
