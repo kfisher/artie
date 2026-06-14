@@ -41,6 +41,12 @@ use crate::ui::data::VideoObject;
 use crate::ui::helpers;
 use crate::ui::widget::{DuelIconToggleButton, IconToggleButton};
 
+/// The fixed width, in pixels, that video playback is displayed at.
+const VIDEO_FRAME_WIDTH: i32 = 853;
+
+/// The fixed height, in pixels, that video playback is displayed at.
+const VIDEO_FRAME_HEIGHT: i32 = 480;
+
 glib::wrapper! {
     pub struct VideoPlayerWidget(ObjectSubclass<imp::VideoPlayerWidget>)
         @extends gtk::Box,
@@ -127,8 +133,8 @@ impl VideoPlayerWidget {
             .black_background(true)
             .enabled(GraphicsOffloadEnabled::Enabled)
             .child(&picture)
-            .width_request(853)
-            .height_request(480)
+            .width_request(VIDEO_FRAME_WIDTH)
+            .height_request(VIDEO_FRAME_HEIGHT)
             .build();
 
         let play_pause_button = DuelIconToggleButton::builder()
@@ -162,20 +168,15 @@ impl VideoPlayerWidget {
         slider.set_sensitive(false);
         slider.add_css_class("seek-slider");
 
-        let playbin_element = imp.playbin_element
-            .borrow()
-            .as_ref()
-            .expect("playbin_element was None")
-            .clone();
-        let video_slider_value_changed = slider.connect_value_changed(move |slider| {
-            let value = gst::format::ClockTime::from_seconds(slider.value() as u64);
-            if let Err(error) = playbin_element.seek_simple(
-                SeekFlags::FLUSH | SeekFlags::KEY_UNIT,
-                value,
-            ) {
-                tracing::error!(?error, "failed to seek");
+        let video_player = self;
+        let video_slider_value_changed = slider.connect_value_changed(glib::clone!(
+            #[weak]
+            video_player,
+            move |slider| {
+                let value = slider.value();
+                video_player.video_seek(value as u64);
             }
-        });
+        ));
 
         let duration_time = Label::builder()
             .label("--:--")
@@ -347,6 +348,8 @@ impl VideoPlayerWidget {
             .build()
             .expect("failed to create video sink element");
 
+        let video_filter_element = video_filter();
+
         // The playbin element provides an all-in-one abstraction for playing video/audio. It
         // avoids the need to manually create the various audio/video elements while still
         // providing the ability to control subtitles and the selected audio track.
@@ -355,6 +358,7 @@ impl VideoPlayerWidget {
             .build()
             .expect("failed to create playbin element");
         playbin_element.set_property("video-sink", &video_sink_element);
+        playbin_element.set_property("video-filter", &video_filter_element);
 
         let pipeline_bus = playbin_element.bus()
             .expect("failed to get pipeline bus");
@@ -370,45 +374,56 @@ impl VideoPlayerWidget {
             tracing::error!(error=?err, ?src, "received gstreamer error");
         });
 
-        let playbin_element_clone = playbin_element.clone();
-        pipeline_bus.connect_message(Some("state-changed"), move |_bus, msg| {
-            if msg.src().map(|src| src != &playbin_element_clone).unwrap_or(true) {
-                return;
-            }
-
-            let MessageView::StateChanged(state_change) = msg.view() else {
-                tracing::warn!(view=?msg.view(), "unexpected message type");
-                return;
-            };
-
-            if state_change.current() != State::Playing {
-                return;
-            }
-
-            // tracing::info!(">>>>>>> STATE CHANGE");
-        });
-
         // connect_message requires Send trait which is not supported by GObjects which means that
         // we can't pass a clone. Instead, use channels to relay the messages.
         let (tx, mut rx) = mpsc::channel(5);
-        let video_player = self.clone();
-        pipeline_bus.connect_message(Some("stream-collection"), move |_bus, msg| {
-            let MessageView::StreamCollection(stream_collection) = msg.view() else {
-                tracing::warn!(view=?msg.view(), "unexpected message type");
-                return;
-            };
 
-            let stream_collection = stream_collection.stream_collection();
-            if let Err(error) = tx.blocking_send(stream_collection) {
-                tracing::error!(?error, "failed to send stream collection");
-            }
-        });
+        let playbin_element_clone = playbin_element.clone();
+        let eos_tx = tx.clone();
+        pipeline_bus.connect_message(
+            Some("eos"),
+            move |_bus, msg| {
+                if msg.src().map(|src| src != &playbin_element_clone).unwrap_or(true) {
+                    return;
+                }
+
+                let MessageView::Eos(_) = msg.view() else {
+                    tracing::warn!(view=?msg.view(), "unexpected message type");
+                    return;
+                };
+
+                if let Err(error) = eos_tx.blocking_send(GstMessage::Eos) {
+                    tracing::error!(?error, "failed to send stream collection");
+                }
+            });
+        pipeline_bus.connect_message(
+            Some("stream-collection"),
+            move |_bus, msg| {
+                let MessageView::StreamCollection(stream_collection) = msg.view() else {
+                    tracing::warn!(view=?msg.view(), "unexpected message type");
+                    return;
+                };
+
+                let payload = GstMessage::StreamCollection(stream_collection.stream_collection());
+                if let Err(error) = tx.blocking_send(payload) {
+                    tracing::error!(?error, "failed to send stream collection");
+                }
+            });
+
+        let video_player = self.clone();
         glib::spawn_future_local(glib::clone!(
             #[weak]
             video_player,
             async move {
-                while let Some(stream_collection) = rx.recv().await {
-                    video_player.update_stream_data(&stream_collection);
+                while let Some(msg) = rx.recv().await {
+                    match msg {
+                        GstMessage::Eos => {
+                            video_player.video_ended();
+                        },
+                        GstMessage::StreamCollection(stream_collection) => {
+                            video_player.update_stream_data(&stream_collection);
+                        },
+                    }
                 }
             }
         ));
@@ -533,6 +548,33 @@ impl VideoPlayerWidget {
 
         self.set_controls_enabled(true);
     }
+
+    // TODO
+    fn video_ended(&self) {
+        self.pause();
+        self.video_seek(0);
+    }
+
+    // TODO
+    fn video_seek(&self, seconds: u64) {
+        let playbin_element = self.imp().playbin_element
+            .borrow()
+            .as_ref()
+            .unwrap()
+            .clone();
+        let value = gst::format::ClockTime::from_seconds(seconds);
+        if let Err(error) = playbin_element.seek_simple(
+            SeekFlags::FLUSH | SeekFlags::KEY_UNIT,
+            value,
+        ) {
+            tracing::error!(?error, "failed to seek");
+        }
+    }
+}
+
+enum GstMessage {
+    Eos,
+    StreamCollection(StreamCollection)
 }
 
 fn enable_subtitles(playbin_element: &Element, enabled: bool) {
@@ -608,6 +650,22 @@ fn update_time(
 
     position_label.set_text(&helpers::format_duration_secs(position.seconds()));
     duration_label.set_text(&helpers::format_duration_secs(duration.seconds()));
+}
+
+/// Generates a video filter sub-pipeline for ensuring the video respects the requested size of the
+/// widget.
+fn video_filter() -> Element {
+    let video_scale_desc = String::from("videoscale add-borders=true");
+    let caps_filter_desc = format!(
+        "capsfilter caps=video/x-raw,width={},height={},pixel-aspect-ratio=1/1",
+        VIDEO_FRAME_WIDTH,
+        VIDEO_FRAME_HEIGHT
+    );
+    let video_filter_desc = format!("{} ! {}", video_scale_desc, caps_filter_desc);
+
+    gst::parse::bin_from_description(&video_filter_desc, true)
+        .unwrap()
+        .upcast()
 }
 
 mod imp {
