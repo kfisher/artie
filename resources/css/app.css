@@ -245,6 +245,13 @@ radio:checked {
     background-color: var(--color-primary-base);
 }
 
+columnview > header {
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+    border: none;
+}
+
 columnview > header > button {
     background-color: var(--color-surface-3-base);
     border-bottom: 0px solid var(--color-surface-3-border);
@@ -261,7 +268,13 @@ columnview > header > button:last-child {
 }
 
 columnview > listview > row {
+    background-color: var(--color-surface-2-base);
     border-bottom: 1px solid var(--color-surface-3-border);
+}
+
+columnview > listview > row:selected {
+    background-color: var(--color-primary-base);
+    color: var(--color-primary-text);
 }
 
 columnview > listview > row:first-child {
@@ -275,6 +288,11 @@ columnview > listview > row > cell {
     border-right: 0px solid var(--color-surface-3-border);
     border-top: 0px solid var(--color-surface-3-border);
     padding: 8px 4px;
+}
+
+columnview > listview > row:selected > cell {
+    background-color: var(--color-primary-base);
+    color: var(--color-primary-text);
 }
 
 columnview > listview > row > cell radio {
@@ -619,22 +637,22 @@ window.background {
     font-size: 1.125em;
 }
 
-.video-player-widget {
+.video-player {
     background-color: var(--color-surface-1-base);
     border: 1px solid var(--color-surface-1-border);
 }
 
-.video-player-widget .seek-slider {
+.video-player .seek-slider {
     margin-left: 8px;
     margin-right: 8px;
 }
 
-.video-player-widget .controls {
+.video-player .controls {
     background-color: var(--color-surface-1-base);
     padding: 2px;
 }
 
-.video-player-widget .time-stamp {
+.video-player .time-stamp {
     font-family: monospace;
     margin-left: 8px;
     margin-right: 8px;
@@ -660,3 +678,21 @@ window.background {
     background-color: red;
 }
 
+.track-controls {
+    background-color: var(--color-surface-3-base);
+    border-color: var(--color-surface-3-border);
+    border-radius: var(--border-radius);
+    border-style: solid;
+    border-width: 1px;
+    color: var(--color-surface-3-text);
+}
+
+.track-controls button, .track-controls button.toggle {
+    background-color: transparent;
+    border: 0;
+    border-radius: 0;
+}
+
+.track-controls button.toggle:last-child {
+    border-left: 1px solid var(--color-surface-3-border);
+}

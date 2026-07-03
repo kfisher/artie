@@ -100,9 +100,18 @@ pub struct DuelIconToggleButtonBuilder {
 
     /// If true, the active and inactive states will have the same appearance.
     no_highlight: bool,
+
+    /// If true, the button will initialize in the active state.
+    active: bool,
 }
 
 impl DuelIconToggleButtonBuilder {
+    /// The created button will initialize in the active state.
+    pub fn active(mut self) -> Self {
+        self.active = true;
+        self
+    }
+
     /// Set the icon for the button when active.
     ///
     /// # Args
@@ -148,6 +157,11 @@ impl DuelIconToggleButtonBuilder {
         }
 
         icon.update_icon();
+
+        if self.active {
+            icon.set_active(true);
+        }
+
         icon
     }
 }

@@ -23,13 +23,23 @@ use gst::prelude::*;
 use gtk::{
     Align,
     Box,
+    CheckButton,
+    ColumnView,
+    ColumnViewColumn,
+    DropDown,
     Label,
+    ListItem,
     Orientation,
     Picture,
     GraphicsOffload,
     GraphicsOffloadEnabled,
+    NoSelection,
     Scale,
+    SignalListItemFactory,
+    SingleSelection,
+    StringList,
 };
+use gtk::gio::ListStore;
 use gtk::glib::{self, FlagsClass, Object, SignalHandlerId};
 use gtk::gdk::Paintable;
 use gtk::prelude::*;
@@ -37,15 +47,15 @@ use gtk::subclass::prelude::*;
 
 use tokio::sync::mpsc;
 
-use crate::ui::data::VideoObject;
+use crate::ui::data::{AudioTrackObject, SubtitleTrackObject, VideoObject, VideoTrackObject};
 use crate::ui::helpers;
 use crate::ui::widget::{DuelIconToggleButton, IconToggleButton};
 
 /// The fixed width, in pixels, that video playback is displayed at.
-const VIDEO_FRAME_WIDTH: i32 = 853;
+const VIDEO_FRAME_WIDTH: i32 = 720;
 
 /// The fixed height, in pixels, that video playback is displayed at.
-const VIDEO_FRAME_HEIGHT: i32 = 480;
+const VIDEO_FRAME_HEIGHT: i32 = (VIDEO_FRAME_WIDTH as f32 / (16.0 / 9.0)) as i32;
 
 glib::wrapper! {
     pub struct VideoPlayerWidget(ObjectSubclass<imp::VideoPlayerWidget>)
@@ -114,6 +124,11 @@ impl VideoPlayerWidget {
 
     /// Builds the widget.
     fn build_ui(&self) {
+        self.set_orientation(Orientation::Vertical);
+        self.set_halign(Align::Start);
+        self.set_hexpand(false);
+        self.add_css_class("video-player");
+
         let imp = self.imp();
 
         let video_sink_element = imp.video_sink_element
@@ -136,6 +151,54 @@ impl VideoPlayerWidget {
             .width_request(VIDEO_FRAME_WIDTH)
             .height_request(VIDEO_FRAME_HEIGHT)
             .build();
+        self.append(&graphics_offload);
+
+        let seek_row = Box::builder()
+            .orientation(Orientation::Horizontal)
+            .spacing(8)
+            .build();
+        seek_row.add_css_class("controls");
+        self.append(&seek_row);
+
+        let current_time = Label::builder()
+            .label("--:--")
+            .build();
+        current_time.add_css_class("time-stamp");
+        seek_row.append(&current_time);
+
+        let slider = Scale::with_range(Orientation::Horizontal, 0.0, 100.0, 1.0);
+        slider.set_hexpand(true);
+        slider.set_draw_value(false);
+        slider.set_sensitive(false);
+        slider.add_css_class("seek-slider");
+        seek_row.append(&slider);
+
+        self.bind_property("controls-enabled", &slider, "sensitive")
+            .sync_create()
+            .build();
+
+        let this = self;
+        let video_slider_value_changed = slider.connect_value_changed(glib::clone!(
+            #[weak]
+            this,
+            move |slider| {
+                let value = slider.value();
+                this.video_seek(value as u64);
+            }
+        ));
+
+        let duration_time = Label::builder()
+            .label("--:--")
+            .build();
+        duration_time.add_css_class("time-stamp");
+        seek_row.append(&duration_time);
+
+        let controls = Box::builder()
+            .orientation(Orientation::Horizontal)
+            .spacing(2)
+            .build();
+        controls.add_css_class("controls");
+        self.append(&controls);
 
         let play_pause_button = DuelIconToggleButton::builder()
             .active_icon_name("fontawesome.v7.solid.pause")
@@ -143,6 +206,7 @@ impl VideoPlayerWidget {
             .no_highlight()
             .build();
         play_pause_button.add_css_class("default");
+        controls.append(&play_pause_button);
 
         let this = self;
         play_pause_button.connect_active_notify(glib::clone!(
@@ -157,94 +221,112 @@ impl VideoPlayerWidget {
             }
         ));
 
-        let current_time = Label::builder()
-            .label("--:--")
-            .build();
-        current_time.add_css_class("time-stamp");
-
-        let slider = Scale::with_range(Orientation::Horizontal, 0.0, 100.0, 1.0);
-        slider.set_hexpand(true);
-        slider.set_draw_value(false);
-        slider.set_sensitive(false);
-        slider.add_css_class("seek-slider");
-
-        let video_player = self;
-        let video_slider_value_changed = slider.connect_value_changed(glib::clone!(
-            #[weak]
-            video_player,
-            move |slider| {
-                let value = slider.value();
-                video_player.video_seek(value as u64);
-            }
-        ));
-
-        let duration_time = Label::builder()
-            .label("--:--")
-            .build();
-        duration_time.add_css_class("time-stamp");
-
-        let cc_button = IconToggleButton::builder()
-            .icon_name("fontawesome.v7.solid.closed-captioning-symbolic")
-            .build();
-        cc_button.add_css_class("default");
-        cc_button.set_sensitive(false);
-        cc_button.add_css_class("ghost");
-
-        let video_player = self;
-        cc_button.connect_clicked(glib::clone!(
-            #[weak]
-            video_player,
-            move |button| {
-                video_player.enable_subtitles(button.is_active());
-            }
-        ));
-
-        let controls = Box::builder()
-            .orientation(Orientation::Horizontal)
-            .spacing(2)
-            .build();
-        controls.append(&play_pause_button);
-        controls.append(&current_time);
-        controls.append(&slider);
-        controls.append(&duration_time);
-        controls.append(&cc_button);
-        controls.add_css_class("controls");
-
-        self.append(&graphics_offload);
-        self.append(&controls);
-
-        self.set_halign(Align::Center);
-        self.set_hexpand(false);
-        self.set_orientation(Orientation::Vertical);
-        self.set_valign(Align::Start);
-        self.set_vexpand(false);
-
-        self.add_css_class("video-player-widget");
-
         self.bind_property("controls-enabled", &play_pause_button, "sensitive")
             .sync_create()
             .build();
-        self.bind_property("controls-enabled", &slider, "sensitive")
+
+        let spacer = Box::builder()
+            .orientation(Orientation::Horizontal)
+            .hexpand(true)
+            .build();
+        controls.append(&spacer);
+
+        let audio_controls = Box::builder()
+            .orientation(Orientation::Horizontal)
+            .build();
+        audio_controls.add_css_class("track-controls");
+        controls.append(&audio_controls);
+
+        let audio_button = DuelIconToggleButton::builder()
+            .active()
+            .active_icon_name("fontawesome.v7.solid.volume")
+            .inactive_icon_name("fontawesome.v7.solid.volume-xmark")
+            .no_highlight()
+            .build();
+        audio_button.add_css_class("default");
+        audio_button.set_sensitive(false);
+        audio_controls.append(&audio_button);
+
+        self.bind_property("controls-enabled", &audio_button, "sensitive")
             .sync_create()
             .build();
+
+        let audio_options = StringList::new(&[
+            "1 - English",
+            "2 - French",
+            "3 - Spanish",
+            "4 - German",
+        ]);
+
+        let audio_dropdown = DropDown::builder()
+            .model(&audio_options)
+            .build();
+        audio_dropdown.set_sensitive(false);
+        audio_controls.append(&audio_dropdown);
+
+        self.bind_property("controls-enabled", &audio_dropdown, "sensitive")
+            .sync_create()
+            .build();
+
+        let cc_controls = Box::builder()
+            .orientation(Orientation::Horizontal)
+            .build();
+        cc_controls.add_css_class("track-controls");
+        controls.append(&cc_controls);
+
+        let cc_button = DuelIconToggleButton::builder()
+            .active_icon_name("fontawesome.v7.solid.closed-captioning")
+            .inactive_icon_name("fontawesome.v7.regular.closed-captioning")
+            .no_highlight()
+            .build();
+        cc_button.set_sensitive(false);
+        cc_button.add_css_class("default");
+        cc_controls.append(&cc_button);
+
         self.bind_property("controls-enabled", &cc_button, "sensitive")
             .sync_create()
             .build();
 
-        let widget = self.clone();
-        glib::spawn_future_local(glib::clone!(
+        let cc_options = StringList::new(&[
+            "1 - English",
+            "2 - French",
+            "3 - Spanish",
+            "4 - German",
+        ]);
+
+        let cc_dropdown = DropDown::builder()
+            .model(&cc_options)
+            .build();
+        cc_dropdown.set_sensitive(false);
+        cc_controls.append(&cc_dropdown);
+
+        self.bind_property("controls-enabled", &cc_dropdown, "sensitive")
+            .sync_create()
+            .build();
+
+        let this = self;
+        cc_button.connect_clicked(glib::clone!(
             #[weak]
-            widget,
-            async move {
-                refresh_ui(&widget).await;
+            this,
+            move |button| {
+                this.enable_subtitles(button.is_active());
             }
         ));
 
+        imp.duration_label.replace(duration_time);
         imp.play_pause_button.replace(play_pause_button);
+        imp.position_label.replace(current_time);
         imp.video_slider.replace(slider);
         imp.video_slider_value_changed.replace(Some(video_slider_value_changed));
-        imp.duration_label.replace(duration_time);
-        imp.position_label.replace(current_time);
+
+        let this = self;
+        glib::spawn_future_local(glib::clone!(
+            #[weak]
+            this,
+            async move {
+                refresh_ui(&this).await;
+            }
+        ));
     }
 
     /// Enables or disables the display of subtitles.
@@ -549,13 +631,20 @@ impl VideoPlayerWidget {
         self.set_controls_enabled(true);
     }
 
-    // TODO
+    /// Callback when the end of the stream is reached.
+    /// 
+    /// When called, this will pause the video and will seek to the start of the video.
     fn video_ended(&self) {
         self.pause();
         self.video_seek(0);
     }
 
-    // TODO
+    /// Seek to a specific time within the stream.
+    ///
+    /// # Args
+    ///
+    /// `seconds`  The seconds from the start of the video to seek to. It is assumed that the value
+    /// is not greater than the total length of the video.
     fn video_seek(&self, seconds: u64) {
         let playbin_element = self.imp().playbin_element
             .borrow()
@@ -676,8 +765,9 @@ mod imp {
     use gst::{Element, State};
     use gst::prelude::*;
 
-    use gtk::{Box, Label, Scale};
+    use gtk::{Box, ColumnView, Label, NoSelection, Scale, SingleSelection};
 
+    use gtk::gio::ListStore;
     use gtk::glib::{self, Properties, SignalHandlerId};
     use gtk::subclass::prelude::*;
 
@@ -736,6 +826,7 @@ mod imp {
                     old_video.disconnect(signal_id);
                 }
             }
+
             self.video.replace(video);
             self.obj().on_video_changed();
         }
