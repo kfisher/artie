@@ -6,6 +6,7 @@
 use gtk::glib::{self, Object};
 
 use crate::models::SubtitleTrack;
+use crate::utilities;
 
 glib::wrapper! {
     pub struct SubtitleTrackObject(ObjectSubclass<imp::SubtitleTrackObject>);
@@ -19,14 +20,24 @@ impl SubtitleTrackObject {
     /// This will panic if the GObject cannot be created.
     pub fn new(subtitle_track: &SubtitleTrack) -> Self {
         Object::builder()
+            .property("subtitle-track-index", subtitle_track.subtitle_index)
             .property("codec", subtitle_track.codec.to_string())
             .property("language", &subtitle_track.language_code)
             .build()
     }
+
+    /// Return the display text to use in the track selection dropdown.
+    pub fn selector_display(&self) -> String {
+        format!(
+            "({}) {}",
+            self.subtitle_track_index(),
+            utilities::expand_language_code(self.language().as_str()),
+        )
+    }
 }
 
 mod imp {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
 
     use gtk::glib::{self, Properties};
     use gtk::prelude::*;
@@ -37,6 +48,10 @@ mod imp {
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::SubtitleTrackObject)]
     pub struct SubtitleTrackObject {
+        /// The subtitle track index (starting at 1).
+        #[property(name = "subtitle-track-index", get, set, type = u8)]
+        pub subtitle_track_index: Cell<u8>,
+
         /// The subtitle's codec.
         ///
         /// This will be the string representation of the track's [`crate::models::SubtitleCodec`]

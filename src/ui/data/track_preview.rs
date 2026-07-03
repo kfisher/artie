@@ -19,32 +19,7 @@ impl TrackPreviewObject {
     }
 
     // TODO
-    pub fn bind(&self, button: &CheckButton) {
-        let imp = self.imp();
-
-        if imp.binding.borrow().is_some() {
-            self.unbind();
-        }
-
-        let binding = self.bind_property("selected", button, "active")
-            .bidirectional()
-            .sync_create()
-            .build();
-        imp.binding.replace(Some(binding));
-    }
-
-    // TODO
-    pub fn unbind(&self) {
-        let imp = self.imp();
-        if let Some(binding) = imp.binding.replace(None) {
-            binding.unbind();
-        }
-    }
-
-    // TODO
     pub fn reset(&self) {
-        self.unbind();
-
         self.set_selected(false);
         self.set_stream_id(None::<String>);
     }

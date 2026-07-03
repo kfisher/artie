@@ -120,30 +120,30 @@ fn create_audio_track_table() -> ColumnView {
             .set_child(Some(&button));
     });
     preview_factory.connect_bind(|_, obj| {
-        let widget = obj
+        let _widget = obj
             .downcast_ref::<ListItem>()
             .unwrap()
             .child()
             .and_downcast::<CheckButton>()
             .unwrap();
-        let track_preview_item = obj
+        let _track_preview_item = obj
             .downcast_ref::<ListItem>()
             .unwrap()
             .item()
             .and_downcast::<AudioTrackObject>()
             .unwrap()
             .preview();
-        track_preview_item.bind(&widget);
+        // track_preview_item.bind(&widget);
     });
     preview_factory.connect_unbind(|_, obj| {
-        let track_preview_item = obj
+        let _track_preview_item = obj
             .downcast_ref::<ListItem>()
             .unwrap()
             .item()
             .and_downcast::<AudioTrackObject>()
             .unwrap()
             .preview();
-        track_preview_item.unbind();
+        // track_preview_item.unbind();
     });
 
     let preview_column = ColumnViewColumn::builder()
@@ -280,30 +280,30 @@ fn create_subtitle_track_table() -> ColumnView {
             .set_child(Some(&button));
     });
     preview_factory.connect_bind(|_, obj| {
-        let widget = obj
+        let _widget = obj
             .downcast_ref::<ListItem>()
             .unwrap()
             .child()
             .and_downcast::<CheckButton>()
             .unwrap();
-        let track_preview_item = obj
+        let _track_preview_item = obj
             .downcast_ref::<ListItem>()
             .unwrap()
             .item()
             .and_downcast::<SubtitleTrackObject>()
             .unwrap()
             .preview();
-        track_preview_item.bind(&widget);
+        // track_preview_item.bind(&widget);
     });
     preview_factory.connect_unbind(|_, obj| {
-        let track_preview_item = obj
+        let _track_preview_item = obj
             .downcast_ref::<ListItem>()
             .unwrap()
             .item()
             .and_downcast::<SubtitleTrackObject>()
             .unwrap()
             .preview();
-        track_preview_item.unbind();
+        // track_preview_item.unbind();
     });
 
     let preview_column = ColumnViewColumn::builder()
@@ -390,30 +390,30 @@ fn create_video_track_table() -> ColumnView {
             .set_child(Some(&button));
     });
     preview_factory.connect_bind(|_, obj| {
-        let widget = obj
+        let _widget = obj
             .downcast_ref::<ListItem>()
             .unwrap()
             .child()
             .and_downcast::<CheckButton>()
             .unwrap();
-        let track_preview_item = obj
+        let _track_preview_item = obj
             .downcast_ref::<ListItem>()
             .unwrap()
             .item()
             .and_downcast::<VideoTrackObject>()
             .unwrap()
             .preview();
-        track_preview_item.bind(&widget);
+        // track_preview_item.bind(&widget);
     });
     preview_factory.connect_unbind(|_, obj| {
-        let track_preview_item = obj
+        let _track_preview_item = obj
             .downcast_ref::<ListItem>()
             .unwrap()
             .item()
             .and_downcast::<VideoTrackObject>()
             .unwrap()
             .preview();
-        track_preview_item.unbind();
+        // track_preview_item.unbind();
     });
 
     let preview_column = ColumnViewColumn::builder()

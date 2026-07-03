@@ -533,6 +533,9 @@ pub enum VideoSource {
     TranscodeOperation(Reference<TranscodeOperation>),
 }
 
+// TODO: To help avoid confusion with zero and one index tracks, consider changing the one indexed
+//       values to use number or num instead of index.
+
 /// Represents an audio track in a video.
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AudioTrack {

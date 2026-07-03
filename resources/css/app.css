@@ -693,6 +693,8 @@ window.background {
     border-radius: 0;
 }
 
-.track-controls button.toggle:last-child {
-    border-left: 1px solid var(--color-surface-3-border);
+.vertical-divider {
+    border-left: 0px solid var(--color-surface-3-border);
+    background-color: var(--color-surface-3-border);
+    min-width: 1px;
 }

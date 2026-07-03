@@ -15,6 +15,7 @@ mod models;
 mod settings;
 mod task;
 mod ui;
+mod utilities;
 
 #[cfg(test)]
 mod test_utils;

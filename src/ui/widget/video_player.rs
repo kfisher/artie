@@ -251,13 +251,22 @@ impl VideoPlayerWidget {
             .sync_create()
             .build();
 
-        let audio_options = StringList::new(&[
-            "1 - English",
-            "2 - French",
-            "3 - Spanish",
-            "4 - German",
-        ]);
+        let this = self;
+        audio_button.connect_clicked(glib::clone!(
+            #[weak]
+            this,
+            move |button| {
+                this.set_mute(!button.is_active());
+            }
+        ));
 
+        let divider = Box::builder()
+            .orientation(Orientation::Horizontal)
+            .build();
+        divider.add_css_class("vertical-divider");
+        audio_controls.append(&divider);
+
+        let audio_options = StringList::default();
         let audio_dropdown = DropDown::builder()
             .model(&audio_options)
             .build();
@@ -267,6 +276,15 @@ impl VideoPlayerWidget {
         self.bind_property("controls-enabled", &audio_dropdown, "sensitive")
             .sync_create()
             .build();
+
+        let this = self;
+        audio_dropdown.connect_selected_item_notify(glib::clone!(
+            #[weak]
+            this,
+            move |dropdown| {
+                this.select_audio_track(dropdown.selected());
+            }
+        ));
 
         let cc_controls = Box::builder()
             .orientation(Orientation::Horizontal)
@@ -287,23 +305,6 @@ impl VideoPlayerWidget {
             .sync_create()
             .build();
 
-        let cc_options = StringList::new(&[
-            "1 - English",
-            "2 - French",
-            "3 - Spanish",
-            "4 - German",
-        ]);
-
-        let cc_dropdown = DropDown::builder()
-            .model(&cc_options)
-            .build();
-        cc_dropdown.set_sensitive(false);
-        cc_controls.append(&cc_dropdown);
-
-        self.bind_property("controls-enabled", &cc_dropdown, "sensitive")
-            .sync_create()
-            .build();
-
         let this = self;
         cc_button.connect_clicked(glib::clone!(
             #[weak]
@@ -313,11 +314,38 @@ impl VideoPlayerWidget {
             }
         ));
 
+        let divider = Box::builder()
+            .orientation(Orientation::Horizontal)
+            .build();
+        divider.add_css_class("vertical-divider");
+        cc_controls.append(&divider);
+
+        let cc_options = StringList::default();
+        let cc_dropdown = DropDown::builder()
+            .model(&cc_options)
+            .build();
+        cc_dropdown.set_sensitive(false);
+        cc_controls.append(&cc_dropdown);
+
+        self.bind_property("controls-enabled", &cc_dropdown, "sensitive")
+            .sync_create()
+            .build();
+        let this = self;
+        cc_dropdown.connect_selected_item_notify(glib::clone!(
+            #[weak]
+            this,
+            move |dropdown| {
+                this.select_subtitle_track(dropdown.selected());
+            }
+        ));
+
         imp.duration_label.replace(duration_time);
         imp.play_pause_button.replace(play_pause_button);
         imp.position_label.replace(current_time);
         imp.video_slider.replace(slider);
         imp.video_slider_value_changed.replace(Some(video_slider_value_changed));
+        imp.audio_track_options.replace(audio_options);
+        imp.subtitle_track_options.replace(cc_options);
 
         let this = self;
         glib::spawn_future_local(glib::clone!(
@@ -341,86 +369,6 @@ impl VideoPlayerWidget {
         enable_subtitles(&playbin_element, enabled);
     }
 
-    /// Called when the video changes
-    fn on_video_changed(&self) {
-        let imp = self.imp();
-
-        let playbin_element = imp.playbin_element
-            .borrow()
-            .clone();
-        let Some(playbin_element) = playbin_element else {
-            tracing::error!("playbin_element was None");
-            return;
-        };
-
-        if let Err(error) = playbin_element.set_state(State::Null) {
-            tracing::error!(?error, "failed to reset video");
-            return;
-        }
-
-        self.set_controls_enabled(false);
-
-        imp.position_label.borrow().set_text("--:--");
-        imp.duration_label.borrow().set_text("--:--");
-
-        let video = imp.video
-            .borrow()
-            .clone();
-
-        let Some(video) = video else {
-            return;
-        };
-
-        video.reset_preview_data();
-
-        let path = std::path::PathBuf::from(video.path());
-        if !path.is_file() {
-            tracing::error!(?path, "path does not exist");
-            return;
-        }
-
-        self.bind_video(&video);
-
-        let path = format!("file://{0}", video.path());
-        playbin_element.set_property("uri", path);
-
-        self.pause();
-    }
-
-    /// Pause the video.
-    fn pause(&self) {
-        let imp = self.imp();
-
-        let playbin_element = imp.playbin_element
-            .borrow()
-            .clone();
-        let Some(playbin_element) = playbin_element else {
-            tracing::error!("playbin_element was None");
-            return;
-        };
-
-        if let Err(error) = playbin_element.set_state(State::Paused) {
-            tracing::error!(?error, "failed to pause video");
-        }
-    }
-
-    /// Play the video.
-    fn play(&self) {
-        let imp = self.imp();
-
-        let playbin_element = imp.playbin_element
-            .borrow()
-            .clone();
-        let Some(playbin_element) = playbin_element else {
-            tracing::error!("playbin_element was None");
-            return;
-        };
-
-        if let Err(error) = playbin_element.set_state(State::Playing) {
-            tracing::error!(?error, "failed to play video");
-        }
-    }
-
     /// Initializes the GStreamer pipeline.
     fn init_pipeline(&self) {
         // The default video sink in the playbin element is replaced by the following GTK4
@@ -439,6 +387,7 @@ impl VideoPlayerWidget {
             .name("playbin")
             .build()
             .expect("failed to create playbin element");
+        playbin_element.set_property("mute", false);
         playbin_element.set_property("video-sink", &video_sink_element);
         playbin_element.set_property("video-filter", &video_filter_element);
 
@@ -521,6 +470,86 @@ impl VideoPlayerWidget {
         imp.video_sink_element.replace(Some(video_sink_element));
     }
 
+    /// Called when the video changes
+    fn on_video_changed(&self) {
+        let imp = self.imp();
+
+        let playbin_element = imp.playbin_element
+            .borrow()
+            .clone();
+        let Some(playbin_element) = playbin_element else {
+            tracing::error!("playbin_element was None");
+            return;
+        };
+
+        if let Err(error) = playbin_element.set_state(State::Null) {
+            tracing::error!(?error, "failed to reset video");
+            return;
+        }
+
+        self.set_controls_enabled(false);
+
+        imp.position_label.borrow().set_text("--:--");
+        imp.duration_label.borrow().set_text("--:--");
+
+        let video = imp.video
+            .borrow()
+            .clone();
+
+        let Some(video) = video else {
+            return;
+        };
+
+        video.reset_preview_data();
+
+        let path = std::path::PathBuf::from(video.path());
+        if !path.is_file() {
+            tracing::error!(?path, "path does not exist");
+            return;
+        }
+
+        self.bind_video(&video);
+
+        let path = format!("file://{0}", video.path());
+        playbin_element.set_property("uri", path);
+
+        self.pause();
+    }
+
+    /// Pause the video.
+    fn pause(&self) {
+        let imp = self.imp();
+
+        let playbin_element = imp.playbin_element
+            .borrow()
+            .clone();
+        let Some(playbin_element) = playbin_element else {
+            tracing::error!("playbin_element was None");
+            return;
+        };
+
+        if let Err(error) = playbin_element.set_state(State::Paused) {
+            tracing::error!(?error, "failed to pause video");
+        }
+    }
+
+    /// Play the video.
+    fn play(&self) {
+        let imp = self.imp();
+
+        let playbin_element = imp.playbin_element
+            .borrow()
+            .clone();
+        let Some(playbin_element) = playbin_element else {
+            tracing::error!("playbin_element was None");
+            return;
+        };
+
+        if let Err(error) = playbin_element.set_state(State::Playing) {
+            tracing::error!(?error, "failed to play video");
+        }
+    }
+
     /// Update the UI based on the current state of the video being played.
     fn refresh_ui(&self) {
         let imp = self.imp();
@@ -555,6 +584,58 @@ impl VideoPlayerWidget {
                 .unwrap(),
             &playbin_element
         );
+    }
+
+    /// Set the selected audio track.
+    ///
+    /// # Args
+    ///
+    /// `index`  The index of the audio track. This is the zero-index value.
+    fn select_audio_track(&self, index: u32) {
+        let imp = self.imp();
+        let video = imp.video
+            .borrow()
+            .clone();
+        if let Some(video) = video {
+            if let Some(track) = video.get_audio_track(index) {
+                let preview = track.preview();
+                preview.set_selected(true);
+            }
+        }
+    }
+
+    /// Set the selected subtitle track.
+    ///
+    /// # Args
+    ///
+    /// `index`  The index of the subtitle track. This is the zero-index value.
+    fn select_subtitle_track(&self, index: u32) {
+        let imp = self.imp();
+        let video = imp.video
+            .borrow()
+            .clone();
+        if let Some(video) = video {
+            if let Some(track) = video.get_subtitle_track(index) {
+                let preview = track.preview();
+                preview.set_selected(true);
+            }
+        }
+    }
+
+    /// Toggle mute on and off.
+    ///
+    /// # Args
+    ///
+    /// `mute`:  Indicates if the audio should be muted or unmuted.
+    pub fn set_mute(&self, mute: bool) {
+        let playbin_element = self.imp().playbin_element
+            .borrow()
+            .clone();
+        let Some(playbin_element) = playbin_element else {
+            return;
+        };
+
+        playbin_element.set_property("mute", mute);
     }
 
     /// Updates the video, audio, and subtitle stream information.
@@ -765,13 +846,14 @@ mod imp {
     use gst::{Element, State};
     use gst::prelude::*;
 
-    use gtk::{Box, ColumnView, Label, NoSelection, Scale, SingleSelection};
+    use gtk::{Box, ColumnView, Label, NoSelection, Scale, SingleSelection, StringList};
 
     use gtk::gio::ListStore;
     use gtk::glib::{self, Properties, SignalHandlerId};
+    use gtk::prelude::*;
     use gtk::subclass::prelude::*;
 
-    use crate::ui::data::VideoObject;
+    use crate::ui::data::{AudioTrackObject, SubtitleTrackObject, VideoObject};
     use crate::ui::widget::DuelIconToggleButton;
 
     /// Implemenation for [`super::VideoPlayerWidget`].
@@ -817,9 +899,23 @@ mod imp {
 
         /// Signal identifiers for the selected video connections.
         pub(super) video_signals: RefCell<Vec<SignalHandlerId>>,
+
+        /// Model for storing the list of available audio tracks.
+        pub(super) audio_track_options: RefCell<StringList>,
+
+        /// Model for storing the list of available subtitle tracks.
+        pub(super) subtitle_track_options: RefCell<StringList>,
     }
 
     impl VideoPlayerWidget {
+        /// Set the active video.
+        /// 
+        /// This is used as a custom setter for the video property so that when the video is set,
+        /// a number of other actions (e.g. update track options) can be taken.
+        ///
+        /// # Args
+        ///
+        /// `video`   The new selected video.
         fn set_video(&self, video: Option<VideoObject>) {
             if let Some(old_video) = self.video.borrow().clone() {
                 for signal_id in self.video_signals.borrow_mut().drain(..) {
@@ -827,8 +923,66 @@ mod imp {
                 }
             }
 
+            if let Some(video) = &video {
+                self.update_audio_track_options(video.audio_tracks());
+                self.update_subtitle_track_options(video.subtitle_tracks());
+            } else {
+                self.update_audio_track_options(None);
+                self.update_subtitle_track_options(None);
+            }
+
             self.video.replace(video);
             self.obj().on_video_changed();
+        }
+
+        /// Updates the available audio tracks.
+        ///
+        /// # Args
+        ///
+        /// `audio_tracks`:  List store containing [`AudioTrackObject`] instances representing the
+        /// available audio tracks for the selected video.
+        fn update_audio_track_options(&self, audio_tracks: Option<ListStore>) {
+            let names: Vec<String> = audio_tracks
+                .map(|list| {
+                    list.iter::<AudioTrackObject>()
+                        .filter_map(Result::ok)
+                        .map(|track| track.selector_display())
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            let name_refs: Vec<&str> = names.iter()
+                .map(String::as_str)
+                .collect();
+
+            let options = self.audio_track_options
+                .borrow();
+            options.splice(0, options.n_items(), &name_refs);
+        }
+
+        /// Updates the available subtitle tracks.
+        ///
+        /// # Args
+        ///
+        /// `subtitle_tracks`:  List store containing [`SubtitleTrackObject`] instances
+        /// representing the available subtitle tracks for the selected video.
+        fn update_subtitle_track_options(&self, subtitle_tracks: Option<ListStore>) {
+            let names: Vec<String> = subtitle_tracks
+                .map(|list| {
+                    list.iter::<SubtitleTrackObject>()
+                        .filter_map(Result::ok)
+                        .map(|track| track.selector_display())
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            let name_refs: Vec<&str> = names.iter()
+                .map(String::as_str)
+                .collect();
+
+            let options = self.subtitle_track_options
+                .borrow();
+            options.splice(0, options.n_items(), &name_refs);
         }
     }
 

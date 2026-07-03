@@ -6,6 +6,7 @@
 use gtk::glib::{self, Object};
 
 use crate::models::AudioTrack;
+use crate::utilities;
 
 glib::wrapper! {
     pub struct AudioTrackObject(ObjectSubclass<imp::AudioTrackObject>);
@@ -19,16 +20,27 @@ impl AudioTrackObject {
     /// This will panic if the GObject cannot be created.
     pub fn new(audio_track: &AudioTrack) -> Self {
         Object::builder()
+            .property("audio-track-index", audio_track.audio_index)
             .property("name", &audio_track.name)
             .property("codec", &audio_track.codec.to_string())
             .property("language", &audio_track.language_code)
             .property("layout", &audio_track.channel_layout)
             .build()
     }
+
+    /// Return the display text to use in the track selection dropdown.
+    pub fn selector_display(&self) -> String {
+        format!(
+            "({}) {} - {}",
+            self.audio_track_index(),
+            self.name(),
+            utilities::expand_language_code(self.language().as_str()),
+        )
+    }
 }
 
 mod imp {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
 
     use gtk::glib::{self, Properties};
     use gtk::prelude::*;
@@ -39,6 +51,10 @@ mod imp {
     #[derive(Default, Properties)]
     #[properties(wrapper_type = super::AudioTrackObject)]
     pub struct AudioTrackObject {
+        /// The audio track index (starting at 1).
+        #[property(name = "audio-track-index", get, set, type = u8)]
+        pub audio_track_index: Cell<u8>,
+
         /// The name of the audio track.
         #[property(name = "name", get, set, type = String)]
         pub name: RefCell<String>,
