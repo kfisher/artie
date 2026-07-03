@@ -3,10 +3,7 @@
 
 //! GObject containing information for previewing an audio, subtitle, or video track.
 
-use gst::glib::object::ObjectExt;
-use gtk::CheckButton;
 use gtk::glib::{self, Object};
-use gtk::glib::subclass::prelude::*;
 
 glib::wrapper! {
     pub struct TrackPreviewObject(ObjectSubclass<imp::TrackPreviewObject>);

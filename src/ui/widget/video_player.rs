@@ -23,23 +23,15 @@ use gst::prelude::*;
 use gtk::{
     Align,
     Box,
-    CheckButton,
-    ColumnView,
-    ColumnViewColumn,
     DropDown,
     Label,
-    ListItem,
     Orientation,
     Picture,
     GraphicsOffload,
     GraphicsOffloadEnabled,
-    NoSelection,
     Scale,
-    SignalListItemFactory,
-    SingleSelection,
     StringList,
 };
-use gtk::gio::ListStore;
 use gtk::glib::{self, FlagsClass, Object, SignalHandlerId};
 use gtk::gdk::Paintable;
 use gtk::prelude::*;
@@ -47,9 +39,9 @@ use gtk::subclass::prelude::*;
 
 use tokio::sync::mpsc;
 
-use crate::ui::data::{AudioTrackObject, SubtitleTrackObject, VideoObject, VideoTrackObject};
+use crate::ui::data::VideoObject;
 use crate::ui::helpers;
-use crate::ui::widget::{DuelIconToggleButton, IconToggleButton};
+use crate::ui::widget::DuelIconToggleButton;
 
 /// The fixed width, in pixels, that video playback is displayed at.
 const VIDEO_FRAME_WIDTH: i32 = 900;
@@ -846,7 +838,7 @@ mod imp {
     use gst::{Element, State};
     use gst::prelude::*;
 
-    use gtk::{Box, ColumnView, Label, NoSelection, Scale, SingleSelection, StringList};
+    use gtk::{Box, Label, Scale, StringList};
 
     use gtk::gio::ListStore;
     use gtk::glib::{self, Properties, SignalHandlerId};

@@ -16,7 +16,6 @@ use gtk::subclass::prelude::*;
 use crate::ui::ContextObject;
 use crate::ui::widget::{
     TitleFormWidget,
-    TranscodeFormWidget,
     TranscodeListWidget,
     TranscodeQueueWidget,
     VideoPlayerWidget,
@@ -127,7 +126,7 @@ mod imp {
 
     use crate::ui::ContextObject;
     use crate::ui::data::VideoObject;
-    use crate::ui::widget::{TitleFormWidget, TranscodeFormWidget, VideoPlayerWidget};
+    use crate::ui::widget::{TitleFormWidget, VideoPlayerWidget};
 
     /// Implemenation for [`super::TranscodePageWidget`].
     #[derive(Default, Properties)]
