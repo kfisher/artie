@@ -52,13 +52,31 @@ impl TranscodePageWidget {
     ///
     /// Called by the implementation ([`imp::TranscodePageWidget`]) when constructed.
     fn build_ui(&self) {
+        self.set_vexpand(true);
+        self.set_hexpand(true);
+        self.set_orientation(Orientation::Horizontal);
+        self.set_spacing(8);
+
         let context = self.context()
             .expect("context was None");
+
         let transcode_list = TranscodeListWidget::new(&context);
+        self.append(&transcode_list);
+
+        let this = self.clone();
+        transcode_list.connect_video_selected(glib::clone!(
+            #[weak]
+            this,
+            move |video| {
+                this.set_selected_video(Some(video.clone()));
+            }
+        ));
 
         let main_section = Box::builder()
+            .hexpand(true)
             .orientation(Orientation::Vertical)
             .build();
+        self.append(&main_section);
 
         let main_section_row_0 = Box::builder()
             .hexpand(true)
@@ -73,6 +91,10 @@ impl TranscodePageWidget {
         let video_player = VideoPlayerWidget::new();
         main_section_row_0.append(&video_player);
 
+        self.bind_property("selected-video", &video_player, "video")
+            .sync_create()
+            .build();
+
         let title_form = TitleFormWidget::new(&context);
         title_form.set_hexpand(true);
         title_form.set_halign(gtk::Align::Fill);
@@ -80,54 +102,15 @@ impl TranscodePageWidget {
         title_form.set_valign(gtk::Align::Fill);
         main_section_row_0.append(&title_form);
 
-        let main_section_row_1 = Box::builder()
-            .hexpand(true)
-            .valign(gtk::Align::Start)
-            .vexpand(false)
-            .orientation(Orientation::Horizontal)
-            .spacing(8)
-            .margin_top(8)
-            .build();
-        main_section.append(&main_section_row_1);
-
-        let transcode_form = TranscodeFormWidget::new();
-        main_section_row_1.append(&transcode_form);
-
         let transcode_queue = TranscodeQueueWidget::new();
-
-        self.append(&transcode_list);
-        self.append(&main_section);
         self.append(&transcode_queue);
-
-        self.set_vexpand(true);
-        self.set_hexpand(true);
-        self.set_orientation(Orientation::Horizontal);
-        self.set_spacing(8);
-
-        let transcode_page = self.clone();
-        transcode_list.connect_video_selected(glib::clone!(
-            #[weak]
-            transcode_page,
-            move |video| {
-                transcode_page.set_selected_video(Some(video.clone()));
-            }
-        ));
-
-        self.bind_property("selected-video", &video_player, "video")
-            .sync_create()
-            .build();
 
         self.bind_property("selected-video", &title_form, "video")
             .sync_create()
             .build();
 
-        self.bind_property("selected-video", &transcode_form, "video")
-            .sync_create()
-            .build();
-
         let imp = self.imp();
         imp.title_form.replace(Some(title_form));
-        imp.transcode_form.replace(Some(transcode_form));
         imp.video_player.replace(Some(video_player));
     }
 }
@@ -163,9 +146,6 @@ mod imp {
 
         /// Form use to edit information about the active title.
         pub(super) title_form: RefCell<Option<TitleFormWidget>>,
-
-        /// Form use to edit the transcode parameters.
-        pub(super) transcode_form: RefCell<Option<TranscodeFormWidget>>,
 
         /// The widget used to play the video preview.
         pub(super) video_player: RefCell<Option<VideoPlayerWidget>>,

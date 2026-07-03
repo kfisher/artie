@@ -52,7 +52,7 @@ use crate::ui::helpers;
 use crate::ui::widget::{DuelIconToggleButton, IconToggleButton};
 
 /// The fixed width, in pixels, that video playback is displayed at.
-const VIDEO_FRAME_WIDTH: i32 = 720;
+const VIDEO_FRAME_WIDTH: i32 = 900;
 
 /// The fixed height, in pixels, that video playback is displayed at.
 const VIDEO_FRAME_HEIGHT: i32 = (VIDEO_FRAME_WIDTH as f32 / (16.0 / 9.0)) as i32;
