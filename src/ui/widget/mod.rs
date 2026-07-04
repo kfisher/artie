@@ -3,8 +3,10 @@
 
 //! Custom UI widgets.
 
+mod archive_form;
 mod copy_form;
 mod copy_page;
+mod delete_form;
 mod drive;
 mod dual_icon_toggle_button;
 mod icon_button;
@@ -19,14 +21,16 @@ mod transcode_queue;
 mod video_player;
 mod window;
 
+pub use archive_form::ArchiveFormWidget;
 pub use copy_form::CopyFormWidget;
 pub use copy_page::CopyPageWidget;
+pub use delete_form::DeleteFormWidget;
 pub use drive::DriveWidget;
 pub use dual_icon_toggle_button::DuelIconToggleButton;
 pub use icon_button::IconButton;
 pub use icon_toggle_button::IconToggleButton;
 pub use title_form::TitleFormWidget;
-// pub use transcode_form::TranscodeFormWidget;
+pub use transcode_form::TranscodeFormWidget;
 pub use transcode_list::TranscodeListWidget;
 pub use transcode_list_filter::TranscodeListFilterWidget;
 pub use transcode_list_item::TranscodeListItemWidget;

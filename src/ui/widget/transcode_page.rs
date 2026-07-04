@@ -6,8 +6,7 @@
 //! The transcode page is the page used to initiate, monitor, and terminate transcode operations.
 
 use gtk::{
-    Box,
-    Orientation,
+    Box, Label, Notebook, Orientation
 };
 use gtk::glib::{self, Object};
 use gtk::prelude::*;
@@ -15,7 +14,10 @@ use gtk::subclass::prelude::*;
 
 use crate::ui::ContextObject;
 use crate::ui::widget::{
+    ArchiveFormWidget,
+    DeleteFormWidget,
     TitleFormWidget,
+    TranscodeFormWidget,
     TranscodeListWidget,
     TranscodeQueueWidget,
     VideoPlayerWidget,
@@ -108,10 +110,64 @@ impl TranscodePageWidget {
             .sync_create()
             .build();
 
+        let main_section_row_1 = Box::builder()
+            .hexpand(true)
+            .margin_bottom(8)
+            .margin_top(8)
+            .orientation(Orientation::Horizontal)
+            .spacing(8)
+            .vexpand(true)
+            .build();
+        main_section.append(&main_section_row_1);
+
+        let tab_view = Notebook::builder()
+            .hexpand(true)
+            .vexpand(true)
+            .valign(gtk::Align::Fill)
+            .build();
+        main_section_row_1.append(&tab_view);
+
+        let transcode_tab = Box::builder()
+            .build();
+        let transcode_content = TranscodeFormWidget::builder()
+            .build();
+        transcode_tab.append(&transcode_content);
+        tab_view.append_page(
+            &transcode_tab,
+            Some(&make_tab_label("Transcode")),
+        );
+
+        let archive_tab = Box::builder()
+            .build();
+        let archive_content = ArchiveFormWidget::builder()
+            .build();
+        archive_tab.append(&archive_content);
+        tab_view.append_page(
+            &archive_tab,
+            Some(&make_tab_label("Archive")),
+        );
+
+        let delete_tab = Box::builder()
+            .build();
+        let delete_content = DeleteFormWidget::builder()
+            .build();
+        delete_tab.append(&delete_content);
+        tab_view.append_page(
+            &delete_tab,
+            Some(&make_tab_label("Delete")),
+        );
+
         let imp = self.imp();
         imp.title_form.replace(Some(title_form));
         imp.video_player.replace(Some(video_player));
     }
+}
+
+fn make_tab_label(text: &str) -> Label {
+    Label::builder()
+        .label(text)
+        .hexpand(true)
+        .build()
 }
 
 

@@ -24,7 +24,7 @@ tokio-util = { version = "0.7.18" }
 
 # TODO: Revisit faux drives once release is ready.
 [features]
-default = []
+default = ["faux_drives"]
 faux_drives = []
 
 [dependencies.blake3]
@@ -42,6 +42,12 @@ version = "1.0"
 
 [dependencies.gethostname]
 version = "1.1.0"
+
+[dependencies.glib]
+version = "0.22"
+
+[dependencies.gio]
+version = "0.22"
 
 [dependencies.gtk]
 version = "0.11"
@@ -70,7 +76,6 @@ features = ["bundled"]
 
 [dependencies.serde]
 workspace = true
-
 [dependencies.serde_json]
 workspace = true
 
@@ -92,6 +97,7 @@ version = "0.3"
 [lints.rust]
 # TODO: Remove these once initial development has completed!
 dead_code = "allow"
+# unused_imports = "allow"
 
 [build-dependencies]
 glib-build-tools = "0.21.0"

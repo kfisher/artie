@@ -88,6 +88,8 @@ dependencies = [
  "clap",
  "flate2",
  "gethostname",
+ "gio 0.22.6",
+ "glib 0.22.7",
  "glib-build-tools",
  "gst-plugin-gtk4",
  "gstreamer",
