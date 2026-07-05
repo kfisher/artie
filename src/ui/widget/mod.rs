@@ -3,6 +3,7 @@
 
 //! Custom UI widgets.
 
+mod audio_track_field;
 mod archive_form;
 mod dropdown;
 mod entry;
@@ -23,6 +24,7 @@ mod transcode_queue;
 mod video_player;
 mod window;
 
+pub use audio_track_field::AudioTrackFieldWidget;
 pub use archive_form::ArchiveFormWidget;
 pub use copy_form::CopyFormWidget;
 pub use copy_page::CopyPageWidget;
