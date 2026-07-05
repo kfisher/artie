@@ -14,6 +14,7 @@
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.pause-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.play-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.plug-circle-minus-symbolic.svg</file>
+        <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.plus-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.rotate-left-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.save-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.stop-symbolic.svg</file>
