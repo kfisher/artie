@@ -6,31 +6,24 @@
 use std::cell::RefCell;
 
 use glib::{self, Properties};
-use gtk::{Align, Box, DropDown, Label, StringList, Orientation};
+use gtk::{Align, Box, Entry, Label, Orientation};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
 use crate::ui::validators::Validator;
 
 #[derive(Default, Properties)]
-#[properties(wrapper_type = super::DropDownWidget)]
-pub struct DropDownWidget {
-    /// The label for the dropdown.
+#[properties(wrapper_type = super::EntryWidget)]
+pub struct EntryWidget {
+    /// The label for the entry.
     #[property(get, set)]
     pub(super) label: RefCell<Option<String>>,
 
-    /// The dropdown option model.
-    #[property(get, set)]
-    pub(super) model: RefCell<StringList>,
-
-    /// The dropdown widget.
-    pub(super) dropdown: RefCell<DropDown>,
-
-    /// Validator to use when validating the dropdown's current value.
-    pub(super) validator: RefCell<Validator>,
+    /// Validator to use when validating the entry's current value.
+    validator: RefCell<Validator>,
 }
 
-impl DropDownWidget {
+impl EntryWidget {
     /// Set the validator used to validate the dropdown. 
     ///
     /// # Args
@@ -45,12 +38,9 @@ impl DropDownWidget {
         let obj = self.obj();
         obj.set_orientation(Orientation::Vertical);
 
-        let dropdown = DropDown::builder()
+        let entry = Entry::builder()
             .build();
-        obj.bind_property("model", &dropdown, "model")
-            .sync_create()
-            .build();
-        obj.append(&dropdown);
+        obj.append(&entry);
 
         let label = Label::builder()
             .halign(Align::Start)
@@ -61,28 +51,26 @@ impl DropDownWidget {
             .sync_create()
             .build();
         obj.append(&label);
-
-        self.dropdown.replace(dropdown);
     }
 }
 
 #[glib::object_subclass]
-impl ObjectSubclass for DropDownWidget {
-    const NAME: &'static str = "ArtieDropDownWidget";
-    type Type = super::DropDownWidget;
+impl ObjectSubclass for EntryWidget {
+    const NAME: &'static str = "ArtieEntryWidget";
+    type Type = super::EntryWidget;
     type ParentType = Box;
 }
 
 #[glib::derived_properties]
-impl ObjectImpl for DropDownWidget {
+impl ObjectImpl for EntryWidget {
     fn constructed(&self) {
         self.parent_constructed();
         self.build_ui();
     }
 }
 
-impl WidgetImpl for DropDownWidget {
+impl WidgetImpl for EntryWidget {
 }
 
-impl BoxImpl for DropDownWidget {
+impl BoxImpl for EntryWidget {
 }

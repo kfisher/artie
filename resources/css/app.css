@@ -577,6 +577,10 @@ window.background {
     font-weight: bold;
 }
 
+.field-label.bottom {
+    margin-left: 4px;
+}
+
 .metadata-form-widget {
     background-color: var(--color-surface-1-base);
     border: 1px solid var(--color-surface-1-border);
@@ -595,6 +599,17 @@ window.background {
     border-top: 1px solid var(--color-surface-1-border);
     margin-top: 8px;
     padding-top: 8px;
+}
+
+.transcode-form-widget {
+    padding: 12px;
+}
+
+.transcode-form-widget > .column {
+    background-color: var(--color-surface-1-base);
+    border: 1px solid var(--color-surface-1-border);
+    border-radius: var(--border-radius);
+    padding: 8px;
 }
 
 .transcode-list-filter .filter-controls {

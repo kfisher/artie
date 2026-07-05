@@ -88,7 +88,6 @@ impl Builder {
             .build();
 
         let imp = obj.imp();
-        // imp.set_options(self.options);
         imp.set_validator(self.validator);
 
         obj

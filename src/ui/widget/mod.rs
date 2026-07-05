@@ -5,6 +5,7 @@
 
 mod archive_form;
 mod dropdown;
+mod entry;
 mod copy_form;
 mod copy_page;
 mod delete_form;
@@ -29,6 +30,7 @@ pub use delete_form::DeleteFormWidget;
 pub use drive::DriveWidget;
 pub use dropdown::DropDownWidget;
 pub use dual_icon_toggle_button::DuelIconToggleButton;
+pub use entry::EntryWidget;
 pub use icon_button::IconButton;
 pub use icon_toggle_button::IconToggleButton;
 pub use title_form::TitleFormWidget;
