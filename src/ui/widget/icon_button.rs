@@ -4,7 +4,7 @@
 //! Button widget for displaying both an icon and a label.
 
 use glib::Object;
-use gtk::{Box, Image, Label, Orientation};
+use gtk::{Align, Box, Image, Label, Orientation};
 use gtk::glib;
 use gtk::prelude::*;
 
@@ -20,6 +20,11 @@ glib::wrapper! {
 }
 
 impl IconButton {
+    /// Create a builder instance for creating instances of [`IconButton`].
+    pub fn builder() -> Builder {
+        Builder::new()
+    }
+
     /// Creates a new button instance.
     ///
     /// # Args
@@ -83,6 +88,75 @@ impl IconButton {
 impl Default for IconButton {
     fn default() -> Self {
         Self::new("", "")
+    }
+}
+
+pub struct Builder {
+    /// The name of the icon. This is the name of the SVG file without the path or file extention.
+    icon_name: Option<String>,
+
+    /// The button's text.
+    label: Option<String>,
+
+    /// The button's CSS class.
+    css_class: String,
+}
+
+impl Builder {
+    /// Create a new [`Builder`] instance.
+    fn new() -> Self {
+        Self {
+            icon_name: None,
+            label: None,
+            css_class: String::from("default"),
+        }
+    }
+
+    pub fn primary_button(mut self) -> Self {
+        self.css_class = String::from("primary");
+        self
+    }
+
+    pub fn secondary_button(mut self) -> Self {
+        self.css_class = String::from("secondary");
+        self
+    }
+
+    /// Set the icon-name for the button.
+    ///
+    /// # Args
+    ///
+    /// `icon_name`:  The name of the icon. This is the name of the SVG file without the path or
+    /// file extension.
+    pub fn icon_name(mut self, label: &str) -> Self {
+        self.icon_name = Some(label.to_owned());
+        self
+    }
+
+    /// Set the label for the dropdown.
+    ///
+    /// # Args
+    ///
+    /// `label`:  The button text.
+    pub fn label(mut self, label: &str) -> Self {
+        self.label = Some(label.to_owned());
+        self
+    }
+
+    /// Build a [`IconButton`] instance based off the parameters provided to the builder.
+    pub fn build(self) -> IconButton {
+        let icon_name = self.icon_name
+            .unwrap_or_default();
+        let button = match self.label {
+            Some(label) => IconButton::new(&icon_name, &label),
+            None => IconButton::icon_only(&icon_name),
+        };
+        button.add_css_class(&self.css_class);
+        button.set_halign(Align::Start);
+        button.set_hexpand(false);
+        button.set_vexpand(false);
+        button.set_valign(Align::Start);
+        button
     }
 }
 
