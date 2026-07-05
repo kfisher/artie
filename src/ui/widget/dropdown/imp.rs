@@ -1,0 +1,99 @@
+// Copyright 2026 Kevin Fisher. All rights reserved.
+// SPDX-License-Identifier: GPL-3.0-only
+
+//! Widget implementation.
+
+use std::cell::RefCell;
+
+use glib::{self, Properties};
+use gtk::{Align, Box, DropDown, Label, StringList, Orientation};
+use gtk::prelude::*;
+use gtk::subclass::prelude::*;
+
+use crate::ui::validators::Validator;
+
+#[derive(Default, Properties)]
+#[properties(wrapper_type = super::DropDownWidget)]
+pub struct DropDownWidget {
+    /// The label for the dropdown.
+    #[property(get, set)]
+    pub(super) label: RefCell<Option<String>>,
+
+    /// The dropdown option model.
+    #[property(get, set)]
+    pub(super) model: RefCell<StringList>,
+
+    /// The dropdown widget.
+    pub(super) dropdown: RefCell<DropDown>,
+
+    /// Validator to use when validating the dropdown's current value.
+    pub(super) validator: RefCell<Validator>,
+}
+
+impl DropDownWidget {
+    /// Set the dropdown's list of options.
+    ///
+    /// # Args
+    ///
+    /// `options`  The new list of options. These will replace the existing ones.
+    pub(super) fn set_options(&self, options: Vec<String>) {
+        let model = StringList::from_iter(options);
+        self.dropdown
+            .borrow()
+            .set_model(Some(&model));
+        self.model.replace(model);
+    }
+
+    /// Set the validator used to validate the dropdown. 
+    ///
+    /// # Args
+    ///
+    /// `validator`  The new validator.
+    pub(super) fn set_validator(&self, validator: Validator) {
+        self.validator.replace(validator);
+    }
+
+    /// Builds the widget.
+    fn build_ui(&self) {
+        let obj = self.obj();
+        obj.set_orientation(Orientation::Vertical);
+
+        let dropdown = DropDown::builder()
+            .build();
+        obj.bind_property("model", &dropdown, "model")
+            .sync_create()
+            .build();
+        obj.append(&dropdown);
+
+        let label = Label::builder()
+            .halign(Align::Start)
+            .build();
+        obj.bind_property("label", &label, "label")
+            .sync_create()
+            .build();
+        obj.append(&label);
+
+        self.dropdown.replace(dropdown);
+    }
+}
+
+#[glib::object_subclass]
+impl ObjectSubclass for DropDownWidget {
+    const NAME: &'static str = "ArtieDropDownWidget";
+    type Type = super::DropDownWidget;
+    type ParentType = Box;
+}
+
+#[glib::derived_properties]
+impl ObjectImpl for DropDownWidget {
+    fn constructed(&self) {
+        self.parent_constructed();
+        self.build_ui();
+    }
+}
+
+impl WidgetImpl for DropDownWidget {
+}
+
+impl BoxImpl for DropDownWidget {
+}

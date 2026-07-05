@@ -4,6 +4,7 @@
 //! Custom UI widgets.
 
 mod archive_form;
+mod dropdown;
 mod copy_form;
 mod copy_page;
 mod delete_form;
@@ -26,6 +27,7 @@ pub use copy_form::CopyFormWidget;
 pub use copy_page::CopyPageWidget;
 pub use delete_form::DeleteFormWidget;
 pub use drive::DriveWidget;
+pub use dropdown::DropDownWidget;
 pub use dual_icon_toggle_button::DuelIconToggleButton;
 pub use icon_button::IconButton;
 pub use icon_toggle_button::IconToggleButton;
