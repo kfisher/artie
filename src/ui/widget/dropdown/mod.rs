@@ -80,6 +80,17 @@ impl Builder {
         self
     }
 
+    /// Add a list of options to the dropdown.
+    ///
+    /// # Args
+    ///
+    /// `options`:  List of options to add. They will be appended to the current list of options if
+    /// any were provided to the builder before this call in the same order as they are provided.
+    pub fn options(mut self, options: &[&str]) -> Self {
+        self.options.extend(options.iter().map(|&s| s.to_owned()));
+        self
+    }
+
     /// Build a [`DropDownWidget`] instance based off the parameters provided to the builder.
     pub fn build(self) -> DropDownWidget {
         let obj: DropDownWidget = Object::builder()

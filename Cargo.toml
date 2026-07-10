@@ -67,6 +67,9 @@ features = ["gtk_v4_20"]
 version = "0.25.2"
 package = "gstreamer-video"
 
+[dependencies.handbrake]
+path = "./handbrake"
+
 [dependencies.makemkv]
 path = "./makemkv"
 

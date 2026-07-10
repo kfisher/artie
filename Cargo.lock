@@ -95,6 +95,7 @@ dependencies = [
  "gstreamer",
  "gstreamer-video",
  "gtk4",
+ "handbrake",
  "makemkv",
  "rusqlite",
  "serde",

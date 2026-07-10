@@ -12,6 +12,7 @@ pub use crate::command::{AudioTrackOption, Options};
 
 use std::path::Path;
 use std::process::ExitStatus;
+use std::sync::OnceLock;
 
 use crate::command::{Context};
 
@@ -53,6 +54,21 @@ pub struct Version {
     pub version: String,
 }
 
+/// Returns the list of available HandBrake presets.
+pub fn presets() -> &'static Vec<&'static str> {
+    // TODO: Instead of having a hard-coded list, should initialize by running the HandBrake
+    //       command to get the list of presets.
+    static PRESET_LIST: OnceLock<Vec<&'static str>> = OnceLock::new();
+    PRESET_LIST.get_or_init(|| {
+        vec![
+            "Very Fast 1080p30",
+            "Fast 1080p30",
+            "HQ 1080p30 Surround",
+            "Super HQ 1080p30 Surround",
+        ]
+    })
+}
+
 /// Run handbrake to transcode a video.
 ///
 /// <div class="warning">
@@ -81,3 +97,17 @@ where
     command::run_handbrake(&mut ctx, opts)
 }
 
+/// Returns the list of available HandBrake video encoders.
+pub fn video_encoders() -> &'static Vec<&'static str> {
+    // TODO: Instead of having a hard-coded list, should initialize by running the HandBrake
+    //       command to get the list of encorders.
+    static PRESET_LIST: OnceLock<Vec<&'static str>> = OnceLock::new();
+    PRESET_LIST.get_or_init(|| {
+        vec![
+            "H.264 (x264)",
+            "H.264 (NVEnc)",
+            "H.265 (x265)",
+            "H.265 (NVEnc)",
+        ]
+    })
+}
