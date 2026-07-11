@@ -8,7 +8,7 @@
 
 mod imp;
 
-use glib::{self, Object};
+use glib::{self, Object, SignalHandlerId};
 
 use gtk::StringList;
 use gtk::subclass::prelude::*;
@@ -29,6 +29,35 @@ impl DropDownWidget {
     /// Create a builder instance for creating instances of [`DropDownWidget`].
     pub fn builder() -> Builder {
         Builder::new()
+    }
+
+    /// Connect to the notification signal emitted when the selected option changes.
+    ///
+    /// # Args
+    ///
+    /// `f`:  The function to call when the selected option changes.
+    pub fn connect_select_notify<F>(&self, f: F) -> SignalHandlerId
+    where
+        F: Fn(&Self) + 'static
+    {
+        let this = self;
+        self.imp().dropdown
+            .borrow()
+            .connect_selected_notify(glib::clone!(
+                #[weak]
+                this,
+                move |_| {
+                    f(&this)
+                }
+            ))
+    }
+
+    /// Returns the index of the currently item. If an item is not currently selected, it will
+    /// return [`gtk::INVALID_LIST_POSITION`].
+    pub fn selected(&self) -> u32 {
+        self.imp().dropdown
+            .borrow()
+            .selected()
     }
 }
 

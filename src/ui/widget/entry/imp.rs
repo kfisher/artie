@@ -19,6 +19,9 @@ pub struct EntryWidget {
     #[property(get, set)]
     pub(super) label: RefCell<Option<String>>,
 
+    /// The underlying [`Entry`] GTK widget.
+    pub(super) entry: RefCell<Entry>,
+
     /// Validator to use when validating the entry's current value.
     validator: RefCell<Validator>,
 }
@@ -51,6 +54,8 @@ impl EntryWidget {
             .sync_create()
             .build();
         obj.append(&label);
+
+        self.entry.replace(entry);
     }
 }
 

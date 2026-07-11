@@ -100,6 +100,9 @@ pub struct Builder {
 
     /// The button's CSS class.
     css_class: String,
+
+    /// The button should use the ghost variant.
+    is_ghost: bool,
 }
 
 impl Builder {
@@ -109,14 +112,31 @@ impl Builder {
             icon_name: None,
             label: None,
             css_class: String::from("default"),
+            is_ghost: false,
         }
     }
 
+    /// Configure the button using the danger color style.
+    pub fn danger_button(mut self) -> Self {
+        self.css_class = String::from("danger");
+        self
+    }
+
+    /// Use the ghost form of the button.
+    ///
+    /// Ghost form buttons don't have a background and instead are icon only.
+    pub fn ghost_button(mut self) -> Self {
+        self.is_ghost = true;
+        self
+    }
+
+    /// Configure the button using the primary color style.
     pub fn primary_button(mut self) -> Self {
         self.css_class = String::from("primary");
         self
     }
 
+    /// Configure the button using the secondary color style.
     pub fn secondary_button(mut self) -> Self {
         self.css_class = String::from("secondary");
         self
@@ -156,6 +176,11 @@ impl Builder {
         button.set_hexpand(false);
         button.set_vexpand(false);
         button.set_valign(Align::Start);
+
+        if self.is_ghost {
+            button.add_css_class("ghost");
+        }
+
         button
     }
 }

@@ -137,6 +137,10 @@ impl TranscodePageWidget {
             Some(&make_tab_label("Transcode")),
         );
 
+        self.bind_property("selected-video", &transcode_content, "video")
+            .sync_create()
+            .build();
+
         let archive_tab = Box::builder()
             .build();
         let archive_content = ArchiveFormWidget::builder()

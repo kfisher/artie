@@ -5,7 +5,10 @@
 
 mod imp;
 
-use glib::{self, Object};
+use glib::{self, GString, Object, SignalHandlerId};
+
+use gtk::prelude::*;
+use gtk::subclass::prelude::*;
 
 use crate::ui::validators::Validator;
 
@@ -23,6 +26,53 @@ impl EntryWidget {
     /// Create a builder instance for creating instances of [`EntryWidget`].
     pub fn builder() -> Builder {
         Builder::new()
+    }
+
+    /// Connect to the notification signal emitted when the entry's text changes.
+    ///
+    /// # Args
+    ///
+    /// `f`:  The function to call when the entry's text changes.
+    pub fn connect_text_notify<F>(&self, f: F) -> SignalHandlerId
+    where
+        F: Fn(&Self) + 'static
+    {
+        let this = self;
+        self.imp().entry
+            .borrow()
+            .delegate()
+            .unwrap()
+            .connect_text_notify(glib::clone!(
+                #[weak]
+                this,
+                move |_| {
+                    f(&this)
+                }
+            ))
+    }
+
+    /// Get the entry's text.
+    pub fn text(&self) -> GString {
+        self.imp().entry
+            .borrow()
+            .text()
+    }
+
+    /// Set the entry's text.
+    ///
+    /// # Args
+    ///
+    /// `text`:  The new value for the entry's text.
+    pub fn set_text(&self, text: &str) {
+        self.imp().entry
+            .borrow()
+            .set_text(text);
+    }
+}
+
+impl Default for EntryWidget {
+    fn default() -> Self {
+        Builder::new().build()
     }
 }
 

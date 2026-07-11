@@ -23,7 +23,7 @@ pub struct DropDownWidget {
     #[property(get, set)]
     pub(super) model: RefCell<StringList>,
 
-    /// The dropdown widget.
+    /// The underlying [`DropDown`] GTK widget.
     pub(super) dropdown: RefCell<DropDown>,
 
     /// Validator to use when validating the dropdown's current value.

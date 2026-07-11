@@ -4,6 +4,7 @@
 //! General (non-widget) GLib objects.
 
 mod audio_track;
+mod audio_encode_option;
 mod enums;
 mod optical_drive;
 mod subtitle_track;
@@ -14,6 +15,7 @@ mod video_track;
 mod title_form;
 
 pub use audio_track::AudioTrackObject;
+pub use audio_encode_option::AudioEncodeOptionObject;
 pub use enums::{MediaType, OpticalDriveState, SpecialFeatureType};
 pub use optical_drive::OpticalDriveObject;
 pub use subtitle_track::SubtitleTrackObject;

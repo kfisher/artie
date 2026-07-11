@@ -13,11 +13,16 @@ use gtk::subclass::prelude::*;
 
 use handbrake;
 
+use crate::ui::data::VideoObject;
 use crate::ui::widget::{AudioTrackFieldWidget, DropDownWidget};
 
 #[derive(Default, Properties)]
 #[properties(wrapper_type = super::TranscodeFormWidget)]
 pub struct TranscodeFormWidget {
+    /// The active video.
+    #[property(get, set = Self::set_video, nullable)]
+    pub(super) video: RefCell<Option<VideoObject>>,
+
     /// Dropdown for selecting the HandBrake preset to use when transcoding.
     pub(super) preset_dropdown: RefCell<DropDownWidget>,
 
@@ -55,6 +60,11 @@ impl TranscodeFormWidget {
     fn create_audio_track_field(&self) -> AudioTrackFieldWidget {
         let widget = AudioTrackFieldWidget::builder()
             .build();
+
+        self.obj().bind_property("video", &widget, "video")
+            .sync_create()
+            .build();
+
         widget
     }
 
@@ -76,6 +86,17 @@ impl TranscodeFormWidget {
             .build();
         self.video_encoder_dropdown.replace(dropdown.clone());
         dropdown
+    }
+
+    /// Setter for the active video.
+    ///
+    /// # Args
+    ///
+    /// `video`:  The newly selected video. If `Some`, the form will be updated to reflect the
+    /// provided video. If `None`, the form's values will be reset back to default. In both cases,
+    /// any user provided changes will be reset.
+    fn set_video(&self, video: Option<VideoObject>) {
+        self.video.replace(video);
     }
 }
 

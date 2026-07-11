@@ -54,6 +54,19 @@ pub struct Version {
     pub version: String,
 }
 
+/// Returns the list of available HandBrake audio encoders.
+pub fn audio_encoders() -> &'static Vec<&'static str> {
+    // TODO: Instead of having a hard-coded list, should initialize by running the HandBrake
+    //       command to get the list of encorders.
+    static AUDIO_ENCODER_LIST: OnceLock<Vec<&'static str>> = OnceLock::new();
+    AUDIO_ENCODER_LIST.get_or_init(|| {
+        vec![
+            "Passthru",
+            "AAC",
+        ]
+    })
+}
+
 /// Returns the list of available HandBrake presets.
 pub fn presets() -> &'static Vec<&'static str> {
     // TODO: Instead of having a hard-coded list, should initialize by running the HandBrake
@@ -101,8 +114,8 @@ where
 pub fn video_encoders() -> &'static Vec<&'static str> {
     // TODO: Instead of having a hard-coded list, should initialize by running the HandBrake
     //       command to get the list of encorders.
-    static PRESET_LIST: OnceLock<Vec<&'static str>> = OnceLock::new();
-    PRESET_LIST.get_or_init(|| {
+    static VIDEO_ENCODER_LIST: OnceLock<Vec<&'static str>> = OnceLock::new();
+    VIDEO_ENCODER_LIST.get_or_init(|| {
         vec![
             "H.264 (x264)",
             "H.264 (NVEnc)",
