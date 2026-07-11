@@ -57,6 +57,15 @@ pub struct AudioTrackFieldWidget {
 // TODO: Should add controls to disable adding new tracks after a certain count is reached.
 
 impl AudioTrackFieldWidget {
+    /// Validates the track input controls and enables or disables the Add button accordingly.
+    fn add_track_input_changed(&self) {
+        let Some(add_button) = self.add_button.borrow().clone() else {
+            return;
+        };
+
+        add_button.set_sensitive(self.can_add_track());
+    }
+
     /// Callback when the Add button is clicked.
     fn add_clicked(&self) {
         let encode_list = self.encode_list
@@ -116,6 +125,65 @@ impl AudioTrackFieldWidget {
         obj.append(&self.create_controls());
         obj.append(&self.create_track_table());
     }
+
+    /// Returns `true` if the track inputs are valid and the encode list can accept additional
+    /// tracks or `false` otherwise.
+    fn can_add_track(&self) -> bool {
+        let Some(source_track_dropdown) = self.source_track_dropdown.borrow().clone() else {
+            return false;
+        };
+
+        let source_track_index = source_track_dropdown.selected();
+        if source_track_index == gtk::INVALID_LIST_POSITION {
+            return false;
+        }
+
+        let Some(video) = self.video.borrow().clone() else {
+            return false;
+        };
+
+        if video.get_audio_track(source_track_index).is_none() {
+            return false;
+        };
+
+        let Some(encoder_dropdown) = self.encoder_dropdown.borrow().clone() else {
+            return false;
+        };
+
+        let encoder_index = encoder_dropdown.selected();
+        if encoder_index >= gtk::INVALID_LIST_POSITION {
+            return false;
+        }
+
+        let Some(encoder_list) = self.encoder_list.borrow().clone() else {
+            return false;
+        };
+
+        if encoder_list.string(encoder_index).is_none() {
+            return false;
+        }
+
+        let Some(name_entry) = self.name_entry.borrow().clone() else {
+            return false;
+        };
+
+        // TODO: Entry should have built-in validation.
+        if name_entry.text().is_empty() {
+            return false;
+        }
+
+        let Some(encode_list) = self.encode_list.borrow().clone() else {
+            return false;
+        };
+
+        // TODO: Use a constant
+        if encode_list.n_items() >= 5 {
+            return false;
+        }
+
+        true
+    }
+
 
     /// Creates the controls for adding tracks to the track table.
     fn create_controls(&self) -> Box {
@@ -206,11 +274,25 @@ impl AudioTrackFieldWidget {
 
         let number_factory = SignalListItemFactory::new();
         number_factory.connect_setup(label_column_setup);
-        number_factory.connect_bind(label_column_bind(|encode_option| {
-            encode_option.track_number()
-                .to_string()
-                .into()
-        }));
+        number_factory.connect_bind(|_factor, obj| {
+            let item = obj
+                .downcast_ref::<ListItem>()
+                .unwrap();
+            let label = item.child()
+              .unwrap()
+              .downcast::<Label>()
+              .unwrap();
+            let encode_option = item.item()
+                .unwrap()
+                .downcast::<AudioEncodeOptionObject>()
+                .unwrap();
+            encode_option.bind_property("track-number", &label, "label")
+                .transform_to(|_binding, track_number: u8| {
+                    Some(track_number.to_string())
+                })
+                .sync_create()
+                .build();
+        });
 
         let number_column = ColumnViewColumn::builder()
             .title("No.")
@@ -220,12 +302,25 @@ impl AudioTrackFieldWidget {
 
         let source_track_factory = SignalListItemFactory::new();
         source_track_factory.connect_setup(label_column_setup);
-        source_track_factory.connect_bind(label_column_bind(|encode_option| {
-            encode_option.source_track()
+        source_track_factory.connect_bind(|_factor, obj| {
+            let item = obj
+                .downcast_ref::<ListItem>()
+                .unwrap();
+            let label = item.child()
+              .unwrap()
+              .downcast::<Label>()
+              .unwrap();
+            let encode_option = item.item()
                 .unwrap()
-                .selector_display()
-                .into()
-        }));
+                .downcast::<AudioEncodeOptionObject>()
+                .unwrap();
+            encode_option.bind_property("source-track", &label, "label")
+                .transform_to(|_binding, track: AudioTrackObject| {
+                    Some(track.selector_display())
+                })
+                .sync_create()
+                .build();
+        });
 
         let source_track_column = ColumnViewColumn::builder()
             .title("Source Track")
@@ -235,9 +330,22 @@ impl AudioTrackFieldWidget {
 
         let encoder_factory = SignalListItemFactory::new();
         encoder_factory.connect_setup(label_column_setup);
-        encoder_factory.connect_bind(label_column_bind(|encode_option| {
-            encode_option.encoder()
-        }));
+        encoder_factory.connect_bind(|_factory, obj| {
+            let item = obj
+                .downcast_ref::<ListItem>()
+                .unwrap();
+            let label = item.child()
+              .unwrap()
+              .downcast::<Label>()
+              .unwrap();
+            let encode_option = item.item()
+                .unwrap()
+                .downcast::<AudioEncodeOptionObject>()
+                .unwrap();
+            encode_option.bind_property("encoder", &label, "label")
+                .sync_create()
+                .build();
+        });
 
         let encoder_column = ColumnViewColumn::builder()
             .title("Encoder")
@@ -247,9 +355,22 @@ impl AudioTrackFieldWidget {
 
         let name_factory = SignalListItemFactory::new();
         name_factory.connect_setup(label_column_setup);
-        name_factory.connect_bind(label_column_bind(|encode_option| {
-            encode_option.name()
-        }));
+        name_factory.connect_bind(|_factor, obj| {
+            let item = obj
+                .downcast_ref::<ListItem>()
+                .unwrap();
+            let label = item.child()
+              .unwrap()
+              .downcast::<Label>()
+              .unwrap();
+            let encode_option = item.item()
+                .unwrap()
+                .downcast::<AudioEncodeOptionObject>()
+                .unwrap();
+            encode_option.bind_property("name", &label, "label")
+                .sync_create()
+                .build();
+        });
 
         let name_column = ColumnViewColumn::builder()
             .expand(true)
@@ -259,22 +380,40 @@ impl AudioTrackFieldWidget {
         column_view.append_column(&name_column);
 
         let controls_factory = SignalListItemFactory::new();
-        controls_factory.connect_setup(|_factory, obj| {
-            let controls = Box::builder()
-                .orientation(Orientation::Horizontal)
-                .build();
-            let delete_button = IconButton::builder()
-                .icon_name("fontawesome.v7.solid.trash-symbolic")
-                .danger_button()
-                .ghost_button()
-                .build();
-            controls.append(&delete_button);
-            obj.downcast_ref::<ListItem>()
-                .unwrap()
-                .set_child(Some(&controls));
-        });
-        controls_factory.connect_bind(|_factory, _obj| {
-        });
+        let this = self;
+        controls_factory.connect_setup(glib::clone!(
+            #[weak]
+            this,
+            move |_factory, obj| {
+                let controls = Box::builder()
+                    .orientation(Orientation::Horizontal)
+                    .build();
+                let delete_button = IconButton::builder()
+                    .icon_name("fontawesome.v7.solid.trash-symbolic")
+                    .danger_button()
+                    .ghost_button()
+                    .build();
+                delete_button.connect_clicked(glib::clone!(
+                    #[weak]
+                    this,
+                    #[weak]
+                    obj,
+                    move |_| {
+                        let encode_option = obj.downcast_ref::<ListItem>()
+                            .unwrap()
+                            .item()
+                            .unwrap()
+                            .downcast::<AudioEncodeOptionObject>()
+                            .unwrap();
+                        this.remove_encode_option(&encode_option);
+                    }
+                ));
+                controls.append(&delete_button);
+                obj.downcast_ref::<ListItem>()
+                    .unwrap()
+                    .set_child(Some(&controls));
+            }
+        ));
         let controls_column = ColumnViewColumn::builder()
             .title("")
             .factory(&controls_factory)
@@ -284,6 +423,24 @@ impl AudioTrackFieldWidget {
         self.encode_list.replace(Some(encode_list));
 
         column_view
+    }
+
+    /// Removes an item from the encode list.
+    fn remove_encode_option(&self, encode_option: &AudioEncodeOptionObject) {
+        let encode_list = self.encode_list
+            .borrow()
+            .clone()
+            .unwrap();
+
+        let index = encode_option.track_number() as u32 - 1;
+        encode_list.remove(index);
+
+        for (index, encode_option) in encode_list.iter::<AudioEncodeOptionObject>().enumerate() {
+            if let Ok(encode_option) = encode_option {
+                let number = (index + 1) as u8;
+                encode_option.set_track_number(number);
+            }
+        }
     }
 
     /// Resets the form fields back to default values and the selected video to `None`.
@@ -356,64 +513,6 @@ impl AudioTrackFieldWidget {
 
         self.add_track_input_changed();
     }
-
-    /// Returns `true` if the track inputs are valid and the encode list can accept additional
-    /// tracks or `false` otherwise.
-    fn can_add_track(&self) -> bool {
-        let Some(source_track_dropdown) = self.source_track_dropdown.borrow().clone() else {
-            return false;
-        };
-
-        let source_track_index = source_track_dropdown.selected();
-        if source_track_index == gtk::INVALID_LIST_POSITION {
-            return false;
-        }
-
-        let Some(video) = self.video.borrow().clone() else {
-            return false;
-        };
-
-        if video.get_audio_track(source_track_index).is_none() {
-            return false;
-        };
-
-        let Some(encoder_dropdown) = self.encoder_dropdown.borrow().clone() else {
-            return false;
-        };
-
-        let encoder_index = encoder_dropdown.selected();
-        if encoder_index >= gtk::INVALID_LIST_POSITION {
-            return false;
-        }
-
-        let Some(encoder_list) = self.encoder_list.borrow().clone() else {
-            return false;
-        };
-
-        if encoder_list.string(encoder_index).is_none() {
-            return false;
-        }
-
-        let Some(name_entry) = self.name_entry.borrow().clone() else {
-            return false;
-        };
-
-        // TODO: Entry should have built-in validation.
-        if name_entry.text().is_empty() {
-            return false;
-        }
-
-        true
-    }
-
-    /// Validates the track input controls and enables or disables the Add button accordingly.
-    fn add_track_input_changed(&self) {
-        let Some(add_button) = self.add_button.borrow().clone() else {
-            return;
-        };
-
-        add_button.set_sensitive(self.can_add_track());
-    }
 }
 
 #[glib::object_subclass]
@@ -435,32 +534,6 @@ impl WidgetImpl for AudioTrackFieldWidget {
 }
 
 impl BoxImpl for AudioTrackFieldWidget {
-}
-
-/// Function used as the callback when binding a column in a column view when the column contains
-/// a label.
-///
-/// # Args
-///
-/// `get_text`:  Function to call to get the desired text for the column from the provided
-/// [`AudioEncodeOptionObject`] instance.
-fn label_column_bind(
-    get_text: fn(&AudioEncodeOptionObject) -> glib::GString,
-) -> impl Fn(&SignalListItemFactory, &Object) {
-    move |_factory, obj| {
-        let item = obj
-            .downcast_ref::<ListItem>()
-            .unwrap();
-        let label = item.child()
-          .unwrap()
-          .downcast::<Label>()
-          .unwrap();
-        let encode_option = item.item()
-            .unwrap()
-            .downcast::<AudioEncodeOptionObject>()
-            .unwrap();
-        label.set_label(&get_text(&encode_option));
-    }
 }
 
 /// Function used as the callback when setting up a column in a column view when the column
