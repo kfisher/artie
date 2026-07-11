@@ -65,7 +65,9 @@ impl Window {
 
         let copy_page = CopyPageWidget::new(&context);
 
-        let transcode_page = TranscodePageWidget::new(&context);
+        let transcode_page = TranscodePageWidget::builder()
+            .context(&context)
+            .build();
 
         let catalog_page = gtk::Label::builder()
             .label("Catalog Page")

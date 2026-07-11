@@ -114,6 +114,8 @@ impl AudioTrackFieldWidget {
             &name,
         );
         encode_list.append(&item);
+
+        self.add_track_input_changed();
     }
 
     /// Builds the widget.
@@ -441,6 +443,8 @@ impl AudioTrackFieldWidget {
                 encode_option.set_track_number(number);
             }
         }
+
+        self.add_track_input_changed();
     }
 
     /// Resets the form fields back to default values and the selected video to `None`.
