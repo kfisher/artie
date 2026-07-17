@@ -13,8 +13,6 @@ use glib::{self, Object, SignalHandlerId};
 use gtk::StringList;
 use gtk::subclass::prelude::*;
 
-use crate::ui::validators::Validator;
-
 glib::wrapper! {
     pub struct DropDownWidget(ObjectSubclass<imp::DropDownWidget>)
         @extends gtk::Box,
@@ -74,9 +72,6 @@ pub struct Builder {
 
     /// List of options.
     options: Vec<String>,
-
-    /// Validator to use when validating the dropdown's current value.
-    validator: Validator,
 }
 
 impl Builder {
@@ -85,7 +80,6 @@ impl Builder {
         Self {
             label: None,
             options: Vec::default(),
-            validator: Validator::default(),
         }
     }
 
@@ -126,10 +120,6 @@ impl Builder {
             .property("label", self.label)
             .property("model", StringList::from_iter(self.options))
             .build();
-
-        let imp = obj.imp();
-        imp.set_validator(self.validator);
-
         obj
     }
 }

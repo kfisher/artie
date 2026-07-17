@@ -3,14 +3,14 @@
 
 //! Widget implementation.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use glib::{self, Properties};
 use gtk::{Align, Box, Entry, Label, Orientation};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
-use crate::ui::validators::Validator;
+use crate::ui::validators;
 
 #[derive(Default, Properties)]
 #[properties(wrapper_type = super::EntryWidget)]
@@ -19,21 +19,24 @@ pub struct EntryWidget {
     #[property(get, set)]
     pub(super) label: RefCell<Option<String>>,
 
-    /// The underlying [`Entry`] GTK widget.
-    pub(super) entry: RefCell<Entry>,
+    /// Indicates if the entry has a valid value.
+    #[property(get)]
+    is_valid: Cell<bool>,
 
-    /// Validator to use when validating the entry's current value.
-    validator: RefCell<Validator>,
+    /// The underlying [`Entry`] GTK widget.
+    pub(super) entry: RefCell<Option<Entry>>,
+
+    /// List of validation functions.
+    validators: RefCell<Vec<validators::string::Validator>>,
 }
 
 impl EntryWidget {
-    /// Set the validator used to validate the dropdown. 
+    /// Set the validation functions.
     ///
-    /// # Args
-    ///
-    /// `validator`  The new validator.
-    pub(super) fn set_validator(&self, validator: Validator) {
-        self.validator.replace(validator);
+    /// This will replace any existing validation functions. This is expected to only be called by
+    /// the widget's builder.
+    pub(super) fn set_validators(&self, validators: Vec<validators::string::Validator>) {
+        self.validators.replace(validators);
     }
 
     /// Builds the widget.
@@ -45,6 +48,17 @@ impl EntryWidget {
             .build();
         obj.append(&entry);
 
+        let this = self;
+        entry.delegate()
+            .unwrap()
+            .connect_text_notify(glib::clone!(
+                #[weak]
+                this,
+                move |_| {
+                    this.validate()
+                }
+            ));
+
         let label = Label::builder()
             .halign(Align::Start)
             .build();
@@ -55,7 +69,35 @@ impl EntryWidget {
             .build();
         obj.append(&label);
 
-        self.entry.replace(entry);
+        self.entry.replace(Some(entry));
+    }
+
+    /// Sets the validation property.
+    fn set_is_valid(&self, valid: bool) {
+        self.is_valid.set(valid);
+        self.obj().notify_is_valid();
+    }
+
+    /// Validates the entry based on the validators it was configured with.
+    fn validate(&self) {
+        let text = self.entry
+            .borrow()
+            .as_ref()
+            .map(|entry| entry.text());
+
+        let Some(text) = text else {
+            self.set_is_valid(false);
+            return;
+        };
+
+        for validate in self.validators.borrow().iter() {
+            if !validate(&text) {
+                self.set_is_valid(false);
+                return;
+            }
+        }
+
+        self.set_is_valid(true);
     }
 }
 

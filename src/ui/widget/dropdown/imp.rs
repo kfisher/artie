@@ -10,8 +10,6 @@ use gtk::{Align, Box, DropDown, Label, StringList, Orientation};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
-use crate::ui::validators::Validator;
-
 #[derive(Default, Properties)]
 #[properties(wrapper_type = super::DropDownWidget)]
 pub struct DropDownWidget {
@@ -25,21 +23,9 @@ pub struct DropDownWidget {
 
     /// The underlying [`DropDown`] GTK widget.
     pub(super) dropdown: RefCell<DropDown>,
-
-    /// Validator to use when validating the dropdown's current value.
-    pub(super) validator: RefCell<Validator>,
 }
 
 impl DropDownWidget {
-    /// Set the validator used to validate the dropdown. 
-    ///
-    /// # Args
-    ///
-    /// `validator`  The new validator.
-    pub(super) fn set_validator(&self, validator: Validator) {
-        self.validator.replace(validator);
-    }
-
     /// Builds the widget.
     fn build_ui(&self) {
         let obj = self.obj();

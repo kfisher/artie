@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 //! Widget for inputting text.
+//!
+//! This is basically a wrapper around GTK's [`gtk::Entry`] widget that adds some application
+//! specific convenience items. Use the [`Builder`] provided by [`EntryWidget::builder`] to
+//! configure and create [`EntryWidget`] instances.
 
 mod imp;
 
@@ -10,7 +14,7 @@ use glib::{self, GString, Object, SignalHandlerId};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
-use crate::ui::validators::Validator;
+use crate::ui::validators;
 
 glib::wrapper! {
     pub struct EntryWidget(ObjectSubclass<imp::EntryWidget>)
@@ -29,10 +33,6 @@ impl EntryWidget {
     }
 
     /// Connect to the notification signal emitted when the entry's text changes.
-    ///
-    /// # Args
-    ///
-    /// `f`:  The function to call when the entry's text changes.
     pub fn connect_text_notify<F>(&self, f: F) -> SignalHandlerId
     where
         F: Fn(&Self) + 'static
@@ -40,6 +40,8 @@ impl EntryWidget {
         let this = self;
         self.imp().entry
             .borrow()
+            .as_ref()
+            .unwrap()
             .delegate()
             .unwrap()
             .connect_text_notify(glib::clone!(
@@ -55,17 +57,17 @@ impl EntryWidget {
     pub fn text(&self) -> GString {
         self.imp().entry
             .borrow()
+            .as_ref()
+            .unwrap()
             .text()
     }
 
     /// Set the entry's text.
-    ///
-    /// # Args
-    ///
-    /// `text`:  The new value for the entry's text.
     pub fn set_text(&self, text: &str) {
         self.imp().entry
             .borrow()
+            .as_ref()
+            .unwrap()
             .set_text(text);
     }
 }
@@ -81,8 +83,8 @@ pub struct Builder {
     /// The entry's label.
     label: Option<String>,
 
-    /// Validator to use when validating the entry's current value.
-    validator: Validator,
+    /// List of validation functions.
+    validators: Vec<validators::string::Validator>,
 }
 
 impl Builder {
@@ -90,24 +92,31 @@ impl Builder {
     fn new() -> Self {
         Self {
             label: None,
-            validator: Validator::default(),
+            validators: Vec::default(),
         }
     }
 
     /// Set the label for the entry.
-    ///
-    /// # Args
-    ///
-    /// `label`  The dropdown's label.
     pub fn label(mut self, label: &str) -> Self {
         self.label = Some(label.to_owned());
         self
     }
 
+    /// Configures the entry so that it cannot be considered valid if its empty or only contains
+    /// whitespace.
+    pub fn not_empty(mut self) -> Self {
+        self.validators.push(validators::string::not_empty_or_only_whitespace);
+        self
+    }
+
     /// Build a [`EntryWidget`] instance based off the parameters provided to the builder.
     pub fn build(self) -> EntryWidget {
-        Object::builder()
+        let obj: EntryWidget = Object::builder()
             .property("label", self.label)
-            .build()
+            .build();
+
+        obj.imp().set_validators(self.validators);
+
+        obj
     }
 }
