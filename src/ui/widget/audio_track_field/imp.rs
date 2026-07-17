@@ -154,7 +154,7 @@ impl AudioTrackFieldWidget {
             .label("Encoder")
             .options(handbrake::audio_encoders())
             .build();
-        encoder_dropdown.set_width_request(224);
+        encoder_dropdown.set_width_request(100);
         controls.append(&encoder_dropdown);
 
         let this = self;

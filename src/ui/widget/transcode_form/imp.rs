@@ -14,7 +14,12 @@ use gtk::subclass::prelude::*;
 use handbrake;
 
 use crate::ui::data::VideoObject;
-use crate::ui::widget::{AudioTrackFieldWidget, DropDownWidget, IconButton};
+use crate::ui::widget::{
+    AudioTrackFieldWidget,
+    DropDownWidget,
+    IconButton,
+    SubtitleTrackFieldWidget
+};
 
 #[derive(Default, Properties)]
 #[properties(wrapper_type = super::TranscodeFormWidget)]
@@ -38,6 +43,9 @@ pub struct TranscodeFormWidget {
 
     /// Widget used for configuring the audio tracks for the transcode.
     pub(super) audio_track_input: RefCell<Option<AudioTrackFieldWidget>>,
+
+    /// Widget used for configuring the subtitle tracks for the transcode.
+    pub(super) subtitle_track_input: RefCell<Option<SubtitleTrackFieldWidget>>,
 }
 
 impl TranscodeFormWidget {
@@ -67,20 +75,33 @@ impl TranscodeFormWidget {
         column_0.add_css_class("column");
         row_1.append(&column_0);
 
+        let header = Label::builder()
+            .label("Audio")
+            .build();
+        header.add_css_class("header");
+
         let column_1 = Box::builder()
             .hexpand(true)
             .orientation(Orientation::Vertical)
             .spacing(8)
             .build();
+        column_1.append(&header);
         column_1.append(&self.create_audio_track_field());
         column_1.add_css_class("column");
         row_1.append(&column_1);
+
+        let header = Label::builder()
+            .label("Subtitles")
+            .build();
+        header.add_css_class("header");
 
         let column_2 = Box::builder()
             .hexpand(true)
             .orientation(Orientation::Vertical)
             .spacing(8)
             .build();
+        column_2.append(&header);
+        column_2.append(&self.create_subtitle_track_field());
         column_2.add_css_class("column");
         row_1.append(&column_2);
 
@@ -147,6 +168,28 @@ impl TranscodeFormWidget {
         widget
     }
 
+    fn create_subtitle_track_field(&self) -> SubtitleTrackFieldWidget {
+        let widget = SubtitleTrackFieldWidget::builder()
+            .build();
+
+        self.obj().bind_property("video", &widget, "video")
+            .sync_create()
+            .build();
+
+        let this = self;
+        widget.connect_is_valid_notify(glib::clone!(
+            #[weak]
+            this,
+            move |_| {
+                this.update_can_queue();
+            }
+        ));
+
+        self.subtitle_track_input.replace(Some(widget.clone()));
+
+        widget
+    }
+
     /// Creates the footer for the transcode form.
     fn create_footer(&self) -> Box {
         let footer = Box::builder()
@@ -155,6 +198,9 @@ impl TranscodeFormWidget {
             .orientation(Orientation::Horizontal)
             .build();
         footer.add_css_class("footer");
+
+        // TODO: The delete, archive, and catalog functionality should be added to a More style
+        //       dropdown button.
 
         // let delete_button = IconButton::builder()
         //     .icon_name("fontawesome.v7.solid.trash")
@@ -198,12 +244,10 @@ impl TranscodeFormWidget {
     }
 
     /// Setter for the active video.
-    ///
-    /// # Args
-    ///
-    /// `video`:  The newly selected video. If `Some`, the form will be updated to reflect the
-    /// provided video. If `None`, the form's values will be reset back to default. In both cases,
-    /// any user provided changes will be reset.
+    /// 
+    /// If `video` is `Some` the form will be updated to reflect the provided video. If `None`, the
+    /// form's values will be reset back to default. In both cases, any user provided changes will
+    /// be reset.
     fn set_video(&self, video: Option<VideoObject>) {
         self.video.replace(video);
         self.update_can_queue();
