@@ -7,14 +7,14 @@ use std::cell::RefCell;
 
 use glib::{self, Properties};
 
-use gtk::{Box, Orientation};
+use gtk::{Box, Label, Orientation};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
 use handbrake;
 
 use crate::ui::data::VideoObject;
-use crate::ui::widget::{AudioTrackFieldWidget, DropDownWidget};
+use crate::ui::widget::{AudioTrackFieldWidget, DropDownWidget, IconButton};
 
 #[derive(Default, Properties)]
 #[properties(wrapper_type = super::TranscodeFormWidget)]
@@ -34,29 +34,51 @@ impl TranscodeFormWidget {
     /// Builds the widget.
     fn build_ui(&self) {
         let obj = self.obj();
-        obj.set_spacing(8);
+        obj.set_hexpand(true);
+        obj.set_orientation(Orientation::Vertical);
         obj.add_css_class("transcode-form-widget");
 
+        let row_0 = self.create_header();
+        obj.append(&row_0);
+
+        let row_1 = Box::builder()
+            .orientation(Orientation::Horizontal)
+            .spacing(8)
+            .build();
+        obj.append(&row_1);
+
         let column_0 = Box::builder()
-            .hexpand(false)
+            .hexpand(true)
             .orientation(Orientation::Vertical)
             .spacing(8)
             .build();
         column_0.append(&self.create_preset_field());
         column_0.append(&self.create_video_encoder_field());
         column_0.add_css_class("column");
-        obj.append(&column_0);
+        row_1.append(&column_0);
 
         let column_1 = Box::builder()
-            .hexpand(false)
+            .hexpand(true)
             .orientation(Orientation::Vertical)
             .spacing(8)
             .build();
         column_1.append(&self.create_audio_track_field());
         column_1.add_css_class("column");
-        obj.append(&column_1);
+        row_1.append(&column_1);
+
+        let column_2 = Box::builder()
+            .hexpand(true)
+            .orientation(Orientation::Vertical)
+            .spacing(8)
+            .build();
+        column_2.add_css_class("column");
+        row_1.append(&column_2);
+
+        let row_2 = self.create_footer();
+        obj.append(&row_2);
     }
 
+    /// Creates the widget used for editing audio tracks.
     fn create_audio_track_field(&self) -> AudioTrackFieldWidget {
         let widget = AudioTrackFieldWidget::builder()
             .build();
@@ -66,6 +88,60 @@ impl TranscodeFormWidget {
             .build();
 
         widget
+    }
+
+    /// Creates the footer for the transcode form.
+    fn create_footer(&self) -> Box {
+        let footer = Box::builder()
+            .hexpand(true)
+            .spacing(8)
+            .orientation(Orientation::Horizontal)
+            .build();
+        footer.add_css_class("footer");
+
+        // let delete_button = IconButton::builder()
+        //     .icon_name("fontawesome.v7.solid.trash")
+        //     .label("Delete Video")
+        //     .danger_button()
+        //     .build();
+        // footer.append(&delete_button);
+
+        let spacer = Box::builder()
+            .hexpand(true)
+            .orientation(Orientation::Horizontal)
+            .build();
+        footer.append(&spacer);
+
+        // let archive_button = IconButton::builder()
+        //     .icon_name("fontawesome.v7.solid.archive")
+        //     .label("Archive Video")
+        //     .build();
+        // footer.append(&archive_button);
+
+        let queue_button = IconButton::builder()
+            .icon_name("fontawesome.v7.solid.film")
+            .label("Queue Transcode")
+            .secondary_button()
+            .build();
+        footer.append(&queue_button);
+
+        footer
+    }
+
+    /// Creates the header for the transcode form.
+    fn create_header(&self) -> Box {
+        let header = Box::builder()
+            .orientation(Orientation::Horizontal)
+            .build();
+        header.add_css_class("header");
+
+        let title = Label::builder()
+            .hexpand(true)
+            .label("Transcode")
+            .build();
+        header.append(&title);
+
+        header
     }
 
     /// Create the field for selecting the HandBrake preset.

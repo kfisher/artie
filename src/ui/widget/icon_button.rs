@@ -142,6 +142,12 @@ impl Builder {
         self
     }
 
+    /// Configure the button using the success color style.
+    pub fn success_button(mut self) -> Self {
+        self.css_class = String::from("success");
+        self
+    }
+
     /// Set the icon-name for the button.
     ///
     /// # Args

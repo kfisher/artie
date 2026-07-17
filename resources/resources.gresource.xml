@@ -3,12 +3,14 @@
     <gresource prefix="/org/example/artie">
         <file>css/app.css</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.regular.closed-captioning-symbolic.svg</file>
+        <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.archive-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.ban-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.circle-check-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.closed-captioning-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.compact-disc-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.exclamation-triangle-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.file-import-symbolic.svg</file>
+        <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.film-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.filter-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.lock-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.pause-symbolic.svg</file>
