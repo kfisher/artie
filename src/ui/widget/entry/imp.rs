@@ -74,8 +74,10 @@ impl EntryWidget {
 
     /// Sets the validation property.
     fn set_is_valid(&self, valid: bool) {
-        self.is_valid.set(valid);
-        self.obj().notify_is_valid();
+        if self.is_valid.get() != valid {
+            self.is_valid.set(valid);
+            self.obj().notify_is_valid();
+        }
     }
 
     /// Validates the entry based on the validators it was configured with.

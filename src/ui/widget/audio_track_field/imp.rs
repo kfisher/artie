@@ -3,7 +3,7 @@
 
 //! Widget implementation.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use gio::ListStore;
 use glib::{self, Object, Properties};
@@ -15,7 +15,9 @@ use gtk::{
     Label,
     ListItem,
     NoSelection,
+    PolicyType,
     Orientation,
+    ScrolledWindow,
     SignalListItemFactory,
     StringList,
 };
@@ -27,12 +29,22 @@ use handbrake;
 use crate::ui::data::{AudioTrackObject, AudioEncodeOptionObject, VideoObject};
 use crate::ui::widget::{EntryWidget, DropDownWidget, IconButton};
 
+/// The maximum number of audio tracks that can be added.
+///
+/// This isn't based on limits from HandBrake or any video container format which may not have a
+/// limit. 100 is far greater then the number of tracks a reasonable person would want to add.
+const MAX_TRACK_COUNT: u32 = 100;
+
 #[derive(Default, Properties)]
 #[properties(wrapper_type = super::AudioTrackFieldWidget)]
 pub struct AudioTrackFieldWidget {
     /// The active video.
     #[property(get, set = Self::set_video, nullable)]
     pub(super) video: RefCell<Option<VideoObject>>,
+
+    /// Indicates if the field is valid.
+    #[property(get)]
+    pub(super) is_valid: Cell<bool>,
 
     /// The list of audio tracks that will be encoded when the video is transcoded.
     pub(super) encode_list: RefCell<Option<ListStore>>,
@@ -53,19 +65,7 @@ pub struct AudioTrackFieldWidget {
     pub(super) source_track_dropdown: RefCell<Option<DropDownWidget>>,
 }
 
-// TODO: Adding should have validation.
-// TODO: Should add controls to disable adding new tracks after a certain count is reached.
-
 impl AudioTrackFieldWidget {
-    /// Validates the track input controls and enables or disables the Add button accordingly.
-    fn add_track_input_changed(&self) {
-        let Some(add_button) = self.add_button.borrow().clone() else {
-            return;
-        };
-
-        add_button.set_sensitive(self.can_add_track());
-    }
-
     /// Callback when the Add button is clicked.
     fn add_clicked(&self) {
         let encode_list = self.encode_list
@@ -115,7 +115,7 @@ impl AudioTrackFieldWidget {
         );
         encode_list.append(&item);
 
-        self.add_track_input_changed();
+        self.validate();
     }
 
     /// Builds the widget.
@@ -128,65 +128,6 @@ impl AudioTrackFieldWidget {
         obj.append(&self.create_track_table());
     }
 
-    /// Returns `true` if the track inputs are valid and the encode list can accept additional
-    /// tracks or `false` otherwise.
-    fn can_add_track(&self) -> bool {
-        let Some(source_track_dropdown) = self.source_track_dropdown.borrow().clone() else {
-            return false;
-        };
-
-        let source_track_index = source_track_dropdown.selected();
-        if source_track_index == gtk::INVALID_LIST_POSITION {
-            return false;
-        }
-
-        let Some(video) = self.video.borrow().clone() else {
-            return false;
-        };
-
-        if video.get_audio_track(source_track_index).is_none() {
-            return false;
-        };
-
-        let Some(encoder_dropdown) = self.encoder_dropdown.borrow().clone() else {
-            return false;
-        };
-
-        let encoder_index = encoder_dropdown.selected();
-        if encoder_index >= gtk::INVALID_LIST_POSITION {
-            return false;
-        }
-
-        let Some(encoder_list) = self.encoder_list.borrow().clone() else {
-            return false;
-        };
-
-        if encoder_list.string(encoder_index).is_none() {
-            return false;
-        }
-
-        let Some(name_entry) = self.name_entry.borrow().clone() else {
-            return false;
-        };
-
-        // TODO: Entry should have built-in validation.
-        if name_entry.text().is_empty() {
-            return false;
-        }
-
-        let Some(encode_list) = self.encode_list.borrow().clone() else {
-            return false;
-        };
-
-        // TODO: Use a constant
-        if encode_list.n_items() >= 5 {
-            return false;
-        }
-
-        true
-    }
-
-
     /// Creates the controls for adding tracks to the track table.
     fn create_controls(&self) -> Box {
         let controls = Box::builder()
@@ -197,6 +138,7 @@ impl AudioTrackFieldWidget {
         let source_track_dropdown = DropDownWidget::builder()
             .label("Source Track")
             .build();
+        source_track_dropdown.set_width_request(224);
         controls.append(&source_track_dropdown);
 
         let this = self;
@@ -212,6 +154,7 @@ impl AudioTrackFieldWidget {
             .label("Encoder")
             .options(handbrake::audio_encoders())
             .build();
+        encoder_dropdown.set_width_request(224);
         controls.append(&encoder_dropdown);
 
         let this = self;
@@ -219,12 +162,14 @@ impl AudioTrackFieldWidget {
             #[weak]
             this,
             move |_| {
-                this.add_track_input_changed();
+                this.validate();
             }
         ));
 
         let name_entry = EntryWidget::builder()
             .label("Name")
+            .hexpand(true)
+            .not_empty()
             .build();
         controls.append(&name_entry);
 
@@ -233,7 +178,7 @@ impl AudioTrackFieldWidget {
             #[weak]
             this,
             move |_| {
-                this.add_track_input_changed();
+                this.validate();
             }
         ));
 
@@ -264,7 +209,7 @@ impl AudioTrackFieldWidget {
     }
 
     /// Creates the table for displaying the tracks that will be part of the transcode.
-    fn create_track_table(&self) -> ColumnView {
+    fn create_track_table(&self) -> ScrolledWindow {
         let encode_list = ListStore::new::<AudioEncodeOptionObject>();
         let selection_model = NoSelection::new(Some(encode_list.clone()));
 
@@ -272,6 +217,13 @@ impl AudioTrackFieldWidget {
             .hexpand(true)
             .vexpand(true)
             .model(&selection_model)
+            .build();
+
+        let scrolled_window = ScrolledWindow::builder()
+            .hscrollbar_policy(PolicyType::Never)
+            .vscrollbar_policy(PolicyType::Automatic)
+            .vexpand(true)
+            .child(&column_view)
             .build();
 
         let number_factory = SignalListItemFactory::new();
@@ -424,7 +376,7 @@ impl AudioTrackFieldWidget {
 
         self.encode_list.replace(Some(encode_list));
 
-        column_view
+        scrolled_window
     }
 
     /// Removes an item from the encode list.
@@ -444,7 +396,7 @@ impl AudioTrackFieldWidget {
             }
         }
 
-        self.add_track_input_changed();
+        self.validate();
     }
 
     /// Resets the form fields back to default values and the selected video to `None`.
@@ -457,13 +409,26 @@ impl AudioTrackFieldWidget {
         self.video.replace(None);
     }
 
+    /// Enables or disables the button for adding tracks.
+    fn set_add_button_enabled(&self, enabled: bool) {
+        if let Some(add_button) = self.add_button.borrow().as_ref() {
+            add_button.set_sensitive(enabled);
+        }
+    }
+
+    /// Sets the valid/invalid status of the field.
+    fn set_is_valid(&self, value: bool) {
+        if self.is_valid.get() != value {
+            self.is_valid.set(value);
+            self.obj().notify_is_valid();
+        }
+    }
+
     /// Setter for the active video.
     ///
-    /// # Args
-    ///
-    /// `video`:  The newly selected video. If `Some`, the form will be updated to reflect the
-    /// provided video. If `None`, the form's values will be reset back to default. In both cases,
-    /// any user provided changes will be reset.
+    /// If `video` is `Some`, the form will be updated to reflect the provided video. If `None`,
+    /// the form's values will be reset back to default. In both cases, any user provided changes
+    /// will be reset.
     fn set_video(&self, video: Option<VideoObject>) {
         let Some(video) = video else {
             self.reset();
@@ -487,6 +452,24 @@ impl AudioTrackFieldWidget {
             .as_ref()
             .unwrap()
             .set_model(&StringList::from_iter(audio_tracks));
+
+        self.initialize_default_audio_tracks();
+    }
+
+    /// Configures the default audio track selection for the video.
+    ///
+    /// TODO: In the current implementation, it simply clears the list. In the future, we'll want
+    ///       it to automatically select tracks based on the application settings and other factors
+    ///       like the system's language default. For example, if the system's language is French,
+    ///       we might want to select the first French track by default.
+    fn initialize_default_audio_tracks(&self) {
+        let Some(encode_list) = self.encode_list.borrow().clone() else {
+            return;
+        };
+
+        encode_list.remove_all();
+
+        self.validate();
     }
 
     /// Callback when the selected source track changes.
@@ -515,7 +498,91 @@ impl AudioTrackFieldWidget {
             .unwrap()
             .set_text(&text);
 
-        self.add_track_input_changed();
+        self.validate();
+    }
+
+    /// Updates the "is-valid" property based on the current values of the field.
+    ///
+    /// This will also enable/disable the Add button.
+    fn validate(&self) {
+        let Some(source_track_dropdown) = self.source_track_dropdown.borrow().clone() else {
+            self.set_add_button_enabled(false);
+            self.set_is_valid(false);
+            return;
+        };
+
+        let source_track_index = source_track_dropdown.selected();
+        if source_track_index == gtk::INVALID_LIST_POSITION {
+            self.set_add_button_enabled(false);
+            self.set_is_valid(false);
+            return;
+        }
+
+        let Some(video) = self.video.borrow().clone() else {
+            self.set_add_button_enabled(false);
+            self.set_is_valid(false);
+            return;
+        };
+
+        if video.get_audio_track(source_track_index).is_none() {
+            self.set_add_button_enabled(false);
+            self.set_is_valid(false);
+            return;
+        };
+
+        let Some(encoder_dropdown) = self.encoder_dropdown.borrow().clone() else {
+            self.set_add_button_enabled(false);
+            self.set_is_valid(false);
+            return;
+        };
+
+        let encoder_index = encoder_dropdown.selected();
+        if encoder_index >= gtk::INVALID_LIST_POSITION {
+            self.set_add_button_enabled(false);
+            self.set_is_valid(false);
+            return;
+        }
+
+        let Some(encoder_list) = self.encoder_list.borrow().clone() else {
+            self.set_add_button_enabled(false);
+            self.set_is_valid(false);
+            return;
+        };
+
+        if encoder_list.string(encoder_index).is_none() {
+            self.set_add_button_enabled(false);
+            self.set_is_valid(false);
+            return;
+        }
+
+        let Some(name_entry) = self.name_entry.borrow().clone() else {
+            self.set_add_button_enabled(false);
+            self.set_is_valid(false);
+            return;
+        };
+
+        let Some(encode_list) = self.encode_list.borrow().clone() else {
+            self.set_add_button_enabled(false);
+            self.set_is_valid(false);
+            return;
+        };
+
+        let mut add_button_enabled = true;
+        let mut is_valid = true;
+
+        if !name_entry.is_valid() {
+            add_button_enabled = false;
+        }
+
+        let encode_track_count = encode_list.n_items();
+        if encode_track_count == 0 {
+            is_valid = false;
+        } else if encode_track_count >= MAX_TRACK_COUNT {
+            add_button_enabled = false;
+        }
+
+        self.set_add_button_enabled(add_button_enabled);
+        self.set_is_valid(is_valid);
     }
 }
 
@@ -543,11 +610,7 @@ impl BoxImpl for AudioTrackFieldWidget {
 /// Function used as the callback when setting up a column in a column view when the column
 /// contains a label.
 ///
-/// # Args
-///
-/// `factory`:  The factory instance. 
-///
-/// `obj`:  The [`ListItem`] object associated with the column.
+/// `factory` is unused and `obj` is expected to be a [`ListItem`] object.
 fn label_column_setup(_factory: &SignalListItemFactory, obj: &Object) {
     let label = Label::builder()
         .halign(Align::Start)

@@ -85,6 +85,9 @@ pub struct Builder {
 
     /// List of validation functions.
     validators: Vec<validators::string::Validator>,
+
+    /// If true, the entry will be set to expand horizontally.
+    hexpand: bool,
 }
 
 impl Builder {
@@ -93,7 +96,14 @@ impl Builder {
         Self {
             label: None,
             validators: Vec::default(),
+            hexpand: false,
         }
+    }
+
+    /// Indicate if the entry should expand the entire available horizontal space (default: false).
+    pub fn hexpand(mut self, expand: bool) -> Self {
+        self.hexpand = expand;
+        self
     }
 
     /// Set the label for the entry.
@@ -113,9 +123,11 @@ impl Builder {
     pub fn build(self) -> EntryWidget {
         let obj: EntryWidget = Object::builder()
             .property("label", self.label)
+            .property("hexpand", self.hexpand)
             .build();
 
-        obj.imp().set_validators(self.validators);
+        let imp = obj.imp();
+        imp.set_validators(self.validators);
 
         obj
     }
