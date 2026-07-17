@@ -4,14 +4,15 @@
 //! Custom UI widgets.
 
 mod audio_track_field;
-mod dropdown;
-mod entry;
 mod copy_form;
 mod copy_page;
 mod drive;
+mod dropdown;
 mod dual_icon_toggle_button;
+mod entry;
 mod icon_button;
 mod icon_toggle_button;
+mod subtitle_track_field;
 mod title_form;
 mod transcode_form;
 mod transcode_list;
@@ -31,6 +32,7 @@ pub use dual_icon_toggle_button::DuelIconToggleButton;
 pub use entry::EntryWidget;
 pub use icon_button::IconButton;
 pub use icon_toggle_button::IconToggleButton;
+pub use subtitle_track_field::SubtitleTrackFieldWidget;
 pub use title_form::TitleFormWidget;
 pub use transcode_form::TranscodeFormWidget;
 pub use transcode_list::TranscodeListWidget;
