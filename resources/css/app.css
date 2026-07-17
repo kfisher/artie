@@ -515,6 +515,23 @@ scale:disabled > trough > slider {
     opacity: 75%;
 }
 
+scrollbar > range > trough {
+    background-color: transparent;
+    background-color: var(--color-surface-2-base);
+    opacity: 50%;
+}
+
+scrollbar > range > trough:hover {
+    opacity: 100%;
+}
+
+scrollbar > range > trough > slider {
+    background-color: var(--color-secondary-base);
+    border: 0px solid var(--color-surface-2-border);
+    min-width: 8px;
+    border-radius: var(--border-radius);
+}
+
 window.background {
   background-color: var(--color-surface-0-base);
 }
