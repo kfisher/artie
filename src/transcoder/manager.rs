@@ -4,13 +4,17 @@
 //! TODO
 
 use crate::{Mode, Result};
-use crate::actor;
+use crate::actor::{self, Response};
 use crate::bus;
-use crate::transcode::{Handle, Message};
+use crate::transcoder::{Handle, Message};
 
 /// Requests for the transcode manager.
 #[derive(Debug)]
 pub enum ManagerRequest {
+    /// Get list of identifiers for each transcoder.
+    GetTranscoders {
+        response: Response<Vec<String>>,
+    },
 }
 
 pub fn init(bus: &bus::Handle, mode: Mode) -> Result<Handle> {
@@ -36,10 +40,10 @@ impl MessageProcessor {
 impl actor::MessageProcessor<Message> for MessageProcessor {
     async fn process(&mut self, msg: Message) -> Result<()> {
         match msg {
-            Message::Actor { hostname: _, request: _ } => {
+            Message::Manager { request: _ } => {
                 todo!()
             },
-            Message::Manager { request: _ } => {
+            Message::Transcoder { id: _, request: _ } => {
                 todo!()
             },
         }

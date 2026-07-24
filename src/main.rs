@@ -14,7 +14,7 @@ mod path;
 mod models;
 mod settings;
 mod task;
-mod transcode;
+mod transcoder;
 mod ui;
 mod utilities;
 
@@ -104,7 +104,7 @@ fn main() -> Result<()> {
 
     let drive_mgr = drive::init(&bus, mode)?;
 
-    let transcode_mgr = transcode::init(&bus, mode)?;
+    let transcoder_mgr = transcoder::init(&bus, mode)?;
 
     let net = if mode == Mode::Control {
         client::manager::init(&bus, &settings.net)
@@ -113,7 +113,7 @@ fn main() -> Result<()> {
     };
 
     // Start the message bus processing task.
-    let join_handle = bus::init_processor(db, drive_mgr, transcode_mgr, net, bus_recv);
+    let join_handle = bus::init_processor(db, drive_mgr, transcoder_mgr, net, bus_recv);
 
     // TODO: Eventually, we will want to use feature flags so that we can compile a version without
     //       the UI all together.

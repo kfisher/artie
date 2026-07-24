@@ -13,7 +13,7 @@ use crate::db;
 use crate::drive;
 use crate::net;
 use crate::task;
-use crate::transcode;
+use crate::transcoder;
 use crate::ui;
 
 /// Handle used to communicate with the message bus.
@@ -35,7 +35,7 @@ pub enum Message {
     Net(net::Message),
 
     /// Messages for sending requests to a transcode actor.
-    Transcode(transcode::Message),
+    Transcode(transcoder::Message),
 
     /// Messages for sending requests to the UI.
     UI(ui::Message),
@@ -59,8 +59,8 @@ impl From<net::Message> for Message {
     }
 }
 
-impl From<transcode::Message> for Message {
-    fn from(value: transcode::Message) -> Self {
+impl From<transcoder::Message> for Message {
+    fn from(value: transcoder::Message) -> Self {
         Message::Transcode(value)
     }
 }
@@ -81,11 +81,11 @@ pub fn init_channel() -> (Handle, Receiver<Message>) {
 pub fn init_processor(
     db: Option<db::Handle>,
     drive_mgr: drive::Handle,
-    transcode_mgr: transcode::Handle,
+    transcoder_mgr: transcoder::Handle,
     net: net::Handle,
     bus_recv: Receiver<Message>,
 ) -> JoinHandle<()> {
-    let msg_processor = MessageBus::new(db, drive_mgr, transcode_mgr, net);
+    let msg_processor = MessageBus::new(db, drive_mgr, transcoder_mgr, net);
     let actor = Actor::new("message bus", bus_recv, msg_processor);
 
     // Unlike other actors, return the JoinHandle so that headless mode (no GUI) has something to
@@ -119,7 +119,7 @@ struct MessageBus {
     /// Handle used to send messages to the transcode actors and manager.
     ///
     /// All [`Message::Transcode`] messages will be forwarded to this handle.
-    transcode_mgr: transcode::Handle,
+    transcoder_mgr: transcoder::Handle,
 }
 
 impl MessageBus {
@@ -129,10 +129,10 @@ impl MessageBus {
     fn new(
         db: Option<db::Handle>,
         drive_mgr: drive::Handle,
-        transcode_mgr: transcode::Handle,
+        transcode_mgr: transcoder::Handle,
         net: net::Handle,
     ) -> Self {
-        Self { db, drive_mgr, transcode_mgr, net }
+        Self { db, drive_mgr, transcoder_mgr: transcode_mgr, net }
     }
 }
 
