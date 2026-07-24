@@ -6,6 +6,8 @@
 //! [`ContextObject`] provides application data for the UI such as the application mode and handle
 //! for interfacing with the message bus.
 
+mod imp;
+
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -17,7 +19,7 @@ use gtk::subclass::prelude::*;
 use crate::Mode;
 use crate::bus::Handle;
 use crate::drive::{self, OpticalDrive};
-use crate::ui::data::OpticalDriveObject;
+use crate::ui::data::{OpticalDriveObject, TranscoderObject};
 
 glib::wrapper! {
     pub struct ContextObject(ObjectSubclass<imp::ContextObject>);
@@ -31,16 +33,22 @@ impl ContextObject {
 
         let drive_store = ListStore::new::<OpticalDriveObject>();
 
+        let transcoder_store = ListStore::new::<TranscoderObject>();
+
         let imp = obj.imp();
         imp.bus.replace(Some(bus.clone()));
         imp.drive_store.replace(Some(drive_store.clone()));
+        imp.transcoder_store.replace(Some(transcoder_store.clone()));
 
         glib::spawn_future_local(glib::clone!(
             #[weak]
             drive_store,
             async move {
                 loop {
-                    update_drive_status(&bus, &drive_store).await;
+                    tokio::join!(
+                        update_drive_status(&bus, &drive_store),
+                        update_transcoder_status(&bus, &transcoder_store),
+                    );
                     glib::timeout_future(Duration::from_millis(33)).await;
                 }
             }
@@ -54,10 +62,16 @@ impl ContextObject {
         self.imp().bus.borrow().clone()
     }
 
-    /// Returns list of [`crate::ui::data::OpticalDriveObject`] instances containing the optical
-    /// drive data.
+    /// Returns list of [`OpticalDriveObject`] instances.
     pub fn drive_store(&self) -> Option<ListStore> {
         self.imp().drive_store
+            .borrow()
+            .clone()
+    }
+
+    /// Returns list of [`TranscoderObject`] instances.
+    pub fn transcoder_store(&self) -> Option<ListStore> {
+        self.imp().transcoder_store
             .borrow()
             .clone()
     }
@@ -67,14 +81,6 @@ impl ContextObject {
 //       probably doesn't make a big difference in the grand scheme of things.
 
 /// Update the status of all optical drives in the UI.
-///
-/// # Args
-///
-/// `bus`:  Handle used to send messages to other actors via the message bus.
-///
-/// `store`:  The list store containing the optical drive objects. This will updated to reflect the
-/// current drive status. This includes adding and removing drives that have been added or removed
-/// to the drive manager.
 async fn update_drive_status(bus: &Handle, store: &ListStore) {
     let serial_numbers = match drive::get_drives(bus).await {
         Ok(serial_numbers) => serial_numbers,
@@ -95,16 +101,6 @@ async fn update_drive_status(bus: &Handle, store: &ListStore) {
 }
 
 /// Update the drive store.
-///
-/// # Args
-///
-/// `bus`:  Handle used to send messages to other actors via the message bus.
-///
-/// `store`:  The list store containing the optical drive objects. This will updated to reflect the
-/// current drive status. This includes adding and removing drives that have been added or removed
-/// to the drive manager.
-///
-/// `drives`:  The drive data to use to update the drive store.
 fn update_drive_store(bus: &Handle, store: &ListStore, drives: Vec<OpticalDrive>) {
     let drive_map: HashMap<&String, &OpticalDrive> = drives
         .iter()
@@ -160,43 +156,15 @@ fn update_drive_store(bus: &Handle, store: &ListStore, drives: Vec<OpticalDrive>
     }
 }
 
-mod imp {
-    use std::cell::{Cell, RefCell};
-
-    use gtk::glib::{self, Properties};
-    use gtk::gio::ListStore;
-    use gtk::prelude::*;
-    use gtk::subclass::prelude::*;
-
-    use crate::bus::Handle;
-
-    #[derive(Default, Properties)]
-    #[properties(wrapper_type = super::ContextObject)]
-    pub struct ContextObject {
-        /// List of [`crate::ui::data::OpticalDriveObject`] instances containing the optical
-        /// drive data.
-        pub(super) drive_store: RefCell<Option<ListStore>>,
-
-        /// Indicates if the application instance is a worker node.
-        #[property(name = "is-worker", get, set, type = bool, construct_only)]
-        pub(super) is_worker: Cell<bool>,
-
-        /// Message bus for sending requests to the various application actors.
-        pub(super) bus: RefCell<Option<Handle>>,
+/// Update the status of all transcoders in the UI.
+async fn update_transcoder_status(_bus: &Handle, store: &ListStore) {
+    // TODO: Hard code a few instances for the purposes of setting up the UI.
+    if store.n_items() != 0 {
+        return;
     }
 
-    #[glib::object_subclass]
-    impl ObjectSubclass for ContextObject {
-        const NAME: &'static str = "ContextObject";
-        type Type = super::ContextObject;
-    }
-
-    #[glib::derived_properties]
-    impl ObjectImpl for ContextObject {
-    }
+    store.append(&TranscoderObject::new("1"));
+    store.append(&TranscoderObject::new("2"));
+    store.append(&TranscoderObject::new("3"));
 }
 
-#[cfg(test)]
-mod tests {
-    // TODO[TESTS]
-}
