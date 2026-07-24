@@ -13,6 +13,7 @@ use crate::db;
 use crate::drive;
 use crate::net;
 use crate::task;
+use crate::transcode;
 use crate::ui;
 
 /// Handle used to communicate with the message bus.
@@ -32,6 +33,9 @@ pub enum Message {
 
     /// Messages for sending requests to a client or server actor.
     Net(net::Message),
+
+    /// Messages for sending requests to a transcode actor.
+    Transcode(transcode::Message),
 
     /// Messages for sending requests to the UI.
     UI(ui::Message),
@@ -55,6 +59,12 @@ impl From<net::Message> for Message {
     }
 }
 
+impl From<transcode::Message> for Message {
+    fn from(value: transcode::Message) -> Self {
+        Message::Transcode(value)
+    }
+}
+
 /// Create's the channel used to send messages to the message bus.
 ///
 /// This will return both the transmission (as a handle) and receiving end of the channel. The
@@ -67,24 +77,15 @@ pub fn init_channel() -> (Handle, Receiver<Message>) {
 /// Create's the message processor for the message bus and start its processing task so it can
 /// begin handling requests.
 ///
-/// # Args
-///
-/// `db`:  Handle used to send messages to the database actor. Expected to be `Some` on the control
-/// node and `None` on the worker node.
-///
-/// `drive_mgr`:  Handle used to send messages to the drive manager actor and drive actors.
-///
-/// `bus_send`:  The transmission end of the message bus communication channel.
-///
-/// `net`:  Handle used to send messages to a client or server actor. Which depends on the mode the
-/// application is running in.
+/// `db` is expected to be `Some` on the control node and `None` on the worker node.
 pub fn init_processor(
     db: Option<db::Handle>,
     drive_mgr: drive::Handle,
+    transcode_mgr: transcode::Handle,
     net: net::Handle,
     bus_recv: Receiver<Message>,
 ) -> JoinHandle<()> {
-    let msg_processor = MessageBus::new(db, drive_mgr, net);
+    let msg_processor = MessageBus::new(db, drive_mgr, transcode_mgr, net);
     let actor = Actor::new("message bus", bus_recv, msg_processor);
 
     // Unlike other actors, return the JoinHandle so that headless mode (no GUI) has something to
@@ -114,21 +115,24 @@ struct MessageBus {
     ///
     /// All [`Message::Net`] messages will be forwarded to this handle.
     net: net::Handle,
+
+    /// Handle used to send messages to the transcode actors and manager.
+    ///
+    /// All [`Message::Transcode`] messages will be forwarded to this handle.
+    transcode_mgr: transcode::Handle,
 }
 
 impl MessageBus {
     /// Creates a new instance of the message bus.
     ///
-    /// # Args
-    ///
-    /// `db`:  Handle used to send messages to the database actor. Expected to be `Some` on the
-    /// control node and `None` on the worker node.
-    ///
-    /// `drive_mgr`:  Handle used to send messages to the drive manager actor.
-    ///
-    /// `net`:  Handle used to send messages to a client or server actor.
-    fn new(db: Option<db::Handle>, drive_mgr: drive::Handle, net: net::Handle) -> Self {
-        Self { db, drive_mgr, net }
+    /// `db` is expected to be `Some` on the control node and `None` on the worker node.
+    fn new(
+        db: Option<db::Handle>,
+        drive_mgr: drive::Handle,
+        transcode_mgr: transcode::Handle,
+        net: net::Handle,
+    ) -> Self {
+        Self { db, drive_mgr, transcode_mgr, net }
     }
 }
 
@@ -150,6 +154,9 @@ impl actor::MessageProcessor<Message> for MessageBus {
             },
             Message::Net(msg) => {
                 self.net.send(msg).await
+            },
+            Message::Transcode(_) => {
+                Ok(())
             },
             Message::UI(_) => Ok(()),
         }
