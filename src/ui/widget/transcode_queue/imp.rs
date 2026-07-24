@@ -3,18 +3,26 @@
 
 //! Widget implementation.
 
+use std::cell::RefCell;
+
 use glib::{self, Properties};
 
 use gtk::{Box, Orientation};
 use gtk::prelude::*;
 use gtk::subclass::prelude::*;
 
+use crate::ui::ContextObject;
+
 #[derive(Default, Properties)]
 #[properties(wrapper_type = super::TranscodeQueueWidget)]
 pub struct TranscodeQueueWidget {
+    /// The application context.
+    #[property(get, construct_only)]
+    pub(super) context: RefCell<Option<ContextObject>>,
 }
 
 impl TranscodeQueueWidget {
+    /// TODO
     fn build_ui(&self) {
         let obj = self.obj();
         obj.set_hexpand(false);

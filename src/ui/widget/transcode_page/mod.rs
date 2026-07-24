@@ -49,10 +49,6 @@ impl Builder {
     }
 
     /// Set the application context.
-    ///
-    /// # Args
-    ///
-    /// `context`:  The application context fo the UI.
     pub fn context(mut self, context: &ContextObject) -> Self {
         self.context = Some(context.clone());
         self
