@@ -124,7 +124,8 @@ impl TranscodePageWidget {
 
     /// Create the transcode queue section (right column) of the transcode page.
     fn create_transcode_queue(&self) -> TranscodeQueueWidget {
-        let transcode_queue = TranscodeQueueWidget::new();
+        let transcode_queue = TranscodeQueueWidget::builder()
+            .build();
         transcode_queue
     }
 
