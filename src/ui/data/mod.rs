@@ -3,16 +3,17 @@
 
 //! General (non-widget) GLib objects.
 
-mod audio_track;
 mod audio_encode_option;
+mod audio_track;
 mod enums;
 mod optical_drive;
 mod subtitle_track;
 mod title;
+mod title_form;
 mod track_preview;
+mod transcoder;
 mod video;
 mod video_track;
-mod title_form;
 
 pub use audio_track::AudioTrackObject;
 pub use audio_encode_option::AudioEncodeOptionObject;
