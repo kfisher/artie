@@ -3,6 +3,8 @@
     <gresource prefix="/org/example/artie">
         <file>css/app.css</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.regular.closed-captioning-symbolic.svg</file>
+        <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.angle-down-symbolic.svg</file>
+        <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.angle-up-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.archive-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.ban-symbolic.svg</file>
         <file preprocess="xml-stripblanks">icons/scalable/status/fontawesome.v7.solid.circle-check-symbolic.svg</file>

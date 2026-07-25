@@ -769,3 +769,20 @@ window.background {
     background-color: var(--color-surface-3-border);
     min-width: 1px;
 }
+
+.transcoder-view {
+    background-color: var(--color-surface-1-base);
+    border-color: var(--color-surface-1-border);
+    border-radius: var(--border-radius);
+    border-style: solid;
+    border-width: 1px;
+    padding: 2px;
+}
+
+.transcoder-view .header {
+    font-weight: bold;
+}
+
+.transcoder-view .content {
+}
+
