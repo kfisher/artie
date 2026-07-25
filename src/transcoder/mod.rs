@@ -41,6 +41,11 @@ impl Message {
 
 /// TODO
 #[derive(Debug)]
+pub struct TranscodeJob {
+}
+
+/// TODO
+#[derive(Debug)]
 pub struct Transcoder {
 }
 
@@ -49,6 +54,15 @@ pub async fn get(bus: &bus::Handle, transcoder_id: &str) -> Result<Transcoder> {
     let (tx, rx) = oneshot::channel();
     let request = TranscoderRequest::GetStatus { response: tx };
     let msg = Message::Transcoder { id: transcoder_id.to_owned(), request };
+    bus.send(msg).await?;
+    rx.await?
+}
+
+/// Get the list of transcode jobs.
+pub async fn jobs(bus: &bus::Handle) -> Result<Vec<TranscodeJob>> {
+    let (tx, rx) = oneshot::channel();
+    let request = ManagerRequest::GetJobs { response: tx };
+    let msg = Message::Manager { request };
     bus.send(msg).await?;
     rx.await?
 }

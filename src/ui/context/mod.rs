@@ -19,7 +19,7 @@ use gtk::subclass::prelude::*;
 use crate::Mode;
 use crate::bus::Handle;
 use crate::drive::{self, OpticalDrive};
-use crate::ui::data::{OpticalDriveObject, TranscoderObject};
+use crate::ui::data::{OpticalDriveObject, TranscodeJobObject, TranscoderObject};
 
 glib::wrapper! {
     pub struct ContextObject(ObjectSubclass<imp::ContextObject>);
@@ -35,6 +35,8 @@ impl ContextObject {
 
         let transcoder_store = ListStore::new::<TranscoderObject>();
 
+        let transcode_job_store = ListStore::new::<TranscodeJobObject>();
+
         let imp = obj.imp();
         imp.bus.replace(Some(bus.clone()));
         imp.drive_store.replace(Some(drive_store.clone()));
@@ -43,11 +45,15 @@ impl ContextObject {
         glib::spawn_future_local(glib::clone!(
             #[weak]
             drive_store,
+            #[weak]
+            transcoder_store,
+            #[weak]
+            transcode_job_store,
             async move {
                 loop {
                     tokio::join!(
                         update_drive_status(&bus, &drive_store),
-                        update_transcoder_status(&bus, &transcoder_store),
+                        update_transcode_status(&bus, &transcoder_store, &transcode_job_store),
                     );
                     glib::timeout_future(Duration::from_millis(33)).await;
                 }
@@ -157,14 +163,21 @@ fn update_drive_store(bus: &Handle, store: &ListStore, drives: Vec<OpticalDrive>
 }
 
 /// Update the status of all transcoders in the UI.
-async fn update_transcoder_status(_bus: &Handle, store: &ListStore) {
-    // TODO: Hard code a few instances for the purposes of setting up the UI.
-    if store.n_items() != 0 {
-        return;
+async fn update_transcode_status(_bus: &Handle, transcoders: &ListStore, jobs: &ListStore) {
+    //--] // TODO: Hard code a few instances for the purposes of setting up the UI.
+
+    if transcoders.n_items() == 0 {
+        transcoders.append(&TranscoderObject::new("1"));
+        transcoders.append(&TranscoderObject::new("2"));
     }
 
-    store.append(&TranscoderObject::new("1"));
-    store.append(&TranscoderObject::new("2"));
-    store.append(&TranscoderObject::new("3"));
+    if jobs.n_items() == 0 {
+        jobs.append(&TranscodeJobObject::new());
+        jobs.append(&TranscodeJobObject::new());
+        jobs.append(&TranscodeJobObject::new());
+        jobs.append(&TranscodeJobObject::new());
+        jobs.append(&TranscodeJobObject::new());
+        jobs.append(&TranscodeJobObject::new());
+    }
 }
 

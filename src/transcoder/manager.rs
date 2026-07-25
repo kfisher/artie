@@ -6,11 +6,16 @@
 use crate::{Mode, Result};
 use crate::actor::{self, Response};
 use crate::bus;
-use crate::transcoder::{Handle, Message};
+use crate::transcoder::{Handle, Message, TranscodeJob};
 
 /// Requests for the transcode manager.
 #[derive(Debug)]
 pub enum ManagerRequest {
+    /// Get list of transcode jobs.
+    GetJobs {
+        response: Response<Vec<TranscodeJob>>,
+    },
+
     /// Get list of identifiers for each transcoder.
     GetTranscoders {
         response: Response<Vec<String>>,
